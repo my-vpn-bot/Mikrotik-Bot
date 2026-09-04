@@ -74,11 +74,10 @@ class MarzbanAPI:
         async with aiohttp.ClientSession() as session:
             headers = {"Authorization": f"Bearer {self.token}"}
             url = f"{MARZBAN_URL.rstrip('/')}/api/user"
-            # ایجاد کاربر با نام کاربری رندوم برای جلوگیری از تکرار
             user_data = {
                 "username": f"user_{username}_{int(datetime.now().timestamp())}",
-                "proxies": {"vless": {}}, # ساختار پیش‌فرض
-                "data_limit": 0 # در اینجا برای سادگی محدودیت را از خود پنل یا پلن مدیریت می‌کنیم
+                "proxies": {"vless": {}}, 
+                "data_limit": 0 
             }
             async with session.post(url, json=user_data, headers=headers) as resp:
                 if resp.status == 200:
@@ -154,7 +153,6 @@ async def handle_receipt(message: types.Message, state: FSMContext):
     plan_key = data.get("selected_plan")
     plan_name = data.get("plan_name")
     
-    # ذخیره اطلاعات سفارش در دیتابیس
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     cursor.execute("INSERT INTO orders (user_id, plan_name, status) VALUES (?, ?, ?)", 
@@ -163,7 +161,6 @@ async def handle_receipt(message: types.Message, state: FSMContext):
     conn.commit()
     conn.close()
 
-    # ارسال رسید برای ادمین جهت تایید
     admin_kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ تایید و تحویل خودکار", callback_data=f"approve_{order_id}_{message.from_user.id}_{plan_key}")],
         [InlineKeyboardButton(text="❌ رد درخواست", callback_data=f"reject_{order_id}")]
@@ -183,20 +180,16 @@ async def handle_receipt(message: types.Message, state: FSMContext):
     await message.answer("✅ رسید شما دریافت شد. پس از تایید ادمین، لینک سابسکریپشن برای شما ارسال خواهد شد.")
     await state.clear()
 
-# --- بخش تایید ادمین ---
 @dp.callback_query(F.data.startswith("approve_"))
 async def approve_order(callback: types.CallbackQuery):
-    # ساختار: approve_{order_id}_{user_id}_{plan_key}
     _, order_id, user_id, plan_key = callback.data.split("_")
     user_id = int(user_id)
     
     await callback.message.edit_caption(caption=f"✅ سفارش #{order_id} تایید شد. در حال ساخت اکانت...")
 
-    # ساخت اکانت در مرزبان
     sub_url = await marzban.create_user(str(user_id), PLANS[plan_key]['name'])
     
     if sub_url:
-        # بروزرسانی دیتابیس (در اینجا فقط تایید نمایش داده شده)
         await bot.send_message(user_id, f"🎉 تبریک! خرید شما موفقیت‌آمیز بود.\n\n🔗 **لینک سابسکریپشن شما:**\n`{sub_url}`", parse_mode="Markdown")
         await callback.message.answer(f"✅ اکانت برای کاربر {user_id} ساخته شد و لینک ارسال گردید.")
     else:
@@ -209,7 +202,6 @@ async def reject_order(callback: types.CallbackQuery):
     await callback.message.edit_caption(caption=f"❌ سفارش #{order_id} رد شد.")
     await callback.answer("درخواست رد شد.")
 
-# --- بخش تست رایگان ---
 @dp.callback_query(F.data == "free_trial")
 async def process_free_trial(callback: types.CallbackQuery, state: FSMContext):
     conn = sqlite3.connect(DB_NAME)
@@ -227,7 +219,6 @@ async def process_free_trial(callback: types.CallbackQuery, state: FSMContext):
     sub_url = await marzban.create_user(f"trial_{callback.from_user.id}", "Free Trial")
     
     if sub_url:
-        # علامت زدن استفاده از تست در دیتابیس
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         cursor.execute("INSERT OR REPLACE INTO users (user_id, username, free_trial_used) VALUES (?, ?, ?)", 
@@ -239,10 +230,11 @@ async def process_free_trial(callback: types.CallbackQuery, state: FSMContext):
     else:
         await callback.message.answer("❌ خطا در ایجاد تست رایگان. لطفا دوباره تلاش کنید.")
 
-# --- شروع به کار ربات ---
+# --- شروع به کار ربات (اصلاح شده) ---
 async def main():
     print("🚀 Bot is starting...")
-    await dp.start-polling(bot)
+    # اصلاح شد: استفاده از آندرلاین به جای خط تیره
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
     try:
