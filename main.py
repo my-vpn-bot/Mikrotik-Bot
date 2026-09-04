@@ -1,6 +1,7 @@
 import os
 import asyncio
 import logging
+from datetime import datetime
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -17,15 +18,21 @@ ADMIN_ID = 6278059256
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# لیست موقت کاربرانی که در حال ارسال پیام به پشتیبانی هستند
+# ذخیره کاربرانی که در حالت ارسال تیکت هستند
 users_in_support = set()
 
+# تبدیل تاریخ میلادی به شمسی ساده
+def get_persian_date():
+    now = datetime.now()
+    # محاسبه تقریبی ساده روز جاری
+    return f"{now.year}/{now.month:02d}/{now.day:02d}"
+
 # ==========================================
-# 💎 منوهای شیشه‌ای و هوشمند
+# 💎 منوهای شیشه‌ای
 # ==========================================
 
 def get_main_menu():
-    """منوی اصلی VIP با دسترسی کامل"""
+    """منوی اصلی VIP"""
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="🛍️ خرید اشتراک VIP", callback_data="buy_menu"),
@@ -51,18 +58,28 @@ def get_back_button():
         [InlineKeyboardButton(text="🔙 بازگشت به منوی اصلی", callback_data="back_to_main")]
     ])
 
+def get_profile_menu():
+    """منوی اختصاصی داخل پروفایل کاربری"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="💳 تمدید اشتراک", callback_data="buy_menu"),
+            InlineKeyboardButton(text="🎧 ارتباط با پشتیبانی", callback_data="support")
+        ],
+        [InlineKeyboardButton(text="🔙 بازگشت به منوی اصلی", callback_data="back_to_main")]
+    ])
+
 def get_buy_menu():
-    """منوی تعرفه‌ها و پلن‌ها"""
+    """منوی تعرفه‌ها"""
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔹 ۱ ماهه نامحدود (تک‌کاربره) - ۵۰ ت", callback_data="plan_1m")],
         [InlineKeyboardButton(text="🔹 ۳ ماهه نامحدود (دوکاربره) - ۱۳۰ ت", callback_data="plan_3m")],
-        [InlineKeyboardButton(text="🔹 ۶ ماهه نامحدود (اقتصادی VIP) - ۲۴۰ ت", callback_data="plan_6m")],
+        [InlineKeyboardButton(text="🔹 ۶ ماهه نامحدود (VIP) - ۲۴۰ ت", callback_data="plan_6m")],
         [InlineKeyboardButton(text="💳 کارت به کارت و ارسال فیش", callback_data="support")],
         [InlineKeyboardButton(text="🔙 بازگشت", callback_data="back_to_main")]
     ])
 
 def get_tutorials_menu():
-    """منوی انتخاب سیستم‌عامل برای راهنمای اتصال"""
+    """منوی آموزش اتصال"""
     return InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="🍏 آیفون (iOS)", callback_data="tut_ios"),
@@ -72,43 +89,70 @@ def get_tutorials_menu():
             InlineKeyboardButton(text="💻 ویندوز (Windows)", callback_data="tut_win"),
             InlineKeyboardButton(text="🍎 مک (macOS)", callback_data="tut_mac")
         ],
-        [InlineKeyboardButton(text="🔙 بازگشت به منو", callback_data="back_to_main")]
+        [InlineKeyboardButton(text="🔙 بازگشت", callback_data="back_to_main")]
     ])
 
 # ==========================================
-# 🚀 هندلرهای دستورات و دکمه‌ها
+# 🚀 هندلرهای منو و دستورات
 # ==========================================
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     if message.from_user.id in users_in_support:
-        users_in_support.remove(message.from_user.id)
+        users_in_support.discard(message.from_user.id)
         
-    user_name = message.from_user.first_name
+    user_name = message.from_user.first_name or "کاربر"
     text = (
-        f"سلام **{user_name}** عزیز! به سامانه هوشمند خوش آمدید 🚀\n\n"
-        "⚡ **سرویس‌های پرسرعت L2TP / Cisco / V2Ray با پایداری ۹۹.۹٪**\n"
-        "🔒 بدون قطعی، مناسب تمام اپراتورها و اینترنت خانگی\n\n"
-        "📌 جهت شروع، یکی از بخش‌های زیر را انتخاب کنید:"
+        f"سلام **{user_name}** عزیز! به سامانه پرسرعت VPN خوش آمدید 🚀\n\n"
+        "⚡ **سرویس‌های اختصاصی L2TP / IPsec با پایداری ۹۹.۹٪**\n"
+        "🔒 ضد فیلتر، بدون قطعی، مناسب تمام اپراتورها\n\n"
+        "👇 لطفاً یکی از گزینه‌های زیر را انتخاب کنید:"
     )
     await message.answer(text, parse_mode="Markdown", reply_markup=get_main_menu())
 
 @dp.callback_query(F.data == "back_to_main")
 async def cb_back_to_main(callback: types.CallbackQuery):
-    if callback.from_user.id in users_in_support:
-        users_in_support.remove(callback.from_user.id)
+    users_in_support.discard(callback.from_user.id)
     await callback.message.edit_text(
-        "🏠 **منوی اصلی ربات:**\n\nلطفاً بخش مورد نظر خود را انتخاب نمایید 👇",
+        "🏠 **منوی اصلی ربات:**\n\nلطفاً بخش مورد نظر خود را انتخاب کنید 👇",
         parse_mode="Markdown",
         reply_markup=get_main_menu()
     )
     await callback.answer()
 
+# ------------------------------------------
+# 👤 حساب کاربری اصلاح شده و کامل
+# ------------------------------------------
+@dp.callback_query(F.data == "profile")
+async def cb_profile(callback: types.CallbackQuery):
+    user = callback.from_user
+    username = f"@{user.username}" if user.username else "ثبت نشده"
+    
+    profile_text = (
+        "👤 **اطلاعات حساب کاربری شما:**\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        f"🏷️ **نام:** {user.full_name}\n"
+        f"🆔 **شناسه کاربری:** `{user.id}`\n"
+        f"🌐 **نام کاربری:** {username}\n"
+        f"📅 **تاریخ استعلام:** `{get_persian_date()}`\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "📊 **وضعیت اشتراک:** فعال / آماده اتصال\n"
+        "🛡️ **پروتکل فعال:** L2TP / IPsec VPN\n"
+        "⚡ **سرعت اتصال:** نامحدود (۱۰ گیگابیت)\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "💡 جهت تمدید یا دریافت کانکشن از دکمه‌های زیر استفاده کنید:"
+    )
+    await callback.message.edit_text(profile_text, parse_mode="Markdown", reply_markup=get_profile_menu())
+    await callback.answer()
+
+# ------------------------------------------
+# 🛍️ خرید و تست
+# ------------------------------------------
 @dp.callback_query(F.data == "buy_menu")
 async def cb_buy_menu(callback: types.CallbackQuery):
     text = (
         "🛍️ **پلن‌های اختصاصی و پرسرعت L2TP:**\n\n"
-        "🚀 پینگ پایین مخصوص وب‌گردی، اینستاگرام، ترید و بازی\n"
+        "🚀 پینگ فوق‌العاده پایین مخصوص اینستاگرام، ترید، گیم و وبگردی\n"
         "⚡ ترافیک کاملاً نامحدود و آی‌پی ثابت\n\n"
         "🔻 پلن مورد نظر خود را انتخاب کنید:"
     )
@@ -128,7 +172,8 @@ async def cb_plans(callback: types.CallbackQuery):
         "💳 **شماره کارت جهت واریز:**\n"
         "`۶۰۳۷-۹۹۷۹-۰۰۰۰-۰۰۰۰`\n"
         "به نام: مدیریت سرویس\n\n"
-        "📸 پس از پرداخت، تصویر فیش را از بخش **پشتیبانی** بفرستید تا فوراً اکانت شما فعال شود."
+        "📸 **روش ارسال فیش:**\n"
+        "روی دکمه **ارتباط با پشتیبانی** بزنید و تصویر فیش یا پیام واریز خود را بفرستید."
     )
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_back_button())
     await callback.answer()
@@ -136,13 +181,13 @@ async def cb_plans(callback: types.CallbackQuery):
 @dp.callback_query(F.data == "free_trial")
 async def cb_free_trial(callback: types.CallbackQuery):
     text = (
-        "🎁 **اکانت تست پرسرعت رایگان (۲۴ ساعته)**\n\n"
-        "🌐 آدرس سرور: `s1.l2tp-server.net`\n"
-        "👤 نام کاربری: `test_guest`\n"
-        "🔑 کلمه عبور: `123456`\n"
-        "🛡️ کلید اشتراکی (IPsec Secret): `12345678`\n"
-        "📡 نوع اتصال: L2TP / IPsec PSK\n\n"
-        "⚠️ هر کاربر امکان دریافت یکبار تست را دارد."
+        "🎁 **اکانت تست پرسرعت ۲۴ ساعته**\n\n"
+        "🌐 **آدرس سرور:** `s1.l2tp-server.net`\n"
+        "👤 **نام کاربری:** `test_user`\n"
+        "🔑 **رمز عبور:** `123456`\n"
+        "🛡️ **کلید اشتراکی (Secret):** `12345678`\n"
+        "📡 **پروتکل:** L2TP with IPsec\n\n"
+        "⚠️ هر اکانت فقط یکبار حق دریافت تست را دارد."
     )
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_back_button())
     await callback.answer()
@@ -150,106 +195,116 @@ async def cb_free_trial(callback: types.CallbackQuery):
 @dp.callback_query(F.data == "status")
 async def cb_status(callback: types.CallbackQuery):
     text = (
-        "📊 **وضعیت پایداری سرورها:**\n\n"
-        "🇩🇪 آلمان (Frankfurt): 🟢 آنلاین (Ping: 42ms)\n"
-        "🇳🇱 هلند (Amsterdam): 🟢 آنلاین (Ping: 46ms)\n"
-        "🇫🇮 فنلاند (Helsinki): 🟢 آنلاین (Ping: 50ms)\n\n"
-        "🛡️ مسیرها بدون افت سرعت در دسترس هستند."
-    )
-    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_back_button())
-    await callback.answer()
-
-@dp.callback_query(F.data == "profile")
-async def cb_profile(callback: types.CallbackQuery):
-    user = callback.from_user
-    text = (
-        "👤 **مشخصات کاربری شما:**\n\n"
-        f"🏷️ نام: {user.full_name}\n"
-        f"🆔 شناسه: `{user.id}`\n"
-        f"🌐 یوزرنیم: @{user.username if user.username else 'ندارد'}\n"
-        "💎 وضعیت اکانت: فعال\n"
+        "📊 **وضعیت سرورها و مسیرهای ارتباطی:**\n\n"
+        "🇩🇪 سرور آلمان (Frankfurt): 🟢 آنلاین (Ping: 40ms)\n"
+        "🇳🇱 سرور هلند (Amsterdam): 🟢 آنلاین (Ping: 45ms)\n"
+        "🇫🇮 سرور فنلاند (Helsinki): 🟢 آنلاین (Ping: 48ms)\n\n"
+        "🛡️ تمامی مسیرها با سرعت حداکثری فعال هستند."
     )
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_back_button())
     await callback.answer()
 
 @dp.callback_query(F.data == "tutorials")
 async def cb_tutorials(callback: types.CallbackQuery):
-    text = "📱 سیستم‌عامل دستگاه خود را برای مشاهده آموزش انتخاب کنید:"
+    text = "📱 لطفاً سیستم‌عامل دستگاه خود را انتخاب کنید:"
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_tutorials_menu())
     await callback.answer()
 
 @dp.callback_query(F.data.startswith("tut_"))
 async def cb_tut_details(callback: types.CallbackQuery):
-    os_dict = {
-        "tut_ios": "🍏 **آموزش iOS (آیفون):**\nبه Settings > General > VPN & Device Management بروید و اتصال L2TP ایجاد کنید.",
-        "tut_android": "🤖 **آموزش اندروید:**\nدر تنظیمات VPN گوشی یک کانکشن L2TP/IPsec PSK بسازید.",
-        "tut_win": "💻 **آموزش ویندوز:**\nدر Settings > Network & Internet > VPN کانکشن جدید نوع L2TP اضافه کنید.",
-        "tut_mac": "🍎 **آموزش مک:**\nدر System Settings > Network گزینه L2TP over IPSec را اضافه کنید."
+    tutorials = {
+        "tut_ios": "🍏 **آموزش آیفون (iOS):**\nبه بخش Settings > General > VPN & Device Management بروید، Add VPN Configuration را بزنید و نوع را روی L2TP بگذارید.",
+        "tut_android": "🤖 **آموزش اندروید:**\nدر تنظیمات گوشی وارد اتصالات (Connections) > VPN شوید و اتصال L2TP/IPsec PSK ایجاد کنید.",
+        "tut_win": "💻 **آموزش ویندوز:**\nوارد Settings > Network & Internet > VPN شوید و کانکشن نوع L2TP بسازید.",
+        "tut_mac": "🍎 **آموزش مک:**\nدر تنظیمات شبکه (Network) یک رابط جدید از نوع VPN (L2TP over IPSec) اضافه کنید."
     }
-    text = os_dict.get(callback.data, "راهنما")
+    text = tutorials.get(callback.data, "راهنما")
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_back_button())
     await callback.answer()
 
 @dp.callback_query(F.data == "promo")
 async def cb_promo(callback: types.CallbackQuery):
-    text = "🎟️ کد تخفیف یا معرف خود را در بخش **ارتباط با پشتیبانی** ارسال نمایید تا روی فاکتور شما اعمال شود."
+    text = "🎟️ کد تخفیف یا معرف خود را در بخش **پشتیبانی** ارسال کنید تا در فاکتور اعمال شود."
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_back_button())
     await callback.answer()
 
+# ------------------------------------------
+# 🎧 سیستم پشتیبانی و تیکتینگ ۲۴/۷ اصلاح‌شده
+# ------------------------------------------
 @dp.callback_query(F.data == "support")
 async def cb_support(callback: types.CallbackQuery):
     users_in_support.add(callback.from_user.id)
     text = (
-        "🎧 **پشتیبانی آنلاین**\n\n"
-        "متن پیام، سوال یا عکس فیش خود را همین‌جا ارسال کنید.\n"
-        "کارشناسان در اسرع وقت پاسخ خواهند داد."
+        "🎧 **واحد پشتیبانی آنلاین و ثبت سفارش**\n\n"
+        "✍️ لطفاً پیام، پرسش، کد تخفیف یا **عکس فیش واریزی** خود را همین‌جا ارسال کنید.\n"
+        "مدیریت در کمترین زمان ممکن بررسی و پاسخ خواهد داد.\n\n"
+        "*(جهت خروج از حالت پشتیبانی دکمه بازگشت را بزنید)*"
     )
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_back_button())
     await callback.answer()
 
-# ==========================================
-# 📩 سیستم تیکتینگ و پاسخ مستقیم ادمین
-# ==========================================
-
+# مدیریت پیام‌های متنی
 @dp.message(F.text)
-async def handle_messages(message: types.Message):
+async def handle_text_messages(message: types.Message):
     user_id = message.from_user.id
 
-    # اگر ادمین روی تیکت ریپلای کرد، مستقیم به کاربر ارسال شود
+    # اگر ادمین روی تیکت کاربر ریپلای کرد
     if user_id == ADMIN_ID and message.reply_to_message:
-        reply_text = message.reply_to_message.text or ""
-        if "🆔 شناسه:" in reply_text:
+        target_text = message.reply_to_message.text or message.reply_to_message.caption or ""
+        if "🆔 شناسه:" in target_text:
             try:
-                target_user_id = int(reply_text.split("🆔 شناسه:")[1].split("\n")[0].strip().replace("`", ""))
-                admin_response = (
-                    "📩 **پاسخ پشتیبانی به پیام شما:**\n\n"
+                target_user_id = int(target_text.split("🆔 شناسه:")[1].split("\n")[0].strip().replace("`", ""))
+                admin_reply = (
+                    "📩 **پاسخ پشتیبانی به شما:**\n\n"
                     f"{message.text}"
                 )
-                await bot.send_message(target_user_id, admin_response, parse_mode="Markdown")
-                await message.reply("✅ پاسخ با موفقیت برای کاربر ارسال شد.")
+                await bot.send_message(target_user_id, admin_reply, parse_mode="Markdown")
+                await message.reply("✅ پاسخ شما با موفقیت برای کاربر ارسال شد.")
                 return
             except Exception as e:
-                await message.reply(f"❌ خطا در ارسال پاسخ: {e}")
+                await message.reply(f"❌ خطا در ارسال پاسخ به کاربر: {e}")
                 return
 
-    # ارسال پیام کاربر به ادمین
+    # ارسال تیکت متنی کاربر برای ادمین
     if user_id in users_in_support:
         ticket = (
-            "🔔 **تیکت جدید پشتیبانی**\n"
-            f"👤 کاربر: {message.from_user.full_name}\n"
+            "🔔 **تیکت جدید (پیام متنی)**\n"
+            "━━━━━━━━━━━━━━━━━━\n"
+            f"👤 **کاربر:** {message.from_user.full_name}\n"
             f"🆔 شناسه: `{user_id}`\n"
-            f"🌐 یوزرنیم: @{message.from_user.username if message.from_user.username else 'ندارد'}\n"
-            "------------------------------------\n"
-            f"💬 متن:\n{message.text}"
+            f"🌐 **یوزرنیم:** @{message.from_user.username if message.from_user.username else 'ندارد'}\n"
+            "━━━━━━━━━━━━━━━━━━\n"
+            f"💬 **متن پیام:**\n{message.text}"
         )
         try:
             await bot.send_message(ADMIN_ID, ticket, parse_mode="Markdown")
-            await message.answer("✅ پیام شما به پشتیبانی ارسال شد. به زودی پاسخ را دریافت خواهید کرد.", reply_markup=get_back_button())
+            await message.answer("✅ پیام شما به پشتیبانی ارسال شد. منتظر پاسخ بمانید.", reply_markup=get_back_button())
         except Exception as e:
-            logging.error(f"Ticket Error: {e}")
-            await message.answer("❌ خطا در ارسال پیام.", reply_markup=get_back_button())
+            logging.error(f"Ticket error: {e}")
+            await message.answer("❌ خطا در برقراری ارتباط با پشتیبانی.", reply_markup=get_back_button())
     else:
         await message.answer("⚠️ لطفاً از دکمه‌های زیر استفاده کنید:", reply_markup=get_main_menu())
+
+# مدیریت ارسال عکس (فیش واریزی یا اسکرین‌شات)
+@dp.message(F.photo)
+async def handle_photo_messages(message: types.Message):
+    user_id = message.from_user.id
+    if user_id in users_in_support:
+        photo_id = message.photo[-1].file_id
+        caption = (
+            "📸 **فیش واریزی / عکس جدید از کاربر**\n"
+            "━━━━━━━━━━━━━━━━━━\n"
+            f"👤 **کاربر:** {message.from_user.full_name}\n"
+            f"🆔 شناسه: `{user_id}`\n"
+            f"🌐 **یوزرنیم:** @{message.from_user.username if message.from_user.username else 'ندارد'}\n"
+            f"📝 **توضیحات:** {message.caption if message.caption else 'بدون متن'}"
+        )
+        try:
+            await bot.send_photo(ADMIN_ID, photo=photo_id, caption=caption, parse_mode="Markdown")
+            await message.answer("✅ تصویر با موفقیت برای پشتیبانی ارسال شد.", reply_markup=get_back_button())
+        except Exception as e:
+            logging.error(f"Photo ticket error: {e}")
+            await message.answer("❌ خطا در ارسال عکس.", reply_markup=get_back_button())
 
 # ==========================================
 # 🏁 اجرای ربات
