@@ -4,8 +4,8 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# توکن رباتت که از BotFather گرفتی رو داخل کوتیشن زیر بذار
-BOT_TOKEN = "8715000000:AAExampleTokenReplaceWithYours"
+# توکن رسمی و اختصاصی شما
+BOT_TOKEN = "8715195364:AAFBr7PHxFBdOYKPVc0T-IwOPUiUEXAZMqg"
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
