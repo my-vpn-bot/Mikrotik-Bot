@@ -6,7 +6,7 @@ import aiohttp
 from datetime import datetime, timedelta
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Update
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -21,6 +21,7 @@ MARZBAN_USERNAME = os.getenv("MARZBAN_USERNAME")
 MARZBAN_PASSWORD = os.getenv("MARZBAN_PASSWORD")
 PAYMENT_CARD = os.getenv("PAYMENT_CARD", "تعریف نشده")
 PAYMENT_NAME = os.getenv("PAYMENT_NAME", "تعریف نشده")
+RENDER_URL = os.getenv("RENDER_EXTERNAL_URL")
 
 # --- دیتابیس ---
 DB_NAME = "users_data.db"
@@ -131,7 +132,8 @@ async def handle_receipt(message: types.Message, state: FSMContext):
 
 @dp.callback_query(F.data.startswith("approve_"))
 async def approve_order(callback: types.CallbackQuery):
-    _, order_id, user_id, plan_key = callback.data.split("_")
+    parts = callback.data.split("_")
+    order_id, user_id, plan_key = parts[1], parts[2], parts[3]
     sub_url = await marzban.create_user(user_id, PLANS[plan_key]['name'])
     if sub_url: await bot.send_message(user_id, f"🎉 لینک سابسکریپشن:\n`{sub_url}`", parse_mode="Markdown")
     await callback.message.edit_caption(caption=f"✅ سفارش #{order_id} تایید شد.")
@@ -145,22 +147,40 @@ async def process_free_trial(callback: types.CallbackQuery, state: FSMContext):
     sub_url = await marzban.create_user(f"trial_{callback.from_user.id}", "Free Trial")
     if sub_url: await callback.message.answer(f"✅ لینک تست:\n`{sub_url}`", parse_mode="Markdown")
 
-# --- سرور وب برای رندر ---
-async def handle(request): return web.Response(text="Bot is running!")
+# --- سرور وب برای رندر (Webhook) ---
 
-async def run_bot():
-    await bot.delete_webhook(drop_pending_updates=True)
-    await dp.start_polling(bot)
+async def handle_webhook(request):
+    try:
+        data = await request.json()
+        update = Update(**data)
+        await dp.feed_update(bot, update)
+        return web.Response(status=200)
+    except Exception as e:
+        logging.error(f"Webhook Error: {e}")
+        return web.Response(status=500)
 
 async def main():
+    webhook_path = f"/{BOT_TOKEN}"
+    webhook_url = f"{RENDER_URL.rstrip('/')}{webhook_path}"
+    
+    await bot.delete_webhook(drop_pending_updates=True)
+    await bot.set_webhook(url=webhook_url)
+    logging.info(f"✅ Webhook set to: {webhook_url}")
+
     app = web.Application()
-    app.router.add_get('/', handle)
+    app.router.add_post(webhook_path, handle_webhook)
+    
     runner = web.AppRunner(app)
     await runner.setup()
     port = int(os.environ.get("PORT", 8080))
     site = web.TCPSite(runner, '0.0.0.0', port)
-    await asyncio.gather(run_bot(), site.start())
+    await site.start()
+    logging.info(f"🚀 Server starting on port {port}...")
+    
+    await asyncio.Event().wait()
 
 if __name__ == "__main__":
-    try: asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit): print("🛑 Stopped.")
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        logging.info("🛑 Bot stopped.")
