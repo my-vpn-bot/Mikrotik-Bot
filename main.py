@@ -1,325 +1,323 @@
 import os
 import asyncio
-import aiosqlite
+import logging
 from aiohttp import web
+import aiosqlite
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import (
-    InlineKeyboardMarkup,
-    InlineKeyboardButton,
-    ReplyKeyboardRemove
-)
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# دریافت متغیرهای محیطی
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-ADMIN_ID = os.environ.get("ADMIN_ID")
-if ADMIN_ID:
-    try:
-        ADMIN_ID = int(ADMIN_ID)
-    except ValueError:
-        pass
+# ==================== پیکربندی لاگ و توکن‌ها ====================
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger("Mikrotik-Bot")
+
+# خواندن متغیرها از محیط (Environment Variables) یا مقادیر پیش‌فرض
+BOT_TOKEN = os.getenv("BOT_TOKEN", "توکن_ربات_شما")
+ADMIN_ID = int(os.getenv("ADMIN_ID", "123456789"))  # آیدی عددی ادمین
+CARD_INFO = os.getenv("CARD_INFO", "💳 شماره کارت: `6037-9918-0000-0000`\n👤 بنام: مدیریت سرور")
 
 bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(storage=MemoryStorage())
+storage = MemoryStorage()
+dp = Dispatcher(storage=storage)
 
-DB_FILE = "vpn_bot.db"
+DB_PATH = "bot_database.db"
 
-# ماشین وضعیت برای خرید و ارسال فیش
-class OrderState(StatesGroup):
-    choosing_protocol = State()
-    choosing_plan = State()
-    waiting_for_receipt = State()
+# ==================== ماشین وضعیت (FSM) ====================
+class BotStates(StatesGroup):
+    # وضعیت‌های خرید
+    waiting_for_buy_receipt = State()
+    
+    # وضعیت‌های تمدید
+    waiting_for_renew_username = State()
+    waiting_for_renew_receipt = State()
 
-class SupportState(StatesGroup):
-    waiting_for_message = State()
-
-# دیکشنری ۳ زبانه با جزئیات کامل
-TEXTS = {
-    "fa": {
-        "welcome": "سلام مهندس آرشاوین عزیز! 🛡\nبه سامانه هوشمند مدیریت اشتراک VPN خوش آمدید.\nلطفاً از منوی زیر انتخاب کنید:",
-        "buy": "💳 خرید اشتراک",
-        "test": "🎁 تست رایگان",
-        "profile": "👤 پروفایل من",
-        "renew": "🔄 تمدید سرویس",
-        "support": "📞 پشتیبانی و تیکت",
-        "lang_btn": "🌐 تغییر زبان / Dil",
-        "select_proto": "🔹 لطفاً پروتکل مورد نظر را انتخاب نمایید:",
-        "proto_l2tp": "🔐 L2TP / IPsec",
-        "proto_openvpn": "🛡 OpenVPN",
-        "proto_pptp": "⚡ PPTP",
-        "select_plan": "📦 لطفاً پلن زمانی مورد نظر را مشخص کنید:",
-        "plan_1m": "۱ ماهه - نامحدود (۱۵۰,۰۰۰ تومان)",
-        "plan_3m": "۳ ماهه - اقتصادی (۳۸۰,۰۰۰ تومان)",
-        "plan_6m": "۶ ماهه - ویژه (۷۰۰,۰۰۰ تومان)",
-        "send_receipt": "💳 شماره کارت جهت واریز:\n`6037-9918-0000-0000`\nبه نام: مدیریت سرور\n\n📌 لطفاً تصویر فیش واریزی یا شماره پیگیری خود را همین‌جا ارسال فرمایید:",
-        "receipt_received": "✅ فیش واریزی شما با موفقیت ثبت شد و برای ادمین ارسال گردید.\nپس از تأیید، کانفیگ برایتان ارسال خواهد شد.",
-        "test_sent": "🎁 مشخصات اکانت تست ۲۴ ساعته شما:\n▫️ پروتکل: L2TP/IPsec\n▫️ سرور: `vpn.server.net`\n▫️ نام کاربری: `test_{id}`\n▫️ کلمه عبور: `test1234`\n▫️ کلید امنیتی (IPsec Secret): `vpn1234`",
-        "support_prompt": "✍️ لطفاً پیام یا مشکل خود را مطرح فرمایید تا مستقیماً به واحد پشتیبانی ارجاع شود:",
-        "support_sent": "✅ تیکت شما ارسال شد. کارشناسان به زودی پاسخ خواهند داد.",
-        "back": "🔙 بازگشت به منوی اصلی"
-    },
-    "az": {
-        "welcome": "Salam hörmətli istifadəçi! 🛡\nVPN idarəetmə botuna xoş gəlmisiniz.\nZəhmət olmasa aşağıdakı menyudan seçin:",
-        "buy": "💳 Abunəlik al",
-        "test": "🎁 Pulsuz test əldə et",
-        "profile": "👤 Hesabım",
-        "renew": "🔄 Abunəliyi uzat",
-        "support": "📞 Dəstək xidməti",
-        "lang_btn": "🌐 Dili dəyiş",
-        "select_proto": "🔹 Zəhmət olmasa protokolu seçin:",
-        "proto_l2tp": "🔐 L2TP / IPsec",
-        "proto_openvpn": "🛡 OpenVPN",
-        "proto_pptp": "⚡ PPTP",
-        "select_plan": "📦 Müddət paketini seçin:",
-        "plan_1m": "1 Aylıq",
-        "plan_3m": "3 Aylıq",
-        "plan_6m": "6 Aylıq",
-        "send_receipt": "💳 Ödəniş üçün kart məlumatı:\n`6037-9918-0000-0000`\n\n📌 Zəhmət olmasa ödəniş qəbzini bura göndərin:",
-        "receipt_received": "✅ Qəbziniz qeydə alındı və adminə göndərildi.",
-        "test_sent": "🎁 24 saatlıq sınaq hesabı:\n▫️ Server: `vpn.server.net`\n▫️ İstifadəçi: `test_{id}`\n▫️ Şifrə: `test1234`",
-        "support_prompt": "✍️ Zəhmət olmasa sualınızı və ya probleminizi yazın:",
-        "support_sent": "✅ Mesajınız dəstək xidmətinə göndərildi.",
-        "back": "🔙 Əsas menyu"
-    },
-    "en": {
-        "welcome": "Welcome to VPN Management Bot! 🛡\nPlease select an option from the menu below:",
-        "buy": "💳 Buy Subscription",
-        "test": "🎁 Free Trial",
-        "profile": "👤 My Profile",
-        "renew": "🔄 Renew",
-        "support": "📞 Support",
-        "lang_btn": "🌐 Language",
-        "select_proto": "🔹 Please select VPN protocol:",
-        "proto_l2tp": "🔐 L2TP / IPsec",
-        "proto_openvpn": "🛡 OpenVPN",
-        "proto_pptp": "⚡ PPTP",
-        "select_plan": "📦 Please select a plan:",
-        "plan_1m": "1 Month - Unlimited",
-        "plan_3m": "3 Months - Unlimited",
-        "plan_6m": "6 Months - Unlimited",
-        "send_receipt": "💳 Payment Info:\nCard: `6037-9918-0000-0000`\n\n📌 Please send your payment receipt photo or transaction code:",
-        "receipt_received": "✅ Your receipt has been received and forwarded to admin for approval.",
-        "test_sent": "🎁 24-Hour Trial Account:\n▫️ Server: `vpn.server.net`\n▫️ Username: `test_{id}`\n▫️ Password: `test1234`\n▫️ IPsec PSK: `vpn1234`",
-        "support_prompt": "✍️ Please type your message/inquiry for technical support:",
-        "support_sent": "✅ Message forwarded to support. We will get back to you shortly.",
-        "back": "🔙 Main Menu"
-    }
-}
-
-# مدیریت دیتابیس SQLite
+# ==================== تنظیمات دیتابیس ====================
 async def init_db():
-    async with aiosqlite.connect(DB_FILE) as db:
+    async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 user_id INTEGER PRIMARY KEY,
+                full_name TEXT,
                 username TEXT,
-                lang TEXT DEFAULT 'fa',
-                has_tested INTEGER DEFAULT 0
+                has_tested INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         await db.commit()
 
-async def get_user_lang(user_id: int):
-    async with aiosqlite.connect(DB_FILE) as db:
-        async with db.execute("SELECT lang FROM users WHERE user_id = ?", (user_id,)) as cursor:
-            row = await cursor.fetchone()
-            return row[0] if row else "fa"
+# ==================== کیبوردهای شیشه‌ای مدرن ====================
+def main_menu_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="🛒 خرید اشتراک جدید", callback_data="btn_buy"),
+            InlineKeyboardButton(text="🔄 تمدید اشتراک", callback_data="btn_renew")
+        ],
+        [
+            InlineKeyboardButton(text="🎁 دریافت اکانت تست", callback_data="btn_test"),
+            InlineKeyboardButton(text="👤 حساب کاربری من", callback_data="btn_profile")
+        ],
+        [
+            InlineKeyboardButton(text="📚 راهنمای اتصال", callback_data="btn_help"),
+            InlineKeyboardButton(text=" پشتیبانی و ارتباط", callback_data="btn_support")
+        ]
+    ])
 
-async def set_user_lang(user_id: int, lang: str):
-    async with aiosqlite.connect(DB_FILE) as db:
-        await db.execute("INSERT INTO users (user_id, lang) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET lang = ?", (user_id, lang, lang))
+def plans_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔹 ۱ ماهه (نامحدود / ۳۰ روز) - ۱۰۰,۰۰۰ تومان", callback_data="plan_1m")],
+        [InlineKeyboardButton(text="🔹 ۲ ماهه (نامحدود / ۶۰ روز) - ۱۸۰,۰۰۰ تومان", callback_data="plan_2m")],
+        [InlineKeyboardButton(text="🔹 ۳ ماهه (نامحدود / ۹۰ روز) - ۲۵۰,۰۰۰ تومان", callback_data="plan_3m")],
+        [InlineKeyboardButton(text="❌ انصراف و بازگشت", callback_data="btn_cancel")]
+    ])
+
+def cancel_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="❌ انصراف و بازگشت به منو", callback_data="btn_cancel")]
+    ])
+
+# ==================== هندلرهای ربات ====================
+
+# شروع ربات
+@dp.message(CommandStart())
+async def cmd_start(message: types.Message, state: FSMContext):
+    await state.clear()
+    user = message.from_user
+    
+    # ثبت کاربر در دیتابیس
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT OR IGNORE INTO users (user_id, full_name, username) VALUES (?, ?, ?)",
+            (user.id, user.full_name, user.username)
+        )
         await db.commit()
 
-# کیبوردهای داینامیک
-def get_main_kb(lang="fa"):
-    t = TEXTS[lang]
-    kb = [
-        [InlineKeyboardButton(text=t["buy"], callback_data="menu_buy"), InlineKeyboardButton(text=t["test"], callback_data="menu_test")],
-        [InlineKeyboardButton(text=t["profile"], callback_data="menu_profile"), InlineKeyboardButton(text=t["renew"], callback_data="menu_buy")],
-        [InlineKeyboardButton(text=t["support"], callback_data="menu_support"), InlineKeyboardButton(text=t["lang_btn"], callback_data="menu_lang")]
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=kb)
+    welcome_text = (
+        f"سلام {user.first_name} عزیز! 🌸\n\n"
+        "⚡️ به سامانه هوشمند ارائه و تمدید اشتراک‌های **L2TP / Cisco AnyConnect / OpenVPN** خوش آمدید.\n\n"
+        "لطفاً یکی از گزینه‌های زیر را انتخاب نمایید:"
+    )
+    await message.answer(welcome_text, reply_markup=main_menu_keyboard(), parse_mode="Markdown")
 
-def get_protocol_kb(lang="fa"):
-    t = TEXTS[lang]
-    kb = [
-        [InlineKeyboardButton(text=t["proto_l2tp"], callback_data="proto_L2TP")],
-        [InlineKeyboardButton(text=t["proto_openvpn"], callback_data="proto_OpenVPN")],
-        [InlineKeyboardButton(text=t["proto_pptp"], callback_data="proto_PPTP")],
-        [InlineKeyboardButton(text=t["back"], callback_data="menu_back")]
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=kb)
-
-def get_plans_kb(lang="fa"):
-    t = TEXTS[lang]
-    kb = [
-        [InlineKeyboardButton(text=t["plan_1m"], callback_data="plan_1m")],
-        [InlineKeyboardButton(text=t["plan_3m"], callback_data="plan_3m")],
-        [InlineKeyboardButton(text=t["plan_6m"], callback_data="plan_6m")],
-        [InlineKeyboardButton(text=t["back"], callback_data="menu_back")]
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=kb)
-
-# هندلرهای دستور استارت و منوی زبان
-@dp.message(CommandStart())
-async def start_handler(message: types.Message, state: FSMContext):
+# دکمه بازگشت / انصراف
+@dp.callback_query(F.data == "btn_cancel")
+async def cancel_handler(callback: types.CallbackQuery, state: FSMContext):
     await state.clear()
-    lang = await get_user_lang(message.from_user.id)
-    await message.answer(TEXTS[lang]["welcome"], reply_markup=get_main_kb(lang))
+    await callback.answer("عملیات لغو شد.")
+    await callback.message.edit_text(
+        " منوی اصلی سامانه:\nلطفاً یکی از گزینه‌های زیر را انتخاب نمایید:",
+        reply_markup=main_menu_keyboard()
+    )
 
-@dp.callback_query(F.data == "menu_back")
-async def back_to_menu(callback: types.CallbackQuery, state: FSMContext):
-    await state.clear()
-    lang = await get_user_lang(callback.from_user.id)
-    await callback.message.edit_text(TEXTS[lang]["welcome"], reply_markup=get_main_kb(lang))
-
-@dp.callback_query(F.data == "menu_lang")
-async def language_menu(callback: types.CallbackQuery):
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="🇮🇷 فارسی", callback_data="setlang_fa"),
-            InlineKeyboardButton(text="🇦🇿 Azərbaycan", callback_data="setlang_az"),
-            InlineKeyboardButton(text="🇬🇧 English", callback_data="setlang_en")
-        ],
-        [InlineKeyboardButton(text="🔙", callback_data="menu_back")]
-    ])
-    await callback.message.edit_text("لطفاً زبان را انتخاب کنید / Dili seçin / Select language:", reply_markup=kb)
-
-@dp.callback_query(F.data.startswith("setlang_"))
-async def change_language(callback: types.CallbackQuery):
-    selected_lang = callback.data.split("_")[-1]
-    await set_user_lang(callback.from_user.id, selected_lang)
-    await callback.message.edit_text(TEXTS[selected_lang]["welcome"], reply_markup=get_main_kb(selected_lang))
-
-# خرید و انتخاب پروتکل و پلن‌ها
-@dp.callback_query(F.data == "menu_buy")
-async def buy_start(callback: types.CallbackQuery, state: FSMContext):
-    lang = await get_user_lang(callback.from_user.id)
-    await state.set_state(OrderState.choosing_protocol)
-    await callback.message.edit_text(TEXTS[lang]["select_proto"], reply_markup=get_protocol_kb(lang))
-
-@dp.callback_query(OrderState.choosing_protocol, F.data.startswith("proto_"))
-async def protocol_chosen(callback: types.CallbackQuery, state: FSMContext):
-    proto = callback.data.split("_")[1]
-    await state.update_data(chosen_proto=proto)
-    lang = await get_user_lang(callback.from_user.id)
-    await state.set_state(OrderState.choosing_plan)
-    await callback.message.edit_text(TEXTS[lang]["select_plan"], reply_markup=get_plans_kb(lang))
-
-@dp.callback_query(OrderState.choosing_plan, F.data.startswith("plan_"))
-async def plan_chosen(callback: types.CallbackQuery, state: FSMContext):
-    plan = callback.data.split("_")[1]
-    await state.update_data(chosen_plan=plan)
-    lang = await get_user_lang(callback.from_user.id)
-    await state.set_state(OrderState.waiting_for_receipt)
-    await callback.message.edit_text(TEXTS[lang]["send_receipt"], reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=TEXTS[lang]["back"], callback_data="menu_back")]]))
-
-# دریافت فیش واریزی و فوروارد به ادمین
-@dp.message(OrderState.waiting_for_receipt, F.photo | F.text)
-async def receipt_handler(message: types.Message, state: FSMContext):
-    data = await state.get_data()
-    proto = data.get("chosen_proto", "L2TP")
-    plan = data.get("chosen_plan", "1m")
-    lang = await get_user_lang(message.from_user.id)
-    
-    # پیام به ادمین
-    if ADMIN_ID:
-        caption = (
-            f"🔔 **سفارش جدید دریافت شد!**\n\n"
-            f"👤 کاربر: @{message.from_user.username or 'بدون نام کاربری'}\n"
-            f"🆔 شناسه کاربر: `{message.from_user.id}`\n"
-            f"🛡 پروتکل درخواستی: `{proto}`\n"
-            f"📦 پلن انتخابی: `{plan}`\n"
-        )
-        try:
-            if message.photo:
-                await bot.send_photo(ADMIN_ID, photo=message.photo[-1].file_id, caption=caption)
-            else:
-                await bot.send_message(ADMIN_ID, f"{caption}\n📝 متن ارسالی: {message.text}")
-        except Exception as e:
-            print(f"Error notifying admin: {e}")
-
-    await state.clear()
-    await message.answer(TEXTS[lang]["receipt_received"], reply_markup=get_main_kb(lang))
-
-# تست رایگان
-@dp.callback_query(F.data == "menu_test")
-async def test_handler(callback: types.CallbackQuery):
-    lang = await get_user_lang(callback.from_user.id)
-    test_info = TEXTS[lang]["test_sent"].format(id=callback.from_user.id)
-    await callback.message.answer(test_info)
+# ----------------- فلو تمدید اشتراک -----------------
+@dp.callback_query(F.data == "btn_renew")
+async def renew_service_handler(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
+    await state.set_state(BotStates.waiting_for_renew_username)
+    
+    renew_prompt = (
+        "🔄 **فرآیند تمدید اشتراک فعال / منقضی‌شده**\n\n"
+        " لطفاً **نام کاربری (Username)** اشتراک قبلی خود را ارسال فرمایید تا اطلاعات بررسی و تمدید گردد:"
+    )
+    await callback.message.edit_text(renew_prompt, reply_markup=cancel_keyboard(), parse_mode="Markdown")
 
-# پروفایل کاربر
-@dp.callback_query(F.data == "menu_profile")
+@dp.message(BotStates.waiting_for_renew_username, F.text)
+async def process_renew_username(message: types.Message, state: FSMContext):
+    username_to_renew = message.text.strip()
+    await state.update_data(renew_username=username_to_renew)
+    await state.set_state(BotStates.waiting_for_renew_receipt)
+    
+    payment_text = (
+        f"✅ نام کاربری ثبت شده جهت تمدید: `{username_to_renew}`\n\n"
+        "💳 **اطلاعات واریز وجه:**\n"
+        f"{CARD_INFO}\n\n"
+        "📌 مبلغ تمدید: **۱۵۰,۰۰۰ تومان** (۱ ماهه)\n\n"
+        "📸 لطفاً پس از انتقال وجه، **تصویر واضح از فیش یا رسید واریز** را در همین صفحه ارسال کنید:"
+    )
+    await message.answer(payment_text, reply_markup=cancel_keyboard(), parse_mode="Markdown")
+
+@dp.message(BotStates.waiting_for_renew_receipt, F.photo)
+async def process_renew_receipt(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    renew_user = data.get("renew_username", "نامشخص")
+    user = message.from_user
+    photo_id = message.photo[-1].file_id
+
+    # پیام گزارش به ادمین
+    admin_caption = (
+        "🔔 **درخواست جدید تمدید اشتراک**\n\n"
+        f"👤 **اکانت جهت تمدید:** `{renew_user}`\n"
+        f"🆔 **آیدی عددی تلگرام:** `{user.id}`\n"
+        f"👤 **نام تلگرام:** {user.full_name}\n"
+        f"🔗 **یوزرنیم تلگرام:** @{user.username or 'ندارد'}\n"
+        "────────────────────\n"
+        "✅ لطفاً پس از تمدید در میکروتیک، به کاربر اطلاع دهید."
+    )
+    
+    try:
+        await bot.send_photo(chat_id=ADMIN_ID, photo=photo_id, caption=admin_caption, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"خطا در ارسال به ادمین: {e}")
+
+    await state.clear()
+    await message.answer(
+        "✅ **فیش واریزی و اطلاعات تمدید شما با موفقیت دریافت و برای پشتیبانی ارسال شد.**\n\n"
+        "⏱ سرویس شما پس از بررسی حساب (حداکثر ۱۰ دقیقه) فعال خواهد ماند.\n"
+        "از شکیبایی شما سپاسگزاریم! 🌺",
+        reply_markup=main_menu_keyboard(),
+        parse_mode="Markdown"
+    )
+
+# ----------------- فلو خرید اشتراک جدید -----------------
+@dp.callback_query(F.data == "btn_buy")
+async def buy_service_handler(callback: types.CallbackQuery):
+    await callback.answer()
+    await callback.message.edit_text(
+        "🛒 **پلن‌های اشتراک پرسرعت:**\n\nلطفاً مدت زمان مورد نظر خود را انتخاب نمایید:",
+        reply_markup=plans_keyboard(),
+        parse_mode="Markdown"
+    )
+
+@dp.callback_query(F.data.startswith("plan_"))
+async def plan_chosen_handler(callback: types.CallbackQuery, state: FSMContext):
+    plan = callback.data
+    plan_names = {
+        "plan_1m": "اشتراک ۱ ماهه (۱۰۰,۰۰۰ تومان)",
+        "plan_2m": "اشتراک ۲ ماهه (۱۸۰,۰۰۰ تومان)",
+        "plan_3m": "اشتراک ۳ ماهه (۲۵۰,۰۰۰ تومان)"
+    }
+    selected_plan = plan_names.get(plan, "سرویس عادی")
+    await state.update_data(selected_plan=selected_plan)
+    await state.set_state(BotStates.waiting_for_buy_receipt)
+    
+    await callback.answer()
+    pay_text = (
+        f"📦 **پلن انتخابی شما:** {selected_plan}\n\n"
+        "💳 **اطلاعات واریز وجه:**\n"
+        f"{CARD_INFO}\n\n"
+        " لطفاً پس از واریز مبلغ، **عکس فیش بانکی** خود را ارسال کنید:"
+    )
+    await callback.message.edit_text(pay_text, reply_markup=cancel_keyboard(), parse_mode="Markdown")
+
+@dp.message(BotStates.waiting_for_buy_receipt, F.photo)
+async def process_buy_receipt(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    plan_name = data.get("selected_plan", "اشتراک جدید")
+    user = message.from_user
+    photo_id = message.photo[-1].file_id
+
+    admin_caption = (
+        "🔔 **درخواست جدید خرید اشتراک**\n\n"
+        f"📦 **پلن درخواستی:** {plan_name}\n"
+        f"🆔 **آیدی عددی کاربر:** `{user.id}`\n"
+        f"👤 **نام:** {user.full_name}\n"
+        f"🔗 **یوزرنیم:** @{user.username or 'ندارد'}"
+    )
+
+    try:
+        await bot.send_photo(chat_id=ADMIN_ID, photo=photo_id, caption=admin_caption, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"خطا در ارسال به ادمین: {e}")
+
+    await state.clear()
+    await message.answer(
+        "✅ **فیش واریزی برای مدیریت ارسال گردید.**\n\n"
+        "پس از بررسی، کانفیگ و اطلاعات اتصال برای شما ارسال خواهد شد.",
+        reply_markup=main_menu_keyboard(),
+        parse_mode="Markdown"
+    )
+
+# ----------------- دکمه‌های متفرقه (تست، پروفایل، راهنما و پشتیبانی) -----------------
+@dp.callback_query(F.data == "btn_test")
+async def free_test_handler(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT has_tested FROM users WHERE user_id = ?", (user_id,)) as cursor:
+            row = await cursor.fetchone()
+            if row and row[0] == 1:
+                await callback.answer("⚠️ شما قبلاً اکانت تست رایگان دریافت کرده‌اید!", show_alert=True)
+                return
+            
+            # علامت‌گذاری دریافت تست
+            await db.execute("UPDATE users SET has_tested = 1 WHERE user_id = ?", (user_id,))
+            await db.commit()
+
+    test_account_info = (
+        "🎁 **اکانت تست رایگان شما (مدت اعتبار: ۱ ساعت)**\n\n"
+        "🔐 **پروتکل:** L2TP / Cisco\n"
+        "🌐 **آدرس سرور:** `vpn.server.com`\n"
+        "👤 **نام کاربری:** `test_user`\n"
+        "🔑 **رمز عبور:** `123456`\n"
+        "🔑 **سکرت (IPSec Secret):** `123456`\n\n"
+        "⚠️ برای خرید اکانت اختصاصی و پرسرعت، از بخش خرید اقدام کنید."
+    )
+    await callback.message.edit_text(test_account_info, reply_markup=main_menu_keyboard(), parse_mode="Markdown")
+
+@dp.callback_query(F.data == "btn_profile")
 async def profile_handler(callback: types.CallbackQuery):
     user = callback.from_user
-    lang = await get_user_lang(user.id)
     profile_text = (
-        f"👤 **مشخصات حساب کاربری**\n\n"
-        f"▫️ نام: {user.full_name}\n"
-        f"▫️ شناسه تلگرام: `{user.id}`\n"
-        f"▫️ زبان انتخابی: `{lang}`\n"
-        f"▫️ سرویس‌های فعال: L2TP / OpenVPN (متصل به سرور)"
+        "👤 **مشخصات حساب کاربری شما**\n\n"
+        f"🏷 **نام:** {user.full_name}\n"
+        f"🆔 **شناسه تلگرام:** `{user.id}`\n"
+        f"🔗 **یوزرنیم:** @{user.username or 'ندارد'}\n"
+        "📡 **وضعیت سرویس:** در انتظار سفارش یا تمدید"
     )
-    await callback.message.answer(profile_text)
-    await callback.answer()
+    await callback.message.edit_text(profile_text, reply_markup=main_menu_keyboard(), parse_mode="Markdown")
 
-# پشتیبانی
-@dp.callback_query(F.data == "menu_support")
-async def support_entry(callback: types.CallbackQuery, state: FSMContext):
-    lang = await get_user_lang(callback.from_user.id)
-    await state.set_state(SupportState.waiting_for_message)
-    await callback.message.edit_text(TEXTS[lang]["support_prompt"], reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=TEXTS[lang]["back"], callback_data="menu_back")]]))
+@dp.callback_query(F.data == "btn_help")
+async def help_handler(callback: types.CallbackQuery):
+    help_text = (
+        "📚 **راهنمای اتصال به سرویس‌ها:**\n\n"
+        "📱 **اندروید و آیفون:** از نرم‌افزارهای Cisco AnyConnect یا VpnCilla استفاده نمایید.\n"
+        "💻 **ویندوز:** در بخش تنظیمات Network & Internet یک کانکشن VPN از نوع L2TP/IPsec با کلید پیش‌مشترک ایجاد کنید.\n\n"
+        "در صورت نیاز به راهنمایی بیشتر با پشتیبانی در ارتباط باشید."
+    )
+    await callback.message.edit_text(help_text, reply_markup=main_menu_keyboard(), parse_mode="Markdown")
 
-@dp.message(SupportState.waiting_for_message)
-async def support_msg_received(message: types.Message, state: FSMContext):
-    lang = await get_user_lang(message.from_user.id)
-    if ADMIN_ID:
-        try:
-            await bot.send_message(
-                ADMIN_ID,
-                f"📩 **پیام پشتیبانی از طرف کاربر:**\n"
-                f"👤 نام: {message.from_user.full_name} (@{message.from_user.username})\n"
-                f"🆔 شناسه: `{message.from_user.id}`\n\n"
-                f"💬 متن: {message.text}"
-            )
-        except Exception as e:
-            print(f"Failed to forward ticket: {e}")
-    await state.clear()
-    await message.answer(TEXTS[lang]["support_sent"], reply_markup=get_main_kb(lang))
+@dp.callback_query(F.data == "btn_support")
+async def support_handler(callback: types.CallbackQuery):
+    support_text = (
+        " **واحد پشتیبانی و فروش:**\n\n"
+        "در صورت بروز هرگونه سوال، قطعی یا مشکل در پرداخت می‌توانید با آیدی زیر در ارتباط باشید:\n"
+        "👉 @YourSupportID"
+    )
+    await callback.message.edit_text(support_text, reply_markup=main_menu_keyboard(), parse_mode="Markdown")
 
-# سرور داخلی aiohttp برای رفع ارور No open ports رندر
-async def handle_healthz(request):
-    return web.Response(text="Bot is online and running healthy!")
+# ==================== وب‌سرور داخلی برای Render ====================
+async def handle_health_check(request):
+    return web.Response(text="Mikrotik-Bot is Running Healthy!")
 
-async def run_internal_web_server():
-    port = int(os.environ.get("PORT", 10000))
+async def start_webserver():
     app = web.Application()
-    app.router.add_get("/", handle_healthz)
-    app.router.add_get("/healthz", handle_healthz)
+    app.router.add_get("/", handle_health_check)
+    app.router.add_get("/health", handle_health_check)
+    
+    port = int(os.environ.get("PORT", 10000))
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
-    print(f"✅ Web server running on port {port}")
+    logger.info(f"🌐 Health check web server running on port {port}")
 
-# نقطه شروع ربات
+# ==================== تابع اصلی اجرای ربات ====================
 async def main():
     await init_db()
     
-    # رفع دائم تداخل و Conflict ربات با ریست کردن وب‌هوک و آپدیت‌های در صف
+    # راه‌اندازی وب‌سرور برای پاس کردن تست پورت Render
+    await start_webserver()
+    
+    # پاک کردن وب‌هوک‌های قدیمی برای جلوگیری از Conflict Error
     await bot.delete_webhook(drop_pending_updates=True)
+    logger.info("🚀 Bot is starting polling...")
     
-    # فعال‌سازی پورت وب‌سرویس جهت پایداری در رندر
-    await run_internal_web_server()
-    
-    print("🚀 Mikrotik Bot started polling successfully...")
+    # شروع دریافت پیام‌ها
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    asyncio.run(main())
-
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Bot stopped.")
