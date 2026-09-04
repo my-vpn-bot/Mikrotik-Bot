@@ -20,6 +20,22 @@ RENDER_URL = os.getenv("RENDER_EXTERNAL_URL", "").rstrip('/')
 PAYMENT_CARD = os.getenv("PAYMENT_CARD", "0000-0000-0000-0000")
 
 logging.basicConfig(level=logging.INFO)
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher(storage=MemoryStorage())
+
+# ==================== حالت تعمیرات ====================
+@dp.message()
+async def maintenance_msg(message: types.Message):
+    await message.answer("🛠 کاربر گرامی، ربات در حال ارتقا و به‌روزرسانی زیرساخت است.\nلطفاً شکیبا باشید، به زودی بازمی‌گردیم! ✨")
+
+@dp.callback_query()
+async def maintenance_callback(callback: types.CallbackQuery):
+    await callback.answer("🛠 سیستم موقتاً در حال به‌روزرسانی است.", show_alert=True)
+# ======================================================
+
+# --- هندلرهای بعدی از اینجا شروع می‌شوند ---
+@dp.message(Command("start"))
+...
 
 # --- مدیریت وضعیت‌ها (FSM) ---
 class BotStates(StatesGroup):
