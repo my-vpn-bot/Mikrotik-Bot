@@ -18,300 +18,389 @@ ADMIN_ID = 6278059256
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# ذخیره کاربرانی که در حالت ارسال تیکت هستند
-users_in_support = set()
-
-# تبدیل تاریخ میلادی به شمسی ساده
-def get_persian_date():
-    now = datetime.now()
-    # محاسبه تقریبی ساده روز جاری
-    return f"{now.year}/{now.month:02d}/{now.day:02d}"
+# ذخیره زبان کاربران و کاربرانی که در حالت پشتیبانی هستند
+user_languages = {}      # {user_id: 'fa' | 'az' | 'en'}
+users_in_support = set() # {user_id}
 
 # ==========================================
-# 💎 منوهای شیشه‌ای
+# 🌐 دیکشنری چندزبانه (فارسی، ترکی، انگلیسی)
+# ==========================================
+TEXTS = {
+    'fa': {
+        'welcome': "سلام **{name}** عزیز! به سامانه پرسرعت VPN خوش آمدید 🚀\n\n⚡ پروتکل‌های فعال: **OpenVPN | PPTP | L2TP**\n🔒 ضد فیلتر و بدون قطعی، مناسب تمام اپراتورها\n\n👇 لطفاً یک گزینه را انتخاب کنید:",
+        'select_lang': "🌐 لطفاً زبان مورد نظر خود را انتخاب کنید:\nLütfen dilinizi seçin:\nPlease select your language:",
+        'lang_changed': "✅ زبان ربات با موفقیت به **فارسی** تغییر یافت.",
+        'btn_buy': "🛍️ خرید اشتراک VIP",
+        'btn_renew': "💳 تمدید اشتراک",
+        'btn_trial': "🎁 تست رایگان",
+        'btn_profile': "👤 حساب کاربری من",
+        'btn_status': "⚡ وضعیت سرورها",
+        'btn_tut': "📱 راهنمای اتصال و دانلود",
+        'btn_lang': "🌐 تغییر زبان / Dil / Language",
+        'btn_support': "🎧 پشتیبانی ۲۴/۷",
+        'btn_back': "🔙 بازگشت به منوی اصلی",
+        'profile_title': "👤 **اطلاعات حساب کاربری شما:**\n━━━━━━━━━━━━━━━━━━\n🏷️ **نام:** {name}\n🆔 **شناسه کاربری:** `{id}`\n🌐 **نام کاربری:** {username}\n📅 **تاریخ:** `{date}`\n━━━━━━━━━━━━━━━━━━\n📊 **وضعیت:** فعال\n🛡️ **پروتکل‌ها:** OpenVPN, PPTP, L2TP\n⚡ **سرعت:** نامحدود (۱۰ گیگابیت)\n━━━━━━━━━━━━━━━━━━",
+        'buy_title': "🛍️ **تعرفه‌های خرید و تمدید اشتراک:**\n\n🔹 پشتیبانی همزمان از **OpenVPN, PPTP, L2TP**\n🚀 پینگ پایین مخصوص وبگردی، ترید و اینستاگرام\n\n🔻 پلن مورد نظر را انتخاب کنید:",
+        'plan_1': "🔹 ۱ ماهه نامحدود - ۵۰,۰۰۰ تومان",
+        'plan_3': "🔹 ۳ ماهه نامحدود - ۱۳۰,۰۰۰ تومان",
+        'plan_6': "🔹 ۶ ماهه نامحدود - ۲۴۰,۰۰۰ تومان",
+        'pay_info': "✅ شما پلن **{plan}** را انتخاب کردید.\n\n💳 **شماره کارت جهت واریز:**\n`۶۰۳۷-۹۹۷۹-۰۰۰۰-۰۰۰۰`\nبه نام: مدیریت سرویس\n\n📸 پس از واریز، روی دکمه **ارتباط با پشتیبانی** بزنید و تصویر فیش را ارسال کنید.",
+        'trial_info': "🎁 **اکانت تست پرسرعت ۲۴ ساعته**\n\n🌐 **سرور:** `s1.vpn-server.net`\n👤 **یوزر:** `test_user`\n🔑 **پسورد:** `123456`\n🛡️ **پروتکل‌ها:** OpenVPN / PPTP / L2TP\n\n⚠️ هر اکانت فقط یکبار حق دریافت تست را دارد.",
+        'status_info': "📊 **وضعیت لحظه‌ای سرورها:**\n\n🇩🇪 سرور آلمان: 🟢 آنلاین (OpenVPN, L2TP, PPTP)\n🇳🇱 سرور هلند: 🟢 آنلاین (OpenVPN, L2TP, PPTP)\n🇫🇮 سرور فنلاند: 🟢 آنلاین (OpenVPN, L2TP, PPTP)",
+        'tut_title': "📱 لطفاً سیستم‌عامل دستگاه خود را انتخاب کنید:",
+        'support_prompt': "🎧 **واحد پشتیبانی آنلاین و ثبت سفارش**\n\n✍️ لطفاً پیام، متن یا **عکس فیش واریزی** خود را بفرستید.\nمدیریت سریعاً پاسخ خواهد داد.",
+        'ticket_sent': "✅ پیام شما به پشتیبانی ارسال شد. منتظر پاسخ بمانید.",
+        'photo_sent': "✅ تصویر فیش شما برای مدیریت ارسال شد.",
+        'reply_header': "📩 **پاسخ پشتیبانی به شما:**\n\n"
+    },
+    'az': {
+        'welcome': "Salam **{name}**! Sürətli VPN sisteminə xoş gəlmisiniz 🚀\n\n⚡ Aktiv protokollar: **OpenVPN | PPTP | L2TP**\n🔒 Yüksək sürət və limitsiz internet\n\n👇 Zəhmət olmasa bir seçimi seçin:",
+        'select_lang': "🌐 Zəhmət olmasa dilinizi seçin:",
+        'lang_changed': "✅ Dil uğurla **Azərbaycan / Türk** dilinə dəyişdirildi.",
+        'btn_buy': "🛍️ VIP Abunəlik Al",
+        'btn_renew': "💳 Abunəliyi Yenilə",
+        'btn_trial': "🎁 Pulsuz Test",
+        'btn_profile': "👤 Şəxsi Hesabım",
+        'btn_status': "⚡ Server Vəziyyəti",
+        'btn_tut': "📱 Qoşulma Bələdçisi",
+        'btn_lang': "🌐 Dili Dəyiş / Language",
+        'btn_support': "🎧 24/7 Dəstək",
+        'btn_back': "🔙 Əsas Menyuya Qayıt",
+        'profile_title': "👤 **İstifadəçi Məlumatı:**\n━━━━━━━━━━━━━━━━━━\n🏷️ **Ad:** {name}\n🆔 **İstifadəçi ID:** `{id}`\n🌐 **İstifadəçi adı:** {username}\n📅 **Tarix:** `{date}`\n━━━━━━━━━━━━━━━━━━\n📊 **Vəziyyət:** Aktiv\n🛡️ **Protokollar:** OpenVPN, PPTP, L2TP\n⚡ **Sürət:** Limitsiz\n━━━━━━━━━━━━━━━━━━",
+        'buy_title': "🛍️ **Tariflər və Yeniləmə:**\n\n🔹 Bütün protokollar aktivdir: **OpenVPN, PPTP, L2TP**\n\n🔻 Planı seçin:",
+        'plan_1': "🔹 1 Aylıq Limitsiz - 50,000 Toman",
+        'plan_3': "🔹 3 Aylıq Limitsiz - 130,000 Toman",
+        'plan_6': "🔹 6 Aylıq Limitsiz - 240,000 Toman",
+        'pay_info': "✅ Seçilmiş plan: **{plan}**\n\n💳 **'btn_status': "⚡ Server Vəziyyəti",
+        'btn_tut': "📱 Qoşulma Bələdçisi",
+        'btn_lang': "🌐 Dili Dəyiş / Language",
+        'btn_support': "🎧 24/7 Dəstək",
+        'btn_back': "🔙 Əsas Menyuya Qayıt",
+        'profile_title': "👤 **İstifadəçi Məlumatı:**\n━━━━━━━━━━━━━━━━━━\n🏷️ **Ad:** {name}\n🆔 **İstifadəçi ID:** `{id}`\n🌐 **İstifadəçi adı:** {username}\n📅 **Tarix:** `{date}`\n━━━━━━━━━━━━━━━━━━\n📊 **Vəziyyət:** Aktiv\n🛡️ **Protokollar:** OpenVPN, PPTP, L2TP\n⚡ **Sürət:** Limitsiz\n━━━━━━━━━━━━━━━━━━",
+        'buy_title': "🛍️ **Tariflər və Yeniləmə:**\n\n🔹 Bütün protokollar aktivdir: **OpenVPN, PPTP, L2TP**\n\n🔻 Planı seçin:",
+        'plan_1': "🔹 1 Aylıq Limitsiz - 50,000 Toman",
+        'plan_3': "🔹 3 Aylıq Limitsiz - 130,000 Toman",
+        'plan_6': "🔹 6 Aylıq Limitsiz - 240,000 Toman",
+        'pay_info': "✅ Seçilmiş plan: **{plan}**\n\n💳 **Kart Nömrəsi:**\n`6037-9979-0000-0000`\n\n📸 Ödənişdən sonra çeki **Dəstək** bölməsinə göndərin.",
+        'trial_info': "🎁 **24 Saatlıq Pulsuz Test**\n\n🌐 **Server:**btn_trial': "🎁 Free Trial",
+        'btn_profile': "👤 My Profile",
+        'btn_status': "⚡ Server Status",
+        'btn_tut': "📱 Setup Tutorials",
+        'btn_lang': "🌐 Change Language",
+        'btn_support': "🎧 24/7 Support",
+        'btn_back': "🔙 Back to Main Menu",
+        'profile_title': "👤 **User Profile:**\n━━━━━━━━━━━━━━━━━━\n🏷️ **Name:** {name}\n🆔 **User ID:** `{id}`\n🌐 **Username:** {username}\n📅 **Date:** `{date}`\n━━━━━━━━━━━━━━━━━━\n📊 **Status:** Active\n🛡️ **Protocols:** OpenVPN, PPTP, L2TP\n⚡ **Speed:** Unlimited\n━━━━━━━━━━━━━━━━━━",
+        'buy_title': "🛍️ **Pricing & Plans:**\n\n🔹 Supported Protocols: **OpenVPN, PPTP, L2TP**\n🚀 High speed, low latency\n\n🔻 Choose your plan:",
+        'plan_1': "🔹 1 Month Unlimited",
+        'plan_3': "🔹 3 Months Unlimited",
+        'plan_6': "🔹 6 Months Unlimited",
+        'pay_info': "✅ Selected: **{plan}**\n\n💳 **Payment Info:**\nCard: `6037-9979-0000-0000`\n\n📸 Send your payment receipt via **Support** button.",
+        'trial_info': "🎁 **24-Hour Free Trial**\n\n🌐 **Server:** `s1.vpn-server.net`\n👤 **Username:** `test_user`\n🔑 **Password:** `123456`\n🛡️ **Protocols:** OpenVPN / PPTP / L2TP",
+        'status_info': "📊 **Server Live Status:**\n\n🇩🇪 Germany: 🟢 Online\n🇳🇱 Netherlands: 🟢 Online\n🇫🇮 Finland: 🟢 Online",
+        'tut_title': "📱 Please select your Operating System:",
+        'support_prompt': "🎧 **24/7 Support Department**\n\n✍️ Please send your message or **payment receipt photo** here.",
+        'ticket_sent': "✅ Your message has been sent to support.",
+        'photo_sent': "✅ Your photo has been sent to support.",
+        'reply_header': "📩 **Support Response:**\n\n"
+    }
+}
+
+def get_user_lang(user_id):
+    return user_languages.get(user_id, 'fa')
+
+# ==========================================
+# 💎 کیبوردهای داینامیک
 # ==========================================
 
-def get_main_menu():
-    """منوی اصلی VIP"""
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+def get_main_menu(user_id):
+    lang = get_user_lang(user_id)
+    t = TEXTS[lang]
+    return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="🛍️ خرید اشتراک VIP", callback_data="buy_menu"),
-            InlineKeyboardButton(text="🎁 دریافت تست رایگان", callback_data="free_trial")
+            InlineKeyboardButton(text=t['btn_buy'], callback_data="buy_menu"),
+            InlineKeyboardButton(text=t['btn_renew'], callback_data="buy_menu")
         ],
         [
-            InlineKeyboardButton(text="👤 حساب کاربری من", callback_data="profile"),
-            InlineKeyboardButton(text="⚡ وضعیت سرورها", callback_data="status")
+            InlineKeyboardButton(text=t['btn_trial'], callback_data="free_trial"),
+            InlineKeyboardButton(text=t['btn_profile'], callback_data="profile")
         ],
         [
-            InlineKeyboardButton(text="📱 راهنمای اتصال و دانلود", callback_data="tutorials"),
-            InlineKeyboardButton(text="🎟️ ثبت کد تخفیف", callback_data="promo")
+            InlineKeyboardButton(text=t['btn_status'], callback_data="status"),
+            InlineKeyboardButton(text=t['btn_tut'], callback_data="tutorials")
         ],
         [
-            InlineKeyboardButton(text="🎧 ارتباط با پشتیبانی ۲۴/۷", callback_data="support")
+            InlineKeyboardButton(text=t['btn_lang'], callback_data="lang_select_menu"),
+            InlineKeyboardButton(text=t['btn_support'], callback_data="support")
         ]
     ])
-    return keyboard
 
-def get_back_button():
-    """دکمه بازگشت به منوی اصلی"""
+def get_lang_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔙 بازگشت به منوی اصلی", callback_data="back_to_main")]
+        [InlineKeyboardButton(text="🇮🇷 فارسی (Persian)", callback_data="setlang_fa")],
+        [InlineKeyboardButton(text="🇦🇿 آذربایجانجا / Türkçe", callback_data="setlang_az")],
+        [InlineKeyboardButton(text="🇬🇧 English", callback_data="setlang_en")],
+        [InlineKeyboardButton(text="🔙 بازگشت / Back", callback_data="back_to_main")]
     ])
 
-def get_profile_menu():
-    """منوی اختصاصی داخل پروفایل کاربری"""
+def get_back_button(user_id):
+    lang = get_user_lang(user_id)
     return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="💳 تمدید اشتراک", callback_data="buy_menu"),
-            InlineKeyboardButton(text="🎧 ارتباط با پشتیبانی", callback_data="support")
-        ],
-        [InlineKeyboardButton(text="🔙 بازگشت به منوی اصلی", callback_data="back_to_main")]
+        [InlineKeyboardButton(text=TEXTS[lang]['btn_back'], callback_data="back_to_main")]
     ])
 
-def get_buy_menu():
-    """منوی تعرفه‌ها"""
+def get_buy_menu(user_id):
+    lang = get_user_lang(user_id)
+    t = TEXTS[lang]
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔹 ۱ ماهه نامحدود (تک‌کاربره) - ۵۰ ت", callback_data="plan_1m")],
-        [InlineKeyboardButton(text="🔹 ۳ ماهه نامحدود (دوکاربره) - ۱۳۰ ت", callback_data="plan_3m")],
-        [InlineKeyboardButton(text="🔹 ۶ ماهه نامحدود (VIP) - ۲۴۰ ت", callback_data="plan_6m")],
-        [InlineKeyboardButton(text="💳 کارت به کارت و ارسال فیش", callback_data="support")],
-        [InlineKeyboardButton(text="🔙 بازگشت", callback_data="back_to_main")]
+        [InlineKeyboardButton(text=t['plan_1'], callback_data="plan_1m")],
+        [InlineKeyboardButton(text=t['plan_3'], callback_data="plan_3m")],
+        [InlineKeyboardButton(text=t['plan_6'], callback_data="plan_6m")],
+        [InlineKeyboardButton(text=t['btn_support'], callback_data="support")],
+        [InlineKeyboardButton(text=t['btn_back'], callback_data="back_to_main")]
     ])
 
-def get_tutorials_menu():
-    """منوی آموزش اتصال"""
+def get_tutorials_menu(user_id):
+    lang = get_user_lang(user_id)
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="🍏 آیفون (iOS)", callback_data="tut_ios"),
-            InlineKeyboardButton(text="🤖 اندروید (Android)", callback_data="tut_android")
+            InlineKeyboardButton(text="🍏 iOS (OpenVPN / L2TP)", callback_data="tut_ios"),
+            InlineKeyboardButton(text="🤖 Android (OpenVPN / PPTP)", callback_data="tut_android")
         ],
         [
-            InlineKeyboardButton(text="💻 ویندوز (Windows)", callback_data="tut_win"),
-            InlineKeyboardButton(text="🍎 مک (macOS)", callback_data="tut_mac")
+            InlineKeyboardButton(text="💻 Windows (OpenVPN / PPTP)", callback_data="tut_win"),
+            InlineKeyboardButton(text="🍎 macOS (OpenVPN / L2TP)", callback_data="tut_mac")
         ],
-        [InlineKeyboardButton(text="🔙 بازگشت", callback_data="back_to_main")]
+        [InlineKeyboardButton(text=TEXTS[lang]['btn_back'], callback_data="back_to_main")]
     ])
 
 # ==========================================
-# 🚀 هندلرهای منو و دستورات
+# 🚀 هندلرها
 # ==========================================
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
-    if message.from_user.id in users_in_support:
-        users_in_support.discard(message.from_user.id)
+    user_id = message.from_user.id
+    users_in_support.discard(user_id)
+    
+    # اگر کاربر جدید است پیش‌فرض فارسی
+    if user_id not in user_languages:
+        user_languages[user_id] = 'fa'
         
-    user_name = message.from_user.first_name or "کاربر"
-    text = (
-        f"سلام **{user_name}** عزیز! به سامانه پرسرعت VPN خوش آمدید 🚀\n\n"
-        "⚡ **سرویس‌های اختصاصی L2TP / IPsec با پایداری ۹۹.۹٪**\n"
-        "🔒 ضد فیلتر، بدون قطعی، مناسب تمام اپراتورها\n\n"
-        "👇 لطفاً یکی از گزینه‌های زیر را انتخاب کنید:"
+    lang = get_user_lang(user_id)
+    t = TEXTS[lang]
+    name = message.from_user.first_name or "User"
+    
+    await message.answer(
+        t['welcome'].format(name=name),
+        parse_mode="Markdown",
+        reply_markup=get_main_menu(user_id)
     )
-    await message.answer(text, parse_mode="Markdown", reply_markup=get_main_menu())
 
 @dp.callback_query(F.data == "back_to_main")
 async def cb_back_to_main(callback: types.CallbackQuery):
-    users_in_support.discard(callback.from_user.id)
+    user_id = callback.from_user.id
+    users_in_support.discard(user_id)
+    lang = get_user_lang(user_id)
+    t = TEXTS[lang]
+    
     await callback.message.edit_text(
-        "🏠 **منوی اصلی ربات:**\n\nلطفاً بخش مورد نظر خود را انتخاب کنید 👇",
+        f"🏠 **{t['btn_back'].replace('🔙 ', '')}**",
         parse_mode="Markdown",
-        reply_markup=get_main_menu()
+        reply_markup=get_main_menu(user_id)
     )
     await callback.answer()
 
 # ------------------------------------------
-# 👤 حساب کاربری اصلاح شده و کامل
+# 🌐 مدیریت زبان
+# ------------------------------------------
+@dp.callback_query(F.data == "lang_select_menu")
+async def cb_lang_menu(callback: types.CallbackQuery):
+    lang = get_user_lang(callback.from_user.id)
+    await callback.message.edit_text(TEXTS[lang]['select_lang'], reply_markup=get_lang_menu())
+    await callback.answer()
+
+@dp.callback_query(F.data.startswith("setlang_"))
+async def cb_set_lang(callback: types.CallbackQuery):
+    selected_lang = callback.data.split("_")[1]
+    user_languages[callback.from_user.id] = selected_lang
+    t = TEXTS[selected_lang]
+    
+    await callback.message.edit_text(t['lang_changed'], parse_mode="Markdown", reply_markup=get_main_menu(callback.from_user.id))
+    await callback.answer()
+
+# ------------------------------------------
+# 👤 حساب کاربری
 # ------------------------------------------
 @dp.callback_query(F.data == "profile")
 async def cb_profile(callback: types.CallbackQuery):
     user = callback.from_user
-    username = f"@{user.username}" if user.username else "ثبت نشده"
+    lang = get_user_lang(user.id)
+    t = TEXTS[lang]
+    username = f"@{user.username}" if user.username else "N/A"
+    today = datetime.now().strftime("%Y/%m/%d")
     
-    profile_text = (
-        "👤 **اطلاعات حساب کاربری شما:**\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        f"🏷️ **نام:** {user.full_name}\n"
-        f"🆔 **شناسه کاربری:** `{user.id}`\n"
-        f"🌐 **نام کاربری:** {username}\n"
-        f"📅 **تاریخ استعلام:** `{get_persian_date()}`\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        "📊 **وضعیت اشتراک:** فعال / آماده اتصال\n"
-        "🛡️ **پروتکل فعال:** L2TP / IPsec VPN\n"
-        "⚡ **سرعت اتصال:** نامحدود (۱۰ گیگابیت)\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        "💡 جهت تمدید یا دریافت کانکشن از دکمه‌های زیر استفاده کنید:"
+    text = t['profile_title'].format(
+        name=user.full_name,
+        id=user.id,
+        username=username,
+        date=today
     )
-    await callback.message.edit_text(profile_text, parse_mode="Markdown", reply_markup=get_profile_menu())
+    
+    profile_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text=t['btn_renew'], callback_data="buy_menu"),
+            InlineKeyboardButton(text=t['btn_support'], callback_data="support")
+        ],
+        [InlineKeyboardButton(text=t['btn_back'], callback_data="back_to_main")]
+    ])
+    
+    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=profile_kb)
     await callback.answer()
 
 # ------------------------------------------
-# 🛍️ خرید و تست
+# 🛍️ خرید و تعرفه‌ها
 # ------------------------------------------
 @dp.callback_query(F.data == "buy_menu")
 async def cb_buy_menu(callback: types.CallbackQuery):
-    text = (
-        "🛍️ **پلن‌های اختصاصی و پرسرعت L2TP:**\n\n"
-        "🚀 پینگ فوق‌العاده پایین مخصوص اینستاگرام، ترید، گیم و وبگردی\n"
-        "⚡ ترافیک کاملاً نامحدود و آی‌پی ثابت\n\n"
-        "🔻 پلن مورد نظر خود را انتخاب کنید:"
-    )
-    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_buy_menu())
+    user_id = callback.from_user.id
+    lang = get_user_lang(user_id)
+    await callback.message.edit_text(TEXTS[lang]['buy_title'], parse_mode="Markdown", reply_markup=get_buy_menu(user_id))
     await callback.answer()
 
 @dp.callback_query(F.data.startswith("plan_"))
 async def cb_plans(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    lang = get_user_lang(user_id)
+    t = TEXTS[lang]
     plan_names = {
-        "plan_1m": "۱ ماهه نامحدود (۵۰,۰۰۰ تومان)",
-        "plan_3m": "۳ ماهه نامحدود (۱۳۰,۰۰۰ تومان)",
-        "plan_6m": "۶ ماهه نامحدود (۲۴۰,۰۰۰ تومان)"
+        "plan_1m": t['plan_1'],
+        "plan_3m": t['plan_3'],
+        "plan_6m": t['plan_6']
     }
-    selected = plan_names.get(callback.data, "اشتراک")
-    text = (
-        f"✅ شما پلن **{selected}** را انتخاب کردید.\n\n"
-        "💳 **شماره کارت جهت واریز:**\n"
-        "`۶۰۳۷-۹۹۷۹-۰۰۰۰-۰۰۰۰`\n"
-        "به نام: مدیریت سرویس\n\n"
-        "📸 **روش ارسال فیش:**\n"
-        "روی دکمه **ارتباط با پشتیبانی** بزنید و تصویر فیش یا پیام واریز خود را بفرستید."
-    )
-    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_back_button())
+    selected = plan_names.get(callback.data, "VPN Plan")
+    text = t['pay_info'].format(plan=selected)
+    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_back_button(user_id))
     await callback.answer()
 
 @dp.callback_query(F.data == "free_trial")
 async def cb_free_trial(callback: types.CallbackQuery):
-    text = (
-        "🎁 **اکانت تست پرسرعت ۲۴ ساعته**\n\n"
-        "🌐 **آدرس سرور:** `s1.l2tp-server.net`\n"
-        "👤 **نام کاربری:** `test_user`\n"
-        "🔑 **رمز عبور:** `123456`\n"
-        "🛡️ **کلید اشتراکی (Secret):** `12345678`\n"
-        "📡 **پروتکل:** L2TP with IPsec\n\n"
-        "⚠️ هر اکانت فقط یکبار حق دریافت تست را دارد."
-    )
-    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_back_button())
+    user_id = callback.from_user.id
+    lang = get_user_lang(user_id)
+    await callback.message.edit_text(TEXTS[lang]['trial_info'], parse_mode="Markdown", reply_markup=get_back_button(user_id))
     await callback.answer()
 
 @dp.callback_query(F.data == "status")
 async def cb_status(callback: types.CallbackQuery):
-    text = (
-        "📊 **وضعیت سرورها و مسیرهای ارتباطی:**\n\n"
-        "🇩🇪 سرور آلمان (Frankfurt): 🟢 آنلاین (Ping: 40ms)\n"
-        "🇳🇱 سرور هلند (Amsterdam): 🟢 آنلاین (Ping: 45ms)\n"
-        "🇫🇮 سرور فنلاند (Helsinki): 🟢 آنلاین (Ping: 48ms)\n\n"
-        "🛡️ تمامی مسیرها با سرعت حداکثری فعال هستند."
-    )
-    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_back_button())
+    user_id = callback.from_user.id
+    lang = get_user_lang(user_id)
+    await callback.message.edit_text(TEXTS[lang]['status_info'], parse_mode="Markdown", reply_markup=get_back_button(user_id))
     await callback.answer()
 
 @dp.callback_query(F.data == "tutorials")
 async def cb_tutorials(callback: types.CallbackQuery):
-    text = "📱 لطفاً سیستم‌عامل دستگاه خود را انتخاب کنید:"
-    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_tutorials_menu())
+    user_id = callback.from_user.id
+    lang = get_user_lang(user_id)
+    await callback.message.edit_text(TEXTS[lang]['tut_title'], parse_mode="Markdown", reply_markup=get_tutorials_menu(user_id))
     await callback.answer()
 
 @dp.callback_query(F.data.startswith("tut_"))
 async def cb_tut_details(callback: types.CallbackQuery):
-    tutorials = {
-        "tut_ios": "🍏 **آموزش آیفون (iOS):**\nبه بخش Settings > General > VPN & Device Management بروید، Add VPN Configuration را بزنید و نوع را روی L2TP بگذارید.",
-        "tut_android": "🤖 **آموزش اندروید:**\nدر تنظیمات گوشی وارد اتصالات (Connections) > VPN شوید و اتصال L2TP/IPsec PSK ایجاد کنید.",
-        "tut_win": "💻 **آموزش ویندوز:**\nوارد Settings > Network & Internet > VPN شوید و کانکشن نوع L2TP بسازید.",
-        "tut_mac": "🍎 **آموزش مک:**\nدر تنظیمات شبکه (Network) یک رابط جدید از نوع VPN (L2TP over IPSec) اضافه کنید."
+    user_id = callback.from_user.id
+    tut_type = callback.data
+    
+    tut_texts = {
+        "tut_ios": "🍏 **iOS Setup (OpenVPN / L2TP):**\n1. Download OpenVPN Connect from AppStore.\n2. Import .ovpn config file or configure L2TP in Settings > VPN.",
+        "tut_android": "🤖 **Android Setup (OpenVPN / PPTP):**\n1. Install OpenVPN for Android.\n2. Or add PPTP connection in Settings > Connections > More connection settings > VPN.",
+        "tut_win": "💻 **Windows Setup (OpenVPN / PPTP):**\n1. Install OpenVPN GUI client.\n2. Or create a PPTP connection directly in Windows Network Settings.",
+        "tut_mac": "🍎 **macOS Setup (OpenVPN / L2TP):**\n1. Use Tunnelblick for OpenVPN.\n2. Or add L2TP / PPTP in Network Preferences."
     }
-    text = tutorials.get(callback.data, "راهنما")
-    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_back_button())
-    await callback.answer()
-
-@dp.callback_query(F.data == "promo")
-async def cb_promo(callback: types.CallbackQuery):
-    text = "🎟️ کد تخفیف یا معرف خود را در بخش **پشتیبانی** ارسال کنید تا در فاکتور اعمال شود."
-    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_back_button())
+    await callback.message.edit_text(tut_texts.get(tut_type, "Tutorial"), parse_mode="Markdown", reply_markup=get_back_button(user_id))
     await callback.answer()
 
 # ------------------------------------------
-# 🎧 سیستم پشتیبانی و تیکتینگ ۲۴/۷ اصلاح‌شده
+# 🎧 پشتیبانی و تیکتینگ دوطرفه با عکس
 # ------------------------------------------
 @dp.callback_query(F.data == "support")
 async def cb_support(callback: types.CallbackQuery):
-    users_in_support.add(callback.from_user.id)
-    text = (
-        "🎧 **واحد پشتیبانی آنلاین و ثبت سفارش**\n\n"
-        "✍️ لطفاً پیام، پرسش، کد تخفیف یا **عکس فیش واریزی** خود را همین‌جا ارسال کنید.\n"
-        "مدیریت در کمترین زمان ممکن بررسی و پاسخ خواهد داد.\n\n"
-        "*(جهت خروج از حالت پشتیبانی دکمه بازگشت را بزنید)*"
-    )
-    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_back_button())
+    user_id = callback.from_user.id
+    users_in_support.add(user_id)
+    lang = get_user_lang(user_id)
+    await callback.message.edit_text(TEXTS[lang]['support_prompt'], parse_mode="Markdown", reply_markup=get_back_button(user_id))
     await callback.answer()
 
-# مدیریت پیام‌های متنی
 @dp.message(F.text)
 async def handle_text_messages(message: types.Message):
     user_id = message.from_user.id
+    lang = get_user_lang(user_id)
+    t = TEXTS[lang]
 
-    # اگر ادمین روی تیکت کاربر ریپلای کرد
+    # اگر ادمین ریپلای کرد
     if user_id == ADMIN_ID and message.reply_to_message:
         target_text = message.reply_to_message.text or message.reply_to_message.caption or ""
-        if "🆔 شناسه:" in target_text:
+        if "🆔 شناسه:" in target_text or "User ID:" in target_text:
             try:
-                target_user_id = int(target_text.split("🆔 شناسه:")[1].split("\n")[0].strip().replace("`", ""))
-                admin_reply = (
-                    "📩 **پاسخ پشتیبانی به شما:**\n\n"
-                    f"{message.text}"
-                )
+                raw_id = target_text.split("🆔")[1].split("\n")[0] if "🆔" in target_text else target_text.split("User ID:")[1].split("\n")[0]
+                target_user_id = int(raw_id.replace("شناسه:", "").replace("`", "").strip())
+                target_lang = get_user_lang(target_user_id)
+                admin_reply = f"{TEXTS[target_lang]['reply_header']}{message.text}"
+                
                 await bot.send_message(target_user_id, admin_reply, parse_mode="Markdown")
-                await message.reply("✅ پاسخ شما با موفقیت برای کاربر ارسال شد.")
+                await message.reply("✅ پاسخ با موفقیت برای کاربر ارسال شد.")
                 return
             except Exception as e:
-                await message.reply(f"❌ خطا در ارسال پاسخ به کاربر: {e}")
+                await message.reply(f"❌ خطا در ارسال پاسخ: {e}")
                 return
 
-    # ارسال تیکت متنی کاربر برای ادمین
+    # ارسال تیکت کاربر به ادمین
     if user_id in users_in_support:
         ticket = (
-            "🔔 **تیکت جدید (پیام متنی)**\n"
+            "🔔 **تیکت جدید (New Message)**\n"
             "━━━━━━━━━━━━━━━━━━\n"
             f"👤 **کاربر:** {message.from_user.full_name}\n"
             f"🆔 شناسه: `{user_id}`\n"
             f"🌐 **یوزرنیم:** @{message.from_user.username if message.from_user.username else 'ندارد'}\n"
+            f"🌍 **زبان کاربر:** {lang}\n"
             "━━━━━━━━━━━━━━━━━━\n"
-            f"💬 **متن پیام:**\n{message.text}"
+            f"💬 **متن:**\n{message.text}"
         )
         try:
             await bot.send_message(ADMIN_ID, ticket, parse_mode="Markdown")
-            await message.answer("✅ پیام شما به پشتیبانی ارسال شد. منتظر پاسخ بمانید.", reply_markup=get_back_button())
+            await message.answer(t['ticket_sent'], reply_markup=get_back_button(user_id))
         except Exception as e:
             logging.error(f"Ticket error: {e}")
-            await message.answer("❌ خطا در برقراری ارتباط با پشتیبانی.", reply_markup=get_back_button())
+            await message.answer("❌ Error sending message.", reply_markup=get_back_button(user_id))
     else:
-        await message.answer("⚠️ لطفاً از دکمه‌های زیر استفاده کنید:", reply_markup=get_main_menu())
+        await message.answer("⚠️ Please use the menu buttons:", reply_markup=get_main_menu(user_id))
 
-# مدیریت ارسال عکس (فیش واریزی یا اسکرین‌شات)
 @dp.message(F.photo)
 async def handle_photo_messages(message: types.Message):
     user_id = message.from_user.id
+    lang = get_user_lang(user_id)
+    t = TEXTS[lang]
+    
     if user_id in users_in_support:
         photo_id = message.photo[-1].file_id
         caption = (
-            "📸 **فیش واریزی / عکس جدید از کاربر**\n"
+            "📸 **فیش واریزی / عکس جدید (Receipt / Screenshot)**\n"
             "━━━━━━━━━━━━━━━━━━\n"
             f"👤 **کاربر:** {message.from_user.full_name}\n"
             f"🆔 شناسه: `{user_id}`\n"
             f"🌐 **یوزرنیم:** @{message.from_user.username if message.from_user.username else 'ندارد'}\n"
+            f"🌍 **زبان:** {lang}\n"
             f"📝 **توضیحات:** {message.caption if message.caption else 'بدون متن'}"
         )
         try:
             await bot.send_photo(ADMIN_ID, photo=photo_id, caption=caption, parse_mode="Markdown")
-            await message.answer("✅ تصویر با موفقیت برای پشتیبانی ارسال شد.", reply_markup=get_back_button())
+            await message.answer(t['photo_sent'], reply_markup=get_back_button(user_id))
         except Exception as e:
             logging.error(f"Photo ticket error: {e}")
-            await message.answer("❌ خطا در ارسال عکس.", reply_markup=get_back_button())
+            await message.answer("❌ Error sending photo.", reply_markup=get_back_button(user_id))
 
 # ==========================================
 # 🏁 اجرای ربات
 # ==========================================
-
 async def main():
-    print("🚀 Bot is starting on Render...")
+    print("🚀 Mikrotik VPN Bot is running with 3 languages and OpenVPN/PPTP/L2TP...")
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
