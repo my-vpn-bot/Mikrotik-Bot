@@ -2,7 +2,6 @@ import asyncio
 import logging
 import os
 import sys
-from datetime import datetime
 
 import aiohttp
 from aiohttp import web
@@ -35,9 +34,9 @@ MARZBAN_PASSWORD = os.getenv("MARZBAN_PASSWORD", "")
 SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "Support_Admin")
 CARD_NUMBER = os.getenv("CARD_NUMBER", "0000-0000-0000-0000")
 CARD_HOLDER = os.getenv("CARD_HOLDER", "پشتیبانی")
-PORT = int(os.getenv("PORT", "10000"))
+PORT = int(os.environ.get("PORT", 10000))
 
-# پلن‌های خرید
+# ==================== پلن‌های فروش ====================
 PLANS = {
     "plan_1m_30g": {"title": "یک‌ماهه - ۳۰ گیگابایت", "price": "۶۰,۰۰۰ تومان", "days": 30, "traffic": 30},
     "plan_1m_50g": {"title": "یک‌ماهه - ۵۰ گیگابایت", "price": "۹۰,۰۰۰ تومان", "days": 30, "traffic": 50},
@@ -49,7 +48,7 @@ def get_shamsi_datetime() -> str:
     now = jdatetime.datetime.now()
     return now.strftime("%Y/%m/%d - %H:%M")
 
-# ==================== کلاس مرزبان ====================
+# ==================== مرزبان API ====================
 class MarzbanAPI:
     def __init__(self, base_url: str, username: str, password: str):
         self.base_url = base_url
@@ -70,10 +69,10 @@ class MarzbanAPI:
                         self.token = res_data.get("access_token")
                         return self.token
                     else:
-                        logger.error(f"خطا در احراز هویت مرزبان: {resp.status}")
+                        logger.error(f"Marzban Auth Error: {resp.status}")
                         return None
         except Exception as e:
-            logger.error(f"خطای ارتباط با مرزبان: {e}")
+            logger.error(f"Marzban Connection Error: {e}")
             return None
 
     async def create_user(self, username: str, expire_days: int, traffic_gb: int) -> dict | None:
@@ -97,10 +96,10 @@ class MarzbanAPI:
                     if resp.status == 200:
                         return await resp.json()
                     else:
-                        logger.error(f"خطا در ایجاد کاربر مرزبان: {resp.status}")
+                        logger.error(f"Marzban Create User Error: {resp.status}")
                         return None
         except Exception as e:
-            logger.error(f"خطا در ایجاد کاربر: {e}")
+            logger.error(f"Create User Exception: {e}")
             return None
 
 marzban_client = MarzbanAPI(MARZBAN_URL, MARZBAN_USERNAME, MARZBAN_PASSWORD)
@@ -108,14 +107,13 @@ marzban_client = MarzbanAPI(MARZBAN_URL, MARZBAN_USERNAME, MARZBAN_PASSWORD)
 # ==================== استیت‌ها ====================
 class UserState(StatesGroup):
     waiting_for_receipt = State()
-    waiting_for_config_name = State()
 
 # ==================== کیبوردها ====================
 def main_menu_keyboard() -> InlineKeyboardMarkup:
     buttons = [
         [
             InlineKeyboardButton(text="💳 خرید کانفیگ", callback_data="buy_plans"),
-            InlineKeyboardButton(text="⌛ تمدید کانفیگ", callback_data="extend_config"),
+            InlineKeyboardButton(text="⏳ تمدید کانفیگ", callback_data="extend_config"),
         ],
         [
             InlineKeyboardButton(text="✨ تمدید کانفیگ رایگان", callback_data="free_test"),
@@ -134,7 +132,7 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="🗑 حذف کانفیگ", callback_data="delete_config"),
         ],
         [
-            InlineKeyboardButton(text="🧯 کانفیگ‌های در سد انقضا", callback_data="expired_configs"),
+            InlineKeyboardButton(text="🔥 کانفیگ‌های در حال انقضا", callback_data="expired_configs"),
         ],
         [
             InlineKeyboardButton(text=" پشتیبانی و راهنما", callback_data="support"),
@@ -164,7 +162,6 @@ def back_to_main_keyboard() -> InlineKeyboardMarkup:
 router = Router()
 
 async def render_screen(target, text: str, reply_markup: InlineKeyboardMarkup):
-    """تابع کمکی جهت ویرایش یا ارسال هوشمند پیام بدون خطا"""
     try:
         if isinstance(target, CallbackQuery):
             await target.message.edit_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
@@ -269,12 +266,12 @@ async def free_test_callback(callback: CallbackQuery):
         text = (
             "✨ <b>کانفیگ تست رایگان شما آماده شد:</b>\n\n"
             f"🔗 لینک اتصال:\n<code>{res['subscription_url']}</code>\n\n"
-            "لینک بالا را کپی کرده و در برنامه V2rayNG یا Streisand اضافه کنید."
+            "لینک بالا را کپی کرده و در نرم‌افزار متصل کنید."
         )
     else:
         text = (
             "✨ <b>تمدید / دریافت تست رایگان</b>\n\n"
-            "جهت فعال‌سازی یا تمدید تست با پشتیبانی در ارتباط باشید:\n"
+            "جهت دریافت تست رایگان با پشتیبانی ارتباط بگیرید:\n"
             f"🆔 @{SUPPORT_USERNAME}"
         )
     await render_screen(callback, text, back_to_main_keyboard())
@@ -283,8 +280,8 @@ async def free_test_callback(callback: CallbackQuery):
 async def extend_callback(callback: CallbackQuery):
     await callback.answer()
     text = (
-        "⌛ <b>تمدید کانفیگ</b>\n\n"
-        "جهت تمدید سرویس فعلی خود، نام کانفیگ یا لینک اتصال خود را برای پشتیبانی ارسال فرمایید:\n\n"
+        "⏳ <b>تمدید کانفیگ</b>\n\n"
+        "جهت تمدید، نام کاربری یا لینک کانفیگ خود را به آیدی زیر ارسال کنید:\n\n"
         f"🆔 @{SUPPORT_USERNAME}"
     )
     await render_screen(callback, text, back_to_main_keyboard())
@@ -293,10 +290,10 @@ async def extend_callback(callback: CallbackQuery):
 async def fix_callback(callback: CallbackQuery):
     await callback.answer()
     text = (
-        "🔧 <b>رفع نقص و عیب‌یابی کانفیگ</b>\n\n"
-        "۱. ابتدا اتصال اینترنت خود را چک کنید.\n"
-        "۲. لینک سابسکریپشن را مجدداً Update نمایید.\n"
-        "۳. در صورت بروز مشکل پایدار با پشتیبانی تماس بگیرید:\n\n"
+        "🔧 <b>رفع نقص و عیب‌یابی</b>\n\n"
+        "۱. اینترنت گوشی را خاموش و روشن کنید.\n"
+        "۲. لینک سابسکریپشن را در برنامه Update کنید.\n"
+        "۳. در صورت رفع نشدن با پشتیبانی هماهنگ کنید:\n\n"
         f"🆔 @{SUPPORT_USERNAME}"
     )
     await render_screen(callback, text, back_to_main_keyboard())
@@ -306,7 +303,7 @@ async def check_callback(callback: CallbackQuery):
     await callback.answer()
     text = (
         "🔍 <b>بررسی وضعیت کانفیگ</b>\n\n"
-        "برای استعلام حجم و زمان باقی‌مانده، لینک کانفیگ خود را در برنامه کلاینت باز کرده یا با پشتیبانی ارتباط بگیرید:\n\n"
+        "برای استعلام حجم و زمان باقی‌مانده اشتراک با پشتیبانی در ارتباط باشید:\n\n"
         f"🆔 @{SUPPORT_USERNAME}"
     )
     await render_screen(callback, text, back_to_main_keyboard())
@@ -315,8 +312,8 @@ async def check_callback(callback: CallbackQuery):
 async def skin_callback(callback: CallbackQuery):
     await callback.answer()
     text = (
-        "📷 <b>دریافت اسکین و کیوآرکد (QR Code)</b>\n\n"
-        "برای دریافت کیوآرکد کانفیگ خود به پشتیبانی پیام دهید:\n\n"
+        "📷 <b>دریافت QR Code</b>\n\n"
+        "جهت دریافت بارکد اتصال به پشتیبانی پیام دهید:\n\n"
         f"🆔 @{SUPPORT_USERNAME}"
     )
     await render_screen(callback, text, back_to_main_keyboard())
@@ -326,7 +323,7 @@ async def rename_callback(callback: CallbackQuery):
     await callback.answer()
     text = (
         "✍️ <b>تغییر نام کانفیگ</b>\n\n"
-        "جهت تغییر نام اشتراک خود، نام قبلی و نام جدید را به پشتیبانی ارسال نمایید:\n\n"
+        "جهت تغییر نام اشتراک به پشتیبانی اطلاع دهید:\n\n"
         f"🆔 @{SUPPORT_USERNAME}"
     )
     await render_screen(callback, text, back_to_main_keyboard())
@@ -336,7 +333,7 @@ async def delete_callback(callback: CallbackQuery):
     await callback.answer()
     text = (
         "🗑 <b>حذف کانفیگ</b>\n\n"
-        "درخواست حذف کانفیگ صرفاً از طریق پشتیبانی قابل انجام است:\n\n"
+        "جهت ابطال و حذف کانفیگ با پشتیبانی در ارتباط باشید:\n\n"
         f"🆔 @{SUPPORT_USERNAME}"
     )
     await render_screen(callback, text, back_to_main_keyboard())
@@ -345,8 +342,8 @@ async def delete_callback(callback: CallbackQuery):
 async def expired_callback(callback: CallbackQuery):
     await callback.answer()
     text = (
-        "🧯 <b>کانفیگ‌های در سد انقضا</b>\n\n"
-        "کانفیگ‌هایی که کمتر از ۳ روز یا کمتر از ۲ گیگابایت حجم دارند در این بخش بررسی و جهت تمدید با تخفیف ویژه هدایت می‌شوند.\n\n"
+        "🔥 <b>کانفیگ‌های در حال انقضا</b>\n\n"
+        "جهت تمدید پیش از موعد و دریافت آفر ویژه به پشتیبانی پیام دهید:\n\n"
         f"🆔 @{SUPPORT_USERNAME}"
     )
     await render_screen(callback, text, back_to_main_keyboard())
@@ -355,39 +352,37 @@ async def expired_callback(callback: CallbackQuery):
 async def support_callback(callback: CallbackQuery):
     await callback.answer()
     text = (
-        " <b>پشتیبانی و ارتباط با مدیریت</b>\n\n"
-        "پاسخگویی ۲۴ ساعته به سوالات و مشکلات اتصال:\n\n"
+        " <b>پشتیبانی اختصاصی</b>\n\n"
+        "پاسخگویی سریع ۲۴ ساعته:\n\n"
         f"🆔 @{SUPPORT_USERNAME}"
     )
     await render_screen(callback, text, back_to_main_keyboard())
 
-# ==================== وب‌سرور برای زنده ماندن در Render ====================
-async def dummy_health_check(request):
-    return web.Response(text="Bot is running healthy on Render!", status=200)
-
+# ==================== وب‌سرور Render ====================
 async def start_dummy_server():
     app = web.Application()
-    app.router.add_get("/", dummy_health_check)
-    app.router.add_get("/health", dummy_health_check)
+    app.router.add_get("/", lambda r: web.Response(text="Bot is online and healthy!"))
+    app.router.add_get("/health", lambda r: web.Response(text="OK"))
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
-    logger.info(f"وب‌سرور Render با موفقیت روی پورت {PORT} راه‌اندازی شد.")
+    logger.info(f"Render Dummy Server bound immediately to port {PORT}")
 
-# ==================== تابع اصلی ====================
+# ==================== اجرای اصلی ====================
 async def main():
     if not BOT_TOKEN:
-        logger.error("خطا: BOT_TOKEN تعریف نشده است!")
+        logger.error("BOT_TOKEN is missing!")
         return
 
+    # استارت سرور قبل از تلگرام تا پورت آنی توسط رندر شناسایی شود
     await start_dummy_server()
 
     bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher()
     dp.include_router(router)
 
-    logger.info("در حال پاکسازی وبهوک‌های قبلی و شروع Polling...")
+    logger.info("Bot is starting polling...")
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
@@ -395,4 +390,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        logger.info("ربات خاموش شد.")
+        logger.info("Bot stopped.")
