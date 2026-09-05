@@ -1,253 +1,394 @@
 import os
 import asyncio
 import logging
-import sqlite3
-import jdatetime
+from datetime import datetime, timedelta, timezone
+
 import aiohttp
-from aiogram import Bot, Dispatcher, Router, F
+import jdatetime
+from aiohttp import web
+
+from aiogram import Bot, Dispatcher, Router, types, F
+from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.filters import CommandStart
-from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
+from aiogram.filters import Command
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    CallbackQuery,
+)
 
-# --- تنظیمات لاگینگ ---
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# =========================================================
+# تنظیمات لاگ
+# =========================================================
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+)
+logger = logging.getLogger("vpn_bot")
 
-# --- دریافت متغیرهای محیطی (Environment Variables) ---
-BOT_TOKEN = os.getenv("BOT_TOKEN", "")
-MARZBAN_URL = os.getenv("MARZBAN_URL", "").rstrip("/")
-MARZBAN_USER = os.getenv("MARZBAN_USERNAME", "")
-MARZBAN_PASS = os.getenv("MARZBAN_PASSWORD", "")
-ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
-SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "Admin")
-CARD_NUMBER = os.getenv("CARD_NUMBER", "XXXX-XXXX-XXXX-XXXX")
-CARD_HOLDER = os.getenv("CARD_HOLDER", "مدیریت")
+# =========================================================
+# دریافت متغیرها از رندر (Environment Variables)
+# =========================================================
+BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
+MARZBAN_URL = os.getenv("MARZBAN_URL", "").strip().rstrip("/")
+MARZBAN_USERNAME = os.getenv("MARZBAN_USERNAME", "").strip()
+MARZBAN_PASSWORD = os.getenv("MARZBAN_PASSWORD", "").strip()
 
-# --- کلاس مدیریت API مرزبان ---
+CARD_NUMBER = os.getenv("CARD_NUMBER", "شماره کارت در رندر ثبت نشده").strip()
+CARD_HOLDER = os.getenv("CARD_HOLDER", "نام دارنده کارت ثبت نشده").strip()
+SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "@YourSupportID").strip()
+
+# =========================================================
+# اطلاعات پلن‌ها
+# =========================================================
+PLANS = {
+    "plan_1": {
+        "title": "۱ ماهه",
+        "days": 30,
+        "volume_gb": 30,
+        "price": "۵۰٬۰۰۰ تومان",
+    },
+    "plan_2": {
+        "title": "۲ ماهه",
+        "days": 60,
+        "volume_gb": 60,
+        "price": "۹۰٬۰۰۰ تومان",
+    },
+    "plan_3": {
+        "title": "۳ ماهه",
+        "days": 90,
+        "volume_gb": 100,
+        "price": "۱۳۰٬۰۰۰ تومان",
+    },
+}
+
+# =========================================================
+# کلاس ارتباط با مرزبان (Marzban API)
+# =========================================================
 class MarzbanAPI:
-    def __init__(self):
-        self.token = None
+    def __init__(self, base_url: str, username: str, password: str):
+        self.base_url = base_url.rstrip("/")
+        self.username = username
+        self.password = password
+        self.access_token = None
 
-    async def get_token(self):
-        if self.token:
-            return self.token
-        async with aiohttp.ClientSession() as s:
-            payload = {"username": MARZBAN_USER, "password": MARZBAN_PASS}
-            async with s.post(f"{MARZBAN_URL}/api/admin/token", data=payload) as r:
-                if r.status == 200:
-                    data = await r.json()
-                    self.token = data["access_token"]
-                    return self.token
-        return None
+    async def get_token(self) -> str | None:
+        if not self.base_url or not self.username or not self.password:
+            logger.error("❌ اطلاعات اتصال به مرزبان در متغیرهای محیطی کامل نیست.")
+            return None
 
-    async def get_user(self, username):
-        token = await self.get_token()
-        if not token: return None
-        async with aiohttp.ClientSession() as s:
-            headers = {"Authorization": f"Bearer {token}"}
-            async with s.get(f"{MARZBAN_URL}/api/user/{username}", headers=headers) as r:
-                if r.status == 200:
-                    return await r.json()
-        return None
+        url = f"{self.base_url}/api/admin/token"
+        data = {"username": self.username, "password": self.password}
 
-    async def create_user(self, username, plan_gb, duration_days):
-        token = await self.get_token()
-        if not token: return False
-        # تبدیل گیگابایت به بایت
-        data_limit_bytes = plan_gb * 1024**3
-        # محاسبه تاریخ انقضا (به صورت Timestamp)
-        expire_timestamp = int(jdatetime.datetime.now().timestamp() + (duration_days * 86400))
-        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    url,
+                    data=data,
+                    timeout=aiohttp.ClientTimeout(total=20),
+                ) as response:
+                    if response.status != 200:
+                        logger.error(f"❌ خطا در لاگین به مرزبان. کد: {response.status}")
+                        return None
+
+                    result = await response.json()
+                    self.access_token = result.get("access_token")
+                    logger.info("✅ توکن مرزبان با موفقیت دریافت شد.")
+                    return self.access_token
+        except Exception as error:
+            logger.exception(f"❌ استثنا در دریافت توکن مرزبان: {error}")
+            return None
+
+    async def create_user(self, username: str, expire_days: int, limit_gb: int) -> dict | None:
+        if not self.access_token:
+            token = await self.get_token()
+            if not token:
+                return None
+
+        url = f"{self.base_url}/api/user"
+        data_limit_bytes = limit_gb * 1024 * 1024 * 1024
+        expire_timestamp = int((datetime.now(timezone.utc) + timedelta(days=expire_days)).timestamp())
+
         payload = {
             "username": username,
-            "data_limit": data_limit_bytes,
+            "proxies": {"vless": {}},
+            "inbounds": {},
             "expire": expire_timestamp,
-            "proxies": {"vless": {}}, # ساختار پیش‌فرض برای VLESS
-            "status": "active"
+            "data_limit": data_limit_bytes,
+            "data_limit_reset_strategy": "no_reset",
+            "status": "active",
         }
-        async with aiohttp.ClientSession() as s:
-            headers = {"Authorization": f"Bearer {token}"}
-            async with s.post(f"{MARZBAN_URL}/api/user", json=payload, headers=headers) as r:
-                return r.status in [200, 201]
 
-marzban = MarzbanAPI()
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json",
+        }
 
-# --- ماشین حالات (FSM) ---
-class OrderProcess(StatesGroup):
-    waiting_for_plan = State()
-    waiting_for_username = State()
-    waiting_for_receipt = State()
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    url,
+                    json=payload,
+                    headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=30),
+                ) as response:
+                    if response.status not in (200, 201):
+                        logger.error(f"❌ خطا در ساخت کاربر مرزبان. کد: {response.status}")
+                        return None
+                    return await response.json()
+        except Exception as error:
+            logger.exception(f"❌ خطا در ساخت کاربر مرزبان: {error}")
+            return None
 
-class CheckStatus(StatesGroup):
-    waiting_for_username = State()
+    async def get_user(self, username: str) -> dict | None:
+        if not self.access_token:
+            token = await self.get_token()
+            if not token:
+                return None
 
-# --- کیبوردها (Keyboards) ---
-def main_menu_kb():
-    return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="🛍 خرید اشتراک"), KeyboardButton(text="📊 بررسی کانفیگ")],
-        [KeyboardButton(text="💎 درخواست اختصاصی"), KeyboardButton(text="🤝 همکاری در فروش")],
-        [KeyboardButton(text="🛠 پشتیبانی")]
-    ], resize_keyboard=True)
+        url = f"{self.base_url}/api/user/{username}"
+        headers = {"Authorization": f"Bearer {self.access_token}"}
 
-def back_kb():
-    return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="🔙 بازگشت")]], resize_keyboard=True)
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    url,
+                    headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=20),
+                ) as response:
+                    if response.status != 200:
+                        return None
+                    return await response.json()
+        except Exception as error:
+            logger.exception(f"❌ خطا در استعلام کاربر: {error}")
+            return None
 
-# --- روتر و هندلرها ---
+marzban = MarzbanAPI(
+    base_url=MARZBAN_URL,
+    username=MARZBAN_USERNAME,
+    password=MARZBAN_PASSWORD,
+)
+
+# =========================================================
+# وب‌سرور ساختگی جهت راضی نگه‌داشتن پورت رندر (Dummy Server)
+# =========================================================
+async def dummy_health(request: web.Request) -> web.Response:
+    return web.Response(text="VPN Telegram Bot is running perfectly!", content_type="text/plain")
+
+async def start_dummy_server() -> web.AppRunner:
+    app = web.Application()
+    app.router.add_get("/", dummy_health)
+    app.router.add_get("/health", dummy_health)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+
+    port = int(os.getenv("PORT", "10000"))
+    site = web.TCPSite(runner, host="0.0.0.0", port=port)
+    await site.start()
+    logger.info(f"🚀 وب‌سرور روی پورت {port} با موفقیت روشن شد.")
+    return runner
+
+# =========================================================
+# توابع کیبورد شیشه‌ای
+# =========================================================
+def main_menu_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🛒 خرید اشتراک", callback_data="buy_plans")],
+            [
+                InlineKeyboardButton(text="🎁 تست رایگان", callback_data="plus_test"),
+                InlineKeyboardButton(text="🛠 پشتیبانی", callback_data="support"),
+            ],
+            [
+                InlineKeyboardButton(text="🤝 همکاری در فروش", callback_data="affiliate"),
+                InlineKeyboardButton(text="ℹ️ اطلاعات سرویس", callback_data="info"),
+            ],
+        ]
+    )
+
+def plans_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔹 پلن ۱ ماهه | ۳۰ گیگ", callback_data="plan_1")],
+            [InlineKeyboardButton(text="🔹 پلن ۲ ماهه | ۶۰ گیگ", callback_data="plan_2")],
+            [InlineKeyboardButton(text="🔹 پلن ۳ ماهه | ۱۰۰ گیگ", callback_data="plan_3")],
+            [InlineKeyboardButton(text="🔙 بازگشت به منوی اصلی", callback_data="main_menu")],
+        ]
+    )
+
+def back_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 بازگشت به منوی اصلی", callback_data="main_menu")]
+        ]
+    )
+
+def payment_keyboard(plan_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="✅ پرداخت کردم", callback_data=f"paid_{plan_id}")],
+            [InlineKeyboardButton(text="🔙 بازگشت به پلن‌ها", callback_data="buy_plans")],
+        ]
+    )
+
+def get_shamsi_datetime() -> str:
+    now = jdatetime.datetime.now()
+    return now.strftime("%Y/%m/%d - %H:%M")
+
+# =========================================================
+# روتر و هندلرهای ربات
+# =========================================================
 router = Router()
 
-@router.message(CommandStart())
-async def cmd_start(msg: Message):
-    user_name = msg.from_user.full_name
-    now = jdatetime.datetime.now()
-    date_shamsi = now.strftime('%Y/%m/%d')
-    
-    welcome_text = (
-        f"✨ <b>خوش آمدید، {user_name} عزیز!</b>\n\n"
-        f"📅 <b>تاریخ:</b> <code>{date_shamsi}</code>\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"🚀 به سیستم هوشمند مدیریت <b>L2TP VPN</b> خوش آمدید.\n\n"
-        f"🛠 <b>خدمات ما:</b>\n"
-        f"✅ اتصال فوق‌سریع و پایدار\n"
-        f"✅ پشتیبانی ۲۴ ساعته\n"
-        f"✅ پلن‌های متنوع و اقتصادی\n\n"
-        f"لطفاً از منوی زیر انتخاب کنید 👇"
-    )
-    await msg.answer(welcome_text, parse_mode=ParseMode.HTML, reply_markup=main_menu_kb())
-
-@router.message(F.text == "🔙 بازگشت")
-async def cmd_back(msg: Message, state: FSMContext):
-    await state.clear()
-    await msg.answer("به منوی اصلی برگشتید.", reply_markup=main_menu_kb())
-
-# --- منطق خرید ---
-@router.message(F.text == "🛍 خرید اشتراک")
-async def start_purchase(msg: Message, state: FSMContext):
+@router.message(Command("start"))
+async def start_handler(message: types.Message):
+    full_name = message.from_user.full_name if message.from_user else "کاربر"
     text = (
-        "<b>💎 پلن‌های موجود:</b>\n\n"
-        "1️⃣ <b>پلن یک ماهه</b> (30GB) ➔ 70,000 تومان\n"
-        "2️⃣ <b>پلن دو ماهه</b> (60GB) ➔ 130,000 تومان\n"
-        "3️⃣ <b>پلن سه ماهه</b> (100GB) ➔ 180,000 تومان\n\n"
-        "<i>لطفاً شماره پلن خود را ارسال کنید (مثلاً 1)</i>"
+        f"👋 سلام {full_name} عزیز!\n\n"
+        f"📅 تاریخ: {get_shamsi_datetime()}\n\n"
+        "به ربات فروش و مدیریت اشتراک VPN خوش آمدید.\n"
+        "لطفاً یکی از گزینه‌های زیر را انتخاب کنید:"
     )
-    await state.set_state(OrderProcess.waiting_for_plan)
-    await msg.answer(text, parse_mode=ParseMode.HTML, reply_markup=back_kb())
+    await message.answer(text, reply_markup=main_menu_keyboard(), parse_mode=ParseMode.HTML)
 
-@router.message(OrderProcess.waiting_for_plan)
-async def process_plan(msg: Message, state: FSMContext):
-    plans = {"1": (30, 30), "2": (60, 60), "3": (100, 90)} # (GB, Days)
-    if msg.text not in plans:
-        await msg.answer("❌ شماره پلن نامعتبر است. لطفاً از 1 تا 3 انتخاب کنید.")
+@router.callback_query(Fmenu_keyboard(),
+        parse_mode=ParseMode.HTML,
+    )
+
+@router.callback_query(F.data == "buy_plans")
+async def buy_plans_handler(callback: CallbackQueryn\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:",
+        reply_markup=main_menu_keyboard(),
+        parse_mode=ParseMode.HTML,
+    )
+
+@router.callback_query(F.data == "buy_plans")
+async def buy_plans_handler(callback: CallbackQuery):
+    await callback.answer()
+    text = (
+        "💎 <b>پلن‌های اشتراک پرسرعت:</b>\n\n"
+        "پلن موردنظر خود را انتخاب کنید:"
+    )
+    await callback.message.edit_text(text, reply_markup=plans_keyboard(), parse_mode=ParseMode.HTML)
+
+@router.callback_query(F.data.startswith("plan_"))
+async def plan_handler(callback: CallbackQuery):
+    await callback.answer()
+    plan_id = callback.data
+    plan = PLANS.get(plan_id)
+
+    if not plan:
+        await callback.message.answer("❌ این پلن یافت نشد.", reply_markup=back_keyboard())
         return
 
-    await state.update_data(plan_info=plans[msg.text])
-    await state.set_state(OrderProcess.waiting_for_username)
-    await msg.answer("👤 <b>نام کاربری (Username) دلخواه خود را وارد کنید:</b>\n(مثلاً: user_test)", parse_mode=ParseMode.HTML)
-
-@router.message(OrderProcess.waiting_for_username)
-async def process_username(msg: Message, state: FSMContext):
-    username = msg.text.strip()
-    if len(username) < 3:
-        await msg.answer("❌ نام کاربری باید حداقل ۳ کاراکتر باشد.")
-        return
-    
-    await state.update_data(username=username)
-    await state.set_state(OrderProcess.waiting_for_receipt)
-    
-    payment_text = (
-        "💳 <b>اطلاعات پرداخت:</b>\n\n"
-        f"🏦 <b>شماره کارت:</b> <code>{CARD_NUMBER}</code>\n"
-        f"👤 <b>صاحب حساب:</b> {CARD_HOLDER}\n\n"
-        "✅ پس از واریز، لطفا <b>عکس فیش</b> را همین‌جا ارسال کنید."
+    text = (
+        f"✅ <b>سفارش پلن {plan['title']}</b>\n\n"
+        f"📦 حجم: <b>{plan['volume_gb']} گیگابایت</b>\n"
+        f"⏳ اعتبار: <b>{plan['days']} روز</b>\n"
+        f"💰 مبلغ: <b>{plan['price']}</b>\n\n"
+        "💳 <b>اطلاعات پرداخت:</b>\n"
+        f"شماره کارت:\n<code>{CARD_NUMBER}</code>\n"
+        f"به نام: <b>{CARD_HOLDER}</b>\n\n"
+        "⚠️ پس از واریز، روی دکمه «پرداخت کردم» کلیک کنید و رسید را بفرستید."
     )
-    await msg.answer(payment_text, parse_mode=ParseMode.HTML)
+    await callback.message.edit_text(text, reply_markup=payment_keyboard(plan_id), parse_mode=ParseMode.HTML)
 
-@router.message(OrderProcess.waiting_for_receipt, F.photo)
-async def process_receipt(msg: Message, state: FSMContext, bot: Bot):
-    data = await state.get_data()
-    username = data.get("username")
-    plan_gb = data.get("plan_info")[0]
-    duration = data.get("plan_info")[1]
+@router.callback_query(F.data.startswith("paid_"))
+async def paid_handler(callback: CallbackQuery):
+    await callback.answer()
+    plan_id = callback.data.replace("paid_", "")
+    plan = PLANS.get(plan_id, {})
+    title = plan.get("title", "نامشخص")
+    price = plan.get("price", "نامشخص")
 
-    # ارسال به ادمین
-    admin_msg = (
-        f"🔔 <b>درخواست خرید جدید!</b>\n\n"
-        f"👤 از: {msg.from_user.full_name} (@{msg.from_user.username})\n"
-        f"🆔 نام کاربری درخواستی: <code>{username}</code>\n"
-        f"📦 پلن: {plan_gb} گیگابایت\n"
-        f"⏳ مدت: {duration} روز"
+    user = callback.from_user
+    username = f"@{user.username}" if user and user.username else f"ID: {user.id}"
+
+    text = (
+        "📨 <b>اعلام پرداخت شما ثبت شد!</b>\n\n"
+        f"پلن انتخابی: <b>{title}</b>\n"
+        f"مبلغ: <b>{price}</b>\n\n"
+        "لطفاً تصویر فیش واریزی خود را همراه با نام کاربری به پشتیبانی ارسال کنید:\n"
+        f"👉 <b>{SUPPORT_USERNAME}</b>\n\n"
+        f"شناسه شما: <code>{username}</code>"
     )
-    await bot.send_photo(ADMIN_ID, msg.photo[-1].file_id, caption=admin_msg, parse_mode=ParseMode.HTML)
-    
-    await msg.answer("✅ فیش شما دریافت شد. پس از تایید ادمین، اکانت شما ساخته خواهد شد.", reply_markup=main_menu_kb())
-    await state.clear()
+    await callback.message.edit_text(text, reply_markup=back_keyboard(), parse_mode=ParseMode.HTML)
 
-# --- منطق استعلام ---
-@router.message(F.text == "📊 بررسی کانفیگ")
-async def start_check(msg: Message, state: FSMContext):
-    await state.set_state(CheckStatus.waiting_for_username)
-    await msg.answer("🔍 <b>لطفاً نام کاربری خود را برای استعلام وارد کنید:</b>", parse_mode=ParseMode.HTML, reply_markup=back_kb())
+@router.callback_query(F.data == "plus_test")
+async def free_test_handler(callback: CallbackQuery):
+    await callback.answer()
+    text = (
+        "🎁 <b>دریافت تست رایگان</b>\n\n"
+        "جهت دریافت کانفیگ تست رایگان به آیدی پشتیبانی پیام دهید:\n\n"
+        f"👉 <b>{SUPPORT_USERNAME}</b>"
+    )
+    await callback.message.edit_text(text, reply_markup=back_keyboard(), parse_mode=ParseMode.HTML)
 
-@router.message(CheckStatus.waiting_for_username)
-async def check_user_status(msg: Message, state: FSMContext):
-    username = msg.text.strip()
-    user_data = await marzban.get_user(username)
-    
-    if not user_data:
-        await msg.answer("❌ کاربری با این مشخصات یافت نشد.", reply_markup=main_menu_kb())
-    else:
-        status = "🟢 فعال" if user_data.get("status") == "active" else "🔴 غیرفعال"
-        used = user_data.get("used_traffic", 0) / (1024**3)
-        limit = user_data.get("data_limit", 0) / (1024**3)
-        
-        # تاریخ انقضا به شمسی
-        expire_ts = user_data.get("expire")
-        if expire_ts:
-            expire_date = jdatetime.datetime.fromtimestamp(expire_ts).strftime('%Y/%m/%d')
-        else:
-            expire_date = "نامحدود"
+@router.callback_query(F.data == "support")
+async def support_handler(callback: CallbackQuery):
+    await callback.answer()
+    text = (
+        "🛠 <b>پشتیبانی و ارتباط با ما</b>\n\n"
+        "جهت ارسال رسید، تمدید اشتراک یا حل مشکلات اتصال پیام دهید:\n\n"
+        f"👉 <b>{SUPPORT_USERNAME}</b>"
+    )
+    await callback.message.edit_text(text, reply_markup=back_keyboard(), parse_mode=ParseMode.HTML)
 
-        res_text = (
-            f"📊 <b>گزارش وضعیت اکانت:</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"👤 <b>نام کاربری:</b> <code>{username}</code>\n"
-            f"🚦 <b>وضعیت:</b> {status}\n"
-            f"📊 <b>مصرف:</b> <code>{used:.2f}</code> / <code>{limit:.2f}</code> GB\n"
-            f"📅 <b>تاریخ انقضا:</b> <code>{expire_date}</code>\n"
-            f"━━━━━━━━━━━━━━━━━━━━"
-        )
-        await msg.answer(res_text, parse_mode=ParseMode.HTML, reply_markup=main_menu_kb())
-    await state.clear()
+@router.callback_query(F.data == "affiliate")
+async def affiliate_handler(callback: CallbackQuery):
+    await callback.answer()
+    text = (
+        "🤝 <b>همکاری در فروش</b>\n\n"
+        "برای دریافت پنل نمایندگی یا پورسانت فروش اشتراک، با پشتیبانی در ارتباط باشید:\n\n"
+        f"👉 <b>{SUPPORT_USERNAME}</b>"
+    )
+    await callback.message.edit_text(text, reply_markup=back_keyboard(), parse_mode=ParseMode.HTML)
 
-# --- سایر دکمه‌ها ---
-@router.message(F.text == "💎 درخواست اختصاصی")
-async def custom_req(msg: Message):
-    await msg.answer(f"👨‍💻 برای دریافت پلن‌های خاص و اختصاصی، با پشتیبان در ارتباط باشید: @{SUPPORT_USERNAME}")
+@router.callback_query(F.data == "info")
+async def info_handler(callback: CallbackQuery):
+    await callback.answer()
+    text = (
+        "ℹ️ <b>درباره سرویس‌های ما</b>\n\n"
+        "⚡️ بالاترین سرعت و کمترین پینگ\n"
+        "🔒 رمزنگاری امن و بدون قطعی\n"
+        "📱 قابل استفاده در اندروید، iOS، ویندوز و مک\n"
+        " پشتیبانی ۲۴ ساعته"
+    )
+    await callback.message.edit_text(text, reply_markup=back_keyboard(), parse_mode=ParseMode.HTML)
 
-@router.message(F.text == "🤝 همکاری در فروش")
-async def reseller_info(msg: Message):
-    await msg.answer("💰 با خرید پنل نمایندگی، از هر فروش درصد مشخصی سود خواهید برد. جهت دریافت اطلاعات به @"+SUPPORT_USERNAME+" پیام دهید.")
-
-@router.message(F.text == "🛠 پشتیبانی")
-async def support_msg(msg: Message):
-    await msg.answer(f"👨‍💻 ادمین و پشتیبانی: @{SUPPORT_USERNAME}")
-
-# --- اجرای اصلی ---
+# =========================================================
+# اجرای اصلی (Main Entrypoint)
+# =========================================================
 async def main():
-    bot = Bot(token=BOT_TOKEN)
+    if not BOT_TOKEN:
+        logger.critical("❌ توکن ربات (BOT_TOKEN) در متغیرهای محیطی رندر پیدا نشد!")
+        return
+
+    # تنظیمات ربات
+    bot = Bot(
+        token=BOT_TOKEN,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+    )
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
-    
-    # بسیار مهم برای Render: حذف آپدیت‌های قدیمی برای جلوگیری از TelegramConflictError
+
+    # راه‌اندازی سرور جهت جلوگیری از بسته شدن توسط رندر
+    await start_dummy_server()
+
+    # حذف پیام‌های قبلی و شروع Polling
     await bot.delete_webhook(drop_pending_updates=True)
-    
-    logger.info("Bot is starting...")
-    await dp.start_polling(bot)
+    logger.info("🚀 ربات با موفقیت در رندر روشن شد...")
+
+    try:
+        await dp.start_polling(bot)
+    except Exception as e:
+        logger.error(f"❌ خطا حین اجرای ربات: {e}")
+    finally:
+        await bot.session.close()
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        logger.info("Bot stopped.")
+        logger.info("🛑 ربات متوقف شد.")
