@@ -7,9 +7,9 @@ from typing import Optional, Dict, Any
 from aiohttp import web, ClientSession, ClientTimeout
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.types import (
-    Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+    Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 )
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -27,16 +27,22 @@ logger = logging.getLogger("MarzbanBot")
 # ---------------------------------------------------------
 # Configuration & Environment Variables
 # ---------------------------------------------------------
-BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 MARZBAN_URL = os.getenv("MARZBAN_URL", "").rstrip("/")
 MARZBAN_USERNAME = os.getenv("MARZBAN_USERNAME", "")
 MARZBAN_PASSWORD = os.getenv("MARZBAN_PASSWORD", "")
 PAYMENT_CARD = os.getenv("PAYMENT_CARD", "6037990000000000")
 SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "Support")
-WEBHOOK_HOST = os.getenv("RENDER_EXTERNAL_URL", "")  # Render auto-provides this
-PORT = int(os.getenv("PORT", "8080"))
 
+# Webhook URL handling with https:// enforcement
+raw_host = os.getenv("RENDER_EXTERNAL_URL", "").strip().rstrip("/")
+if raw_host and not raw_host.startswith("http"):
+    WEBHOOK_HOST = f"https://{raw_host}"
+else:
+    WEBHOOK_HOST = raw_host
+
+PORT = int(os.getenv("PORT", "10000"))
 DB_PATH = "bot_database.db"
 
 # ---------------------------------------------------------
@@ -90,6 +96,8 @@ class MarzbanAPI:
         self.token: Optional[str] = None
 
     async def get_token(self) -> Optional[str]:
+        if not self.base_url:
+            return None
         url = f"{self.base_url}/api/admin/token"
         data = {"username": self.username, "password": self.password}
         timeout = ClientTimeout(total=10)
@@ -120,7 +128,6 @@ class MarzbanAPI:
                     if response.status == 200:
                         return await response.json()
                     elif response.status == 401:
-                        # Retry once with fresh token
                         await self.get_token()
                         headers["Authorization"] = f"Bearer {self.token}"
                         async with session.get(url, headers=headers) as retry_res:
@@ -137,17 +144,16 @@ marzban_client = MarzbanAPI(MARZBAN_URL, MARZBAN_USERNAME, MARZBAN_PASSWORD)
 # ---------------------------------------------------------
 class Form(StatesGroup):
     waiting_for_marzban_username = State()
-    waiting_for_support_message = State()
 
 router = Router()
 
-# Keyboards
+# Keyboards (اصلاح شد: callback_data جایگزین callback_query_data شد)
 def get_main_keyboard():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📊 وضعیت اشتراک", callback_query_data="check_status")],
-        [InlineKeyboardButton(text="🔗 ثبت نام کاربری مرزبان", callback_query_data="set_username")],
-        [InlineKeyboardButton(text="💳 شماره کارت پرداخت", callback_query_data="show_card")],
-        [InlineKeyboardButton(text="💬 ارتباط با پشتیبانی", callback_query_data="contact_support")]
+        [InlineKeyboardButton(text="📊 وضعیت اشتراک", callback_data="check_status")],
+        [InlineKeyboardButton(text="🔗 ثبت نام کاربری مرزبان", callback_data="set_username")],
+        [InlineKeyboardButton(text="💳 شماره کارت پرداخت", callback_data="show_card")],
+        [InlineKeyboardButton(text="💬 ارتباط با پشتیبانی", callback_data="contact_support")]
     ])
     return keyboard
 
@@ -166,11 +172,11 @@ async def cmd_start(message: Message, state: FSMContext):
 
 @router.callback_query(F.data == "set_username")
 async def process_set_username(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
     await state.set_state(Form.waiting_for_marzban_username)
     await callback.message.edit_text(
         "لطفاً نام کاربری (Username) اشتراک مرزبان خود را دقیق ارسال کنید:"
     )
-    await callback.answer()
 
 @router.message(Form.waiting_for_marzban_username)
 async def save_marzban_username(message: Message, state: FSMContext):
@@ -185,6 +191,7 @@ async def save_marzban_username(message: Message, state: FSMContext):
 
 @router.callback_query(F.data == "check_status")
 async def check_status(callback: CallbackQuery):
+    await callback.answer() # پاسخ سریع به دکمه تلگرام برای جلوگیری از Spinner
     user_data = get_user(callback.from_user.id)
     if not user_data or not user_data.get("marzban_username"):
         await callback.message.edit_text(
@@ -192,7 +199,6 @@ async def check_status(callback: CallbackQuery):
             "لطفاً ابتدا از دکمه زیر نام کاربری را تنظیم کنید.",
             reply_markup=get_main_keyboard()
         )
-        await callback.answer()
         return
 
     m_user = user_data["marzban_username"]
@@ -202,16 +208,15 @@ async def check_status(callback: CallbackQuery):
     if not info:
         await callback.message.edit_text(
             f"❌ خطایی در دریافت اطلاعات کاربر `{m_user}` رخ داد.\n"
-            "ممکن است نام کاربری اشتباه باشد یا سرور در دسترس نباشد.",
+            "ممکن است نام کاربری اشتباه باشد یا سرور مرزبان در دسترس نباشد.",
             parse_mode="Markdown",
             reply_markup=get_main_keyboard()
         )
-        await callback.answer()
         return
 
     status = info.get("status", "نامشخص")
-    data_limit = info.get("data_limit", 0) / (1024 ** 3)  # GB
-    used_traffic = info.get("used_traffic", 0) / (1024 ** 3)  # GB
+    data_limit = (info.get("data_limit") or 0) / (1024 ** 3)  # GB
+    used_traffic = (info.get("used_traffic") or 0) / (1024 ** 3)  # GB
     expire = info.get("expire", "بدون انقضا")
 
     res_text = (
@@ -222,29 +227,28 @@ async def check_status(callback: CallbackQuery):
         f"📅 تاریخ انقضا: `{expire}`"
     )
     await callback.message.edit_text(res_text, parse_mode="Markdown", reply_markup=get_main_keyboard())
-    await callback.answer()
 
 @router.callback_query(F.data == "show_card")
 async def show_card(callback: CallbackQuery):
+    await callback.answer()
     text = (
         f"💳 **اطلاعات کارت جهت واریز:**\n\n"
         f"`{PAYMENT_CARD}`\n\n"
         "لطفاً پس از واریز، فیش پرداختی را برای پشتیبانی ارسال کنید."
     )
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_main_keyboard())
-    await callback.answer()
 
 @router.callback_query(F.data == "contact_support")
 async def contact_support(callback: CallbackQuery):
+    await callback.answer()
     text = f"💬 برای ارتباط مستقیم با پشتیبانی می‌توانید به آیدی زیر پیام دهید:\n\n@{SUPPORT_USERNAME}"
     await callback.message.edit_text(text, reply_markup=get_main_keyboard())
-    await callback.answer()
 
 # ---------------------------------------------------------
-# Health Check / Render Server Webhook Setup
+# Health Check / Render Webhook Server
 # ---------------------------------------------------------
 async def health_check(request):
-    return web.Response(text="Bot is running healthy!", status=200)
+    return web.Response(text="Bot is healthy and running!", status=200)
 
 async def on_startup(bot: Bot):
     if WEBHOOK_HOST:
@@ -252,13 +256,16 @@ async def on_startup(bot: Bot):
         logger.info(f"Setting webhook to: {webhook_url}")
         await bot.set_webhook(webhook_url, drop_pending_updates=True)
     else:
-        logger.warning("WEBHOOK_HOST is not set! Running without setting webhook automatically.")
+        logger.warning("WEBHOOK_HOST is empty! Running without setting webhook.")
 
 def main():
     init_db()
     if not BOT_TOKEN:
-        logger.error("BOT_TOKEN is not defined in environment variables!")
+        logger.error("BOT_TOKEN environment variable missing!")
         return
+
+    masked_token = BOT_TOKEN[:6] + "..." if len(BOT_TOKEN) > 6 else "Invalid"
+    logger.info(f"Starting bot with token prefix: {masked_token}")
 
     bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher(storage=MemoryStorage())
@@ -277,10 +284,10 @@ def main():
         webhook_requests_handler.register(app, path="/webhook")
         setup_application(app, dp, bot=bot)
         
-        logger.info(f"Starting web server on port {PORT}...")
+        logger.info(f"Starting aiohttp server on port {PORT}...")
         web.run_app(app, host="0.0.0.0", port=PORT)
     else:
-        logger.info("Running in Polling mode...")
+        logger.info("No WEBHOOK_HOST detected. Fallback to Polling mode...")
         asyncio.run(dp.start_polling(bot))
 
 if __name__ == "__main__":
