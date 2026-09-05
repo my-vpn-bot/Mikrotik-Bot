@@ -1,195 +1,287 @@
 import os
-import asyncio
 import logging
+import asyncio
 import sqlite3
-import aiohttp
-from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Update
+from typing import Optional, Dict, Any
+
+from aiohttp import web, ClientSession, ClientTimeout
+from aiogram import Bot, Dispatcher, F, Router
+from aiogram.types import (
+    Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+)
+from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiohttp import web
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
-# --- تنظیمات محیطی ---
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-MARZBAN_URL = os.getenv("MARZBAN_URL", "").rstrip('/')
-MARZBAN_USERNAME = os.getenv("MARZBAN_USERNAME")
-MARZBAN_PASSWORD = os.getenv("MARZBAN_PASSWORD")
-RENDER_URL = os.getenv("RENDER_EXTERNAL_URL", "").rstrip('/')
-PAYMENT_CARD = os.getenv("PAYMENT_CARD", "0000-0000-0000-0000")
+# ---------------------------------------------------------
+# Logging Setup
+# ---------------------------------------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger("MarzbanBot")
 
-logging.basicConfig(level=logging.INFO)
+# ---------------------------------------------------------
+# Configuration & Environment Variables
+# ---------------------------------------------------------
+BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+MARZBAN_URL = os.getenv("MARZBAN_URL", "").rstrip("/")
+MARZBAN_USERNAME = os.getenv("MARZBAN_USERNAME", "")
+MARZBAN_PASSWORD = os.getenv("MARZBAN_PASSWORD", "")
+PAYMENT_CARD = os.getenv("PAYMENT_CARD", "6037990000000000")
+SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "Support")
+WEBHOOK_HOST = os.getenv("RENDER_EXTERNAL_URL", "")  # Render auto-provides this
+PORT = int(os.getenv("PORT", "8080"))
 
-# --- مدیریت وضعیت‌ها (FSM) ---
-class BotStates(StatesGroup):
-    waiting_for_discount = State()
-    waiting_for_support = State()
+DB_PATH = "bot_database.db"
 
-# --- دیتابیس ---
-def db_query(query, params=(), fetch=False):
-    conn = sqlite3.connect("users_data.db")
+# ---------------------------------------------------------
+# Database Operations
+# ---------------------------------------------------------
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute(query, params)
-    res = cursor.fetchone() if fetch else None
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            telegram_id INTEGER PRIMARY KEY,
+            username TEXT,
+            marzban_username TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     conn.commit()
     conn.close()
-    return res
 
-def init_db():
-    db_query("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, lang TEXT DEFAULT 'fa', expire_date TEXT, status TEXT)")
-init_db()
+def save_user(telegram_id: int, username: str, marzban_username: str = None):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO users (telegram_id, username, marzban_username)
+        VALUES (?, ?, ?)
+        ON CONFLICT(telegram_id) DO UPDATE SET
+            username = excluded.username,
+            marzban_username = COALESCE(excluded.marzban_username, users.marzban_username)
+    """, (telegram_id, username, marzban_username))
+    conn.commit()
+    conn.close()
 
-# --- سیستم چندزبانی (Localization) ---
-STRINGS = {
-    "fa": {
-        "welcome": "👋 خوش آمدید آرشاوین عزیز!\nلطفاً یک گزینه را انتخاب کنید:",
-        "main_menu": "🏠 منوی اصلی",
-        "buy": "🛒 خرید اشتراک",
-        "trial": "🎁 تست رایگان",
-        "profile": "👤 پروفایل من",
-        "lang": "🌐 تغییر زبان",
-        "support": "👨‍💻 پشتیبانی",
-        "back": "⬅️ بازگشت",
-        "plans": "📑 انتخاب پلن:\n\n1️⃣ یک ماهه: 100,000 تومان\n2️⃣ سه ماهه: 250,000 تومان",
-        "enter_discount": "🏷 لطفاً کد تخفیف خود را وارد کنید:",
-        "discount_success": "✅ کد تخفیف با موفقیت اعمال شد!",
-        "discount_fail": "❌ کد نامعتبر است.",
-        "card_info": "💳 جهت واریز به این کارت واریز کنید:\n`{card}`\n\nپس از واریز، فیش را برای پشتیبانی ارسال کنید.",
-        "lang_changed": "✅ زبان تغییر یافت!",
-        "no_sub": "شما اشتراکی ندارید.",
-        "sub_active": "اشتراک شما فعال است."
-    },
-    "az": {
-        "welcome": "👋 Xoş gəlmisiniz Arşavin!\nZəhmət olmasa bir seçim edin:",
-        "main_menu": "🏠 Əsas Menyus",
-        "buy": "🛒 Abunəlik Al",
-        "trial": "🎁 Pulsuz Test",
-        "profile": "👤 Profilim",
-        "lang": "🌐 Dil Dəyişdir",
-        "support": "👨‍💻 Dəstək",
-        "back": "⬅️ Geri",
-        "plans": "📑 Plan seçin:\n\n1️⃣ 1 aylıq: 100,000 Toman\n2️⃣ 3 aylıq: 250,000 Toman",
-        "enter_discount": "🏷 Zəhmət olmasa endirim kodunu daxil edin:",
-        "discount_success": "✅ Endirim kodu tətbiq edildi!",
-        "discount_fail": "❌ Kod yanlışdır.",
-        "card_info": "💳 Bu karta köçürmə edin:\n`{card}`\n\nKöçürmədən sonra fış göndərin.",
-        "lang_changed": "✅ Dil dəyişdirildi!",
-        "no_sub": "Abunəliyiniz yoxdur.",
-        "sub_active": "Abunəliyiniz aktivdir."
-    }
-}
+def get_user(telegram_id: int) -> Optional[dict]:
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT telegram_id, username, marzban_username FROM users WHERE telegram_id = ?", (telegram_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return {"telegram_id": row[0], "username": row[1], "marzban_username": row[2]}
+    return None
 
-def get_s(user_id, key):
-    res = db_query("SELECT lang FROM users WHERE user_id=?", (user_id,), fetch=True)
-    lang = res[0] if res else "fa"
-    return STRINGS[lang].get(key, key)
+# ---------------------------------------------------------
+# Marzban API Client
+# ---------------------------------------------------------
+class MarzbanAPI:
+    def __init__(self, base_url: str, username: str, password: str):
+        self.base_url = base_url
+        self.username = username
+        self.password = password
+        self.token: Optional[str] = None
 
-# --- کیبوردها ---
-def get_main_kb(user_id):
-    kb = [
-        [InlineKeyboardButton(text=get_s(user_id, "buy"), callback_data="menu_buy"),
-         InlineKeyboardButton(text=get_s(user_id, "trial"), callback_data="menu_trial")],
-        [InlineKeyboardButton(text=get_s(user_id, "profile"), callback_data="menu_profile"),
-         InlineKeyboardButton(text=get_s(user_id, "lang"), callback_data="menu_lang")],
-        [InlineKeyboardButton(text=get_s(user_id, "support"), callback_data="menu_support")]
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=kb)
+    async def get_token(self) -> Optional[str]:
+        url = f"{self.base_url}/api/admin/token"
+        data = {"username": self.username, "password": self.password}
+        timeout = ClientTimeout(total=10)
+        async with ClientSession(timeout=timeout) as session:
+            try:
+                async with session.post(url, data=data) as response:
+                    if response.status == 200:
+                        res_data = await response.json()
+                        self.token = res_data.get("access_token")
+                        return self.token
+                    logger.error(f"Failed to get Marzban token: Status {response.status}")
+            except Exception as e:
+                logger.error(f"Error connecting to Marzban API: {e}")
+        return None
 
-# --- ربات و دیسپچر ---
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(storage=MemoryStorage())
+    async def get_user_info(self, marzban_username: str) -> Optional[Dict[str, Any]]:
+        if not self.token:
+            await self.get_token()
+        if not self.token:
+            return None
 
-# --- هندلرها ---
+        url = f"{self.base_url}/api/user/{marzban_username}"
+        headers = {"Authorization": f"Bearer {self.token}"}
+        timeout = ClientTimeout(total=10)
+        async with ClientSession(timeout=timeout) as session:
+            try:
+                async with session.get(url, headers=headers) as response:
+                    if response.status == 200:
+                        return await response.json()
+                    elif response.status == 401:
+                        # Retry once with fresh token
+                        await self.get_token()
+                        headers["Authorization"] = f"Bearer {self.token}"
+                        async with session.get(url, headers=headers) as retry_res:
+                            if retry_res.status == 200:
+                                return await retry_res.json()
+            except Exception as e:
+                logger.error(f"Error fetching Marzban user info: {e}")
+        return None
 
-@dp.message(Command("start"))
-async def cmd_start(message: types.Message):
-    user_id = message.from_user.id
-    db_query("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
-    await message.answer(get_s(user_id, "welcome"), reply_markup=get_main_kb(user_id))
+marzban_client = MarzbanAPI(MARZBAN_URL, MARZBAN_USERNAME, MARZBAN_PASSWORD)
 
-@dp.callback_query(F.data == "menu_lang")
-async def menu_lang(callback: types.CallbackQuery):
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🇮🇷 فارسی", callback_data="set_fa"),
-         InlineKeyboardButton(text="🇦🇿 Azərbaycanca", callback_data="set_az")],
-        [InlineKeyboardButton(text=get_s(callback.from_user.id, "back"), callback_data="main_menu")]
+# ---------------------------------------------------------
+# FSM States & Router
+# ---------------------------------------------------------
+class Form(StatesGroup):
+    waiting_for_marzban_username = State()
+    waiting_for_support_message = State()
+
+router = Router()
+
+# Keyboards
+def get_main_keyboard():
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📊 وضعیت اشتراک", callback_query_data="check_status")],
+        [InlineKeyboardButton(text="🔗 ثبت نام کاربری مرزبان", callback_query_data="set_username")],
+        [InlineKeyboardButton(text="💳 شماره کارت پرداخت", callback_query_data="show_card")],
+        [InlineKeyboardButton(text="💬 ارتباط با پشتیبانی", callback_query_data="contact_support")]
     ])
-    await callback.message.edit_text("🌐 Select Language / Dil seçin:", reply_markup=kb)
+    return keyboard
 
-@dp.callback_query(F.data.startswith("set_"))
-async def set_lang(callback: types.CallbackQuery):
-    lang = callback.data.split("_")[1]
-    db_query("UPDATE users SET lang=? WHERE user_id=?", (lang, callback.from_user.id))
-    await callback.answer(get_s(callback.from_user.id, "lang_changed"), show_alert=True)
-    await callback.message.edit_text(get_s(callback.from_user.id, "welcome"), reply_markup=get_main_kb(callback.from_user.id))
-
-@dp.callback_query(F.data == "main_menu")
-async def back_to_main(callback: types.CallbackQuery):
-    await callback.message.edit_text(get_s(callback.from_user.id, "welcome"), reply_markup=get_main_kb(callback.from_user.id))
-
-@dp.callback_query(F.data == "menu_buy")
-async def menu_buy(callback: types.CallbackQuery):
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🏷 Apply Discount", callback_data="apply_discount")],
-        [InlineKeyboardButton(text=get_s(callback.from_user.id, "back"), callback_data="main_menu")]
-    ])
-    await callback.message.edit_text(get_s(callback.from_user.id, "plans"), reply_markup=kb)
-
-@dp.callback_query(F.data == "apply_discount")
-async def start_discount(callback: types.CallbackQuery, state: FSMContext):
-    await callback.message.answer(get_s(callback.from_user.id, "enter_discount"))
-    await state.set_state(BotStates.waiting_for_discount)
-
-@dp.message(BotStates.waiting_for_discount)
-async def process_discount(message: types.Message, state: FSMContext):
-    if message.text.upper() == "ARSHAVIN100":
-        await message.answer(get_s(message.from_user.id, "discount_success"))
-        # اینجا منطق کم کردن قیمت را اضافه میکنیم
-    else:
-        await message.answer(get_s(message.from_user.id, "discount_fail"))
+# ---------------------------------------------------------
+# Handlers
+# ---------------------------------------------------------
+@router.message(CommandStart())
+async def cmd_start(message: Message, state: FSMContext):
     await state.clear()
+    save_user(message.from_user.id, message.from_user.username or "")
+    text = (
+        f"سلام {message.from_user.first_name} عزیز! 👋\n\n"
+        "به ربات مدیریت اشتراک خوش آمدید. لطفاً گزینه مورد نظر خود را انتخاب کنید:"
+    )
+    await message.answer(text, reply_markup=get_main_keyboard())
 
-@dp.callback_query(F.data == "menu_profile")
-async def menu_profile(callback: types.CallbackQuery):
-    res = db_query("SELECT expire_date, status FROM users WHERE user_id=?", (callback.from_user.id,), fetch=True)
-    if res:
-        text = f"👤 Profile:\n📅 Expire: {res[0]}\n✅ Status: {res[1]}"
+@router.callback_query(F.data == "set_username")
+async def process_set_username(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(Form.waiting_for_marzban_username)
+    await callback.message.edit_text(
+        "لطفاً نام کاربری (Username) اشتراک مرزبان خود را دقیق ارسال کنید:"
+    )
+    await callback.answer()
+
+@router.message(Form.waiting_for_marzban_username)
+async def save_marzban_username(message: Message, state: FSMContext):
+    m_username = message.text.strip()
+    save_user(message.from_user.id, message.from_user.username or "", m_username)
+    await state.clear()
+    await message.answer(
+        f"✅ نام کاربری `{m_username}` با موفقیت ثبت شد!",
+        parse_mode="Markdown",
+        reply_markup=get_main_keyboard()
+    )
+
+@router.callback_query(F.data == "check_status")
+async def check_status(callback: CallbackQuery):
+    user_data = get_user(callback.from_user.id)
+    if not user_data or not user_data.get("marzban_username"):
+        await callback.message.edit_text(
+            "❌ شما هنوز نام کاربری مرزبان خود را ثبت نکرده‌اید.\n"
+            "لطفاً ابتدا از دکمه زیر نام کاربری را تنظیم کنید.",
+            reply_markup=get_main_keyboard()
+        )
+        await callback.answer()
+        return
+
+    m_user = user_data["marzban_username"]
+    await callback.message.edit_text("⏳ در حال دریافت اطلاعات از سرور...")
+    info = await marzban_client.get_user_info(m_user)
+
+    if not info:
+        await callback.message.edit_text(
+            f"❌ خطایی در دریافت اطلاعات کاربر `{m_user}` رخ داد.\n"
+            "ممکن است نام کاربری اشتباه باشد یا سرور در دسترس نباشد.",
+            parse_mode="Markdown",
+            reply_markup=get_main_keyboard()
+        )
+        await callback.answer()
+        return
+
+    status = info.get("status", "نامشخص")
+    data_limit = info.get("data_limit", 0) / (1024 ** 3)  # GB
+    used_traffic = info.get("used_traffic", 0) / (1024 ** 3)  # GB
+    expire = info.get("expire", "بدون انقضا")
+
+    res_text = (
+        f"📊 **وضعیت اشتراک شما**\n\n"
+        f"👤 نام کاربری: `{m_user}`\n"
+        f"⚡ وضعیت: `{status}`\n"
+        f"📉 مصرفی: `{used_traffic:.2f} GB` از `{data_limit:.2f} GB`\n"
+        f"📅 تاریخ انقضا: `{expire}`"
+    )
+    await callback.message.edit_text(res_text, parse_mode="Markdown", reply_markup=get_main_keyboard())
+    await callback.answer()
+
+@router.callback_query(F.data == "show_card")
+async def show_card(callback: CallbackQuery):
+    text = (
+        f"💳 **اطلاعات کارت جهت واریز:**\n\n"
+        f"`{PAYMENT_CARD}`\n\n"
+        "لطفاً پس از واریز، فیش پرداختی را برای پشتیبانی ارسال کنید."
+    )
+    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_main_keyboard())
+    await callback.answer()
+
+@router.callback_query(F.data == "contact_support")
+async def contact_support(callback: CallbackQuery):
+    text = f"💬 برای ارتباط مستقیم با پشتیبانی می‌توانید به آیدی زیر پیام دهید:\n\n@{SUPPORT_USERNAME}"
+    await callback.message.edit_text(text, reply_markup=get_main_keyboard())
+    await callback.answer()
+
+# ---------------------------------------------------------
+# Health Check / Render Server Webhook Setup
+# ---------------------------------------------------------
+async def health_check(request):
+    return web.Response(text="Bot is running healthy!", status=200)
+
+async def on_startup(bot: Bot):
+    if WEBHOOK_HOST:
+        webhook_url = f"{WEBHOOK_HOST}/webhook"
+        logger.info(f"Setting webhook to: {webhook_url}")
+        await bot.set_webhook(webhook_url, drop_pending_updates=True)
     else:
-        text = get_s(callback.from_user.id, "no_sub")
-    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=get_s(callback.from_user.id, "back"), callback_data="main_menu")]])
-    await callback.message.edit_text(text, reply_markup=kb)
+        logger.warning("WEBHOOK_HOST is not set! Running without setting webhook automatically.")
 
-@dp.callback_query(F.data == "menu_support")
-async def menu_support(callback: types.CallbackQuery):
-    await callback.message.edit_text("👨‍💻 Support: @Your_ID", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=get_s(callback.from_user.id, "back"), callback_data="main_menu")]]))
+def main():
+    init_db()
+    if not BOT_TOKEN:
+        logger.error("BOT_TOKEN is not defined in environment variables!")
+        return
 
-@dp.callback_query(F.data == "menu_trial")
-async def menu_trial(callback: types.CallbackQuery):
-    await callback.answer("Trial feature is being configured...", show_alert=True)
+    bot = Bot(token=BOT_TOKEN)
+    dp = Dispatcher(storage=MemoryStorage())
+    dp.include_router(router)
 
-# --- Webhook Setup ---
-async def handle_webhook(request):
-    data = await request.json()
-    update = Update(**data)
-    await dp.feed_update(bot, update)
-    return web.Response(status=200)
-
-async def main():
-    webhook_path = f"/{BOT_TOKEN}"
-    await bot.delete_webhook(drop_pending_updates=True)
-    await bot.set_webhook(url=f"{RENDER_URL}{webhook_path}")
-    
-    app = web.Application()
-    app.router.add_post(webhook_path, handle_webhook)
-    
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', int(os.environ.get("PORT", 8080)))
-    await site.start()
-    
-    logging.info(f"Bot started on {RENDER_URL}{webhook_path}")
-    await asyncio.Event().wait()
+    if WEBHOOK_HOST:
+        dp.startup.register(on_startup)
+        app = web.Application()
+        app.router.add_get("/", health_check)
+        app.router.add_get("/health", health_check)
+        
+        webhook_requests_handler = SimpleRequestHandler(
+            dispatcher=dp,
+            bot=bot
+        )
+        webhook_requests_handler.register(app, path="/webhook")
+        setup_application(app, dp, bot=bot)
+        
+        logger.info(f"Starting web server on port {PORT}...")
+        web.run_app(app, host="0.0.0.0", port=PORT)
+    else:
+        logger.info("Running in Polling mode...")
+        asyncio.run(dp.start_polling(bot))
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
