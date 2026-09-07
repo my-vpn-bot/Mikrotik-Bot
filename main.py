@@ -36,9 +36,9 @@ MARZBAN_PASSWORD = os.getenv("MARZBAN_PASSWORD", "").strip()
 
 SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "Support_Admin").replace("@", "").strip()
 
-# سازگاری کامل با هر دو مدل نام‌گذاری در Render
+# خواندن شماره کارت و نام صاحب کارت با پشتیبانی از هر دو نام متغیر در Render
 CARD_NUMBER = (os.getenv("PAYMENT_CARD") or os.getenv("CARD_NUMBER") or "0000-0000-0000-0000").strip()
-CARD_HOLDER = (os.getenv("PAYMENT_NAME") or os.getenv("CARD_HOLDER") or "مدیریت").strip()
+CARD_HOLDER = (os.getenv("PAYMENT_NAME") or os.getenv("CARD_HOLDER") or "پشتیبانی").strip()
 
 PORT = int(os.environ.get("PORT", 10000))
 
@@ -50,27 +50,46 @@ PLANS = {
     "plan_3m_150g": {"title": "💎 سه‌ماهه | ۱۵۰ گیگابایت", "price": "۲۴۰,۰۰۰ تومان", "days": 90, "traffic": 150},
 }
 
-def get_shamsi_datetime()_URL = os.getenv("MARZBAN_URL", "").rstrip("/")
-MARZBAN_USERNAME = os.getenv("MARZBAN_USERNAME", "").strip()
-MARZBAN_PASSWORD = os.getenv("MARZBAN_PASSWORD", "").strip()
+def get_shamsi_datetime() -> str:
+    now = jdatetime.datetime.now()
+    return now.strftime("%Y/%m/%d - %H:%M")
 
-SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "Support_Admin").replace("@", "").strip()
+# ==================== مرزبان API ====================
+class MarzbanAPI:
+    def __init__(self, base_url: str, username: str, password: str):
+        self.base_url = base_url
+        self.username = username
+        self.password = password
+        self.token = None
 
-# سازگاری کامل با هر دو مدل نام‌گذاری در Render
-CARD_NUMBER = (os.getenv("PAYMENT_CARD") or os.getenv("CARD_NUMBER") or "0000-0000-0000-0000").strip()
-CARD_HOLDER = (os.getenv("PAYMENT_NAME") or os.getenv("CARD_HOLDER") or "مدیریت").strip()
+    async def get_token(self) -> str | None:
+        if not self.base_url or not self.username or not self.password:
+            return None
+        url = f"{self.base_url}/api/admin/token"
+        data = {"username": self.username, "password": self.password}
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, data=data, timeout=10) as resp:
+                    if resp.status == 200:
+                        res_data = await resp.json()
+                        self.token = res_data.get("access_token")
+                        return self.token
+                    else:
+                        logger.error(f"Marzban Auth Error: {resp.status}")
+                        return None
+        except Exception as e:
+            logger.error(f"Marzban Connection Error: {e}")
+            return None
 
-PORT = int(os.environ.get("PORT", 10000))
-
-# ==================== پلن‌های فروش ====================
-PLANS = {
-    "plan_1m_30g": {"title": "🚀 یک‌ماهه | ۳۰ گیگابایت", "price": "۶۰,۰۰۰ تومان", "days": 30, "traffic": 30},
-    "plan_1m_50g": {"title": "⚡ یک‌ماهه | ۵۰ گیگابایت", "price": "۹۰,۰۰۰ تومان", "days": 30, "traffic": 50},
-    "plan_1m_100g": {"title": "🔥 یک‌ماهه | ۱۰۰ گیگابایت", "price": "۱۶۰,۰۰۰ تومان", "days": 30, "traffic": 100},
-    "plan_3m_150g": {"title": "💎 سه‌ماهه | ۱۵۰ گیگابایت", "price": "۲۴۰,۰۰۰ تومان", "days": 90, "traffic": 150},
-}
-
-def get_shamsi_datetime()username": username,
+    async def create_user(self, username: str, expire_days: int, traffic_gb: int) -> dict | None:
+        token = await self.get_token()
+        if not token:
+            return None
+        url = f"{self.base_url}/api/user"
+        headers = {"Authorization": f"Bearer {token}"}
+        expire_timestamp = int((jdatetime.datetime.now() + jdatetime.timedelta(days=expire_days)).timestamp())
+        payload = {
+            "username": username,
             "proxies": {"vless": {}, "vmess": {}},
             "inbounds": {},
             "expire": expire_timestamp,
@@ -95,7 +114,7 @@ marzban_client = MarzbanAPI(MARZBAN_URL, MARZBAN_USERNAME, MARZBAN_PASSWORD)
 class UserState(StatesGroup):
     waiting_for_receipt = State()
 
-# ==================== کیبوردهای مدرن و بازطراحی‌شده ====================
+# ==================== کیبوردهای بازطراحی‌شده ====================
 def main_menu_keyboard() -> InlineKeyboardMarkup:
     buttons = [
         [
@@ -237,7 +256,6 @@ async def receipt_photo_handler(message: Message, state: FSMContext, bot: Bot):
     user = message.from_user
     await state.clear()
 
-    # پیام تایید برای کاربر
     await message.reply(
         "✅ <b>رسید شما با موفقیت دریافت شد!</b>\n\n"
         f"📌 سرویس: <b>{plan_info}</b>\n"
@@ -247,7 +265,6 @@ async def receipt_photo_handler(message: Message, state: FSMContext, bot: Bot):
         parse_mode=ParseMode.HTML
     )
 
-    # فوروارد فیش برای ادمین در صورت تنظیم بودن ADMIN_ID
     if ADMIN_ID and ADMIN_ID.isdigit():
         try:
             admin_text = (
@@ -283,8 +300,8 @@ async def fix_callback(callback: CallbackQuery):
     text = (
         "🛠 <b>راهنمای رفع مشکل و عیب‌یابی</b>\n\n"
         "۱. حالت پرواز (Airplane Mode) گوشی را ۵ ثانیه روشن و خاموش کنید.\n"
-        "۲. در نرم‌افزار خود (v2rayNG / Streisand / V2Box) گزینه <b>Update Subscription</b> را بزنید.\n"
-        "۳. در صورت برطرف نشدن مشکل، سریعاً به پشتیبانی پیام دهید:\n\n"
+        "۲. در نرم‌افزار خود گزینه <b>Update Subscription</b> را بزنید.\n"
+        "۳. در صورت برطرف نشدن مشکل، به پشتیبانی پیام دهید:\n\n"
         f"👨‍💻 <b>آیدی پشتیبانی:</b> @{SUPPORT_USERNAME}"
     )
     await render_screen(callback, text, back_to_main_keyboard())
@@ -294,7 +311,7 @@ async def check_callback(callback: CallbackQuery):
     await callback.answer()
     text = (
         "🔍 <b>استعلام وضعیت سرویس</b>\n\n"
-        "جهت اطلاع دقیق از ترافیک مصرفی و تاریخ انقضای سرویس، به آیدی پشتیبانی پیام دهید:\n\n"
+        "جهت اطلاع از ترافیک مصرفی و تاریخ انقضای سرویس، به پشتیبانی پیام دهید:\n\n"
         f"👨‍💻 <b>آیدی پشتیبانی:</b> @{SUPPORT_USERNAME}"
     )
     await render_screen(callback, text, back_to_main_keyboard())
@@ -304,7 +321,7 @@ async def skin_callback(callback: CallbackQuery):
     await callback.answer()
     text = (
         "📱 <b>دریافت بارکد (QR Code)</b>\n\n"
-        "برای دریافت بارکد اتصال سریع برای اسکن در گوشی یا تلویزیون، به پشتیبانی پیام دهید:\n\n"
+        "برای دریافت بارکد اتصال سریع به پشتیبانی پیام دهید:\n\n"
         f"👨‍💻 <b>آیدی پشتیبانی:</b> @{SUPPORT_USERNAME}"
     )
     await render_screen(callback, text, back_to_main_keyboard())
@@ -314,7 +331,7 @@ async def rename_callback(callback: CallbackQuery):
     await callback.answer()
     text = (
         "✏️ <b>تغییر نام اشتراک</b>\n\n"
-        "جهت سفارشی‌سازی و تغییر نام کاربری کانفیگ خود با پشتیبانی هماهنگ کنید:\n\n"
+        "جهت تغییر نام کاربری کانفیگ خود با پشتیبانی هماهنگ کنید:\n\n"
         f"👨‍💻 <b>آیدی پشتیبانی:</b> @{SUPPORT_USERNAME}"
     )
     await render_screen(callback, text, back_to_main_keyboard())
@@ -334,7 +351,7 @@ async def expired_callback(callback: CallbackQuery):
     await callback.answer()
     text = (
         "⏳ <b>سرویس‌های رو به اتمام</b>\n\n"
-        "اگر سرویس شما در روزهای پایانی است، هم‌اکنون تمدید کنید تا از <b>تخفیف ویژه تمدید زودهنگام</b> بهره‌مند شوید:\n\n"
+        "جهت تمدید پیش از موعد و بهره‌مندی از تخفیف ویژه به پشتیبانی پیام دهید:\n\n"
         f"👨‍💻 <b>ارتباط با پشتیبانی:</b> @{SUPPORT_USERNAME}"
     )
     await render_screen(callback, text, back_to_main_keyboard())
@@ -364,10 +381,9 @@ async def start_dummy_server():
 # ==================== اجرای اصلی ====================
 async def main():
     if not BOT_TOKEN:
-        logger.error("BOT_TOKEN is missing! Please set BOT_TOKEN in environment variables.")
+        logger.error("BOT_TOKEN is missing!")
         return
 
-    # اتصال پورت رندر بلافاصله قبل از پولینگ
     await start_dummy_server()
 
     bot = Bot(token=BOT_TOKEN)
