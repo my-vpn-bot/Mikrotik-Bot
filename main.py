@@ -280,3 +280,18 @@ if __name__ == "__main__":
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
         logger.info("🛑 ربات متوقف شد.")
+def main_menu_keyboard():
+    keyboard = [
+        [
+            InlineKeyboardButton(text="🛍 خرید اشتراک", callback_data="buy_service"),
+            InlineKeyboardButton(text="💳 تمدید سرویس", callback_data="renew_service")
+        ],
+        [
+            InlineKeyboardButton(text="👤 حساب کاربری", callback_data="user_profile"),
+            InlineKeyboardButton(text="📚 راهنمای اتصال", callback_data="help_guide")
+        ],
+        [
+            InlineKeyboardButton(text="💬 پشتیبانی آنلاین", url=f"https://t.me/{SUPPORT_USERNAME}")
+        ]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
