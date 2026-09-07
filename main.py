@@ -1,6 +1,7 @@
 import os
 import asyncio
 import logging
+import sqlite3
 from aiohttp import web
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import (
@@ -9,7 +10,7 @@ from aiogram.types import (
     InlineKeyboardMarkup,
     InlineKeyboardButton
 )
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -28,7 +29,6 @@ ADMIN_ID = os.getenv("ADMIN_ID")
 SUPPORT_RAW = os.getenv("SUPPORT_USERNAME") or os.getenv("SUPPORT_ID") or os.getenv("ADMIN_USERNAME") or os.getenv("SUPPORT") or "support"
 SUPPORT_USERNAME = SUPPORT_RAW.replace("@", "").strip()
 
-# اطلاعات کارت جهت واریز
 CARD_NUMBER = os.getenv("CARD_NUMBER", "6037-9918-XXXX-XXXX")
 CARD_HOLDER = os.getenv("CARD_HOLDER", "پشتیبانی سرویس")
 
@@ -38,13 +38,62 @@ if not BOT_TOKEN:
     raise ValueError("❌ خطای حیاتی: BOT_TOKEN در متغیرهای محیطی تنظیم نشده است!")
 
 # ----------------------------------------------------
-# 2. ماشین وضعیت (FSM States)
+# 2. مدیریت دیتابیس (SQLite)
+# ----------------------------------------------------
+DB_FILE = "bot_users.db"
+
+def init_db():
+    """ایجاد جدول کاربران در صورت عدم وجود"""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY,
+            full_name TEXT,
+            username TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def add_user_to_db(user_id, full_name, username):
+    """ثبت کاربر جدید در دیتابیس"""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT OR IGNORE INTO users (user_id, full_name, username) VALUES (?, ?, ?)",
+            (user_id, full_name, username)
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Database Error (add_user): {e}")
+
+def get_total_users():
+    """دریافت تعداد کل کاربران"""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM users")
+        count = cursor.fetchone()[0]
+        conn.close()
+        return count
+    except Exception as e:
+        logger.error(f"Database Error (get_total): {e}")
+        return 0
+
+# اجرای اولیه دیتابیس
+init_db()
+
+# ----------------------------------------------------
+# 3. ماشین وضعیت (FSM States)
 # ----------------------------------------------------
 class PurchaseStates(StatesGroup):
     waiting_for_receipt = State()
 
 # ----------------------------------------------------
-# 3. تعریف کیبوردهای Inline
+# 4. تعریف کیبوردهای Inline
 # ----------------------------------------------------
 def main_menu_keyboard():
     keyboard = [
@@ -87,12 +136,19 @@ def back_to_main_keyboard():
     )
 
 # ----------------------------------------------------
-# 4. هندلرهای تلگرام (Aiogram Handlers)
+# 5. هندلرهای تلگرام (Aiogram Handlers)
 # ----------------------------------------------------
 dp = Dispatcher(storage=MemoryStorage())
 
 @dp.message(CommandStart())
 async def start_handler(message: Message, state: FSMContext):
+    # ذخیره کاربر در دیتابیس
+    add_user_to_db(
+        user_id=message.from_user.id,
+        full_name=message.from_user.full_name,
+        username=message.from_user.username
+    )
+    
     await state.clear()
     welcome_text = (
         f"سلام {message.from_user.first_name} عزیز! 🌟\n"
@@ -100,6 +156,19 @@ async def start_handler(message: Message, state: FSMContext):
         "لطفاً یکی از گزینه‌های زیر را انتخاب کنید:"
     )
     await message.answer(welcome_text, reply_markup=main_menu_keyboard())
+
+@dp.message(Command("stats"))
+async def stats_handler(message: Message):
+    """دستور مخصوص ادمین برای مشاهده آمار"""
+    if ADMIN_ID and str(message.from_user.id) != str(ADMIN_ID):
+        return # اگر ادمین نبود، هیچ پاسخی داده نشود
+
+    total = get_total_users()
+    await message.answer(
+        f"📊 **گزارش آماری ربات**\n\n"
+        f"👥 تعداد کل کاربران ثبت شده: **{total}** نفر",
+        parse_mode="Markdown"
+    )
 
 @dp.callback_query(F.data == "back_to_main")
 async def back_to_main_handler(callback: CallbackQuery, state: FSMContext):
@@ -170,14 +239,12 @@ async def process_receipt_photo(message: Message, state: FSMContext, bot: Bot):
     selected_plan = user_data.get("selected_plan", "نامشخص")
     photo_id = message.photo[-1].file_id
 
-    # ارسال پیام تأیید به کاربر
     await message.answer(
         "✅ رسید شما با موفقیت دریافت شد و برای مدیریت ارسال گردید.\n"
         "پس از بررسی، کانفیگ برای شما ارسال خواهد شد.",
         reply_markup=main_menu_keyboard()
     )
 
-    # ارسال رسید به ادمین در صورت تنظیم ADMIN_ID
     if ADMIN_ID:
         try:
             admin_msg = (
@@ -199,9 +266,7 @@ async def process_receipt_photo(message: Message, state: FSMContext, bot: Bot):
 
 @dp.message(PurchaseStates.waiting_for_receipt)
 async def process_receipt_invalid(message: Message):
-    await message.answer(
-        "⚠️ لطفاً رسید را فقط به صورت تصویر (عکس) ارسال کنید."
-    )
+    await message.answer("⚠️ لطفاً رسید را فقط به صورت تصویر (عکس) ارسال کنید.")
 
 @dp.callback_query(F.data == "user_profile")
 async def profile_handler(callback: CallbackQuery):
@@ -214,75 +279,3 @@ async def profile_handler(callback: CallbackQuery):
         "وضعیت سرویس: بدون سرویس فعال"
     )
     await callback.message.edit_text(
-        profile_text,
-        reply_markup=back_to_main_keyboard(),
-        parse_mode="Markdown"
-    )
-    await callback.answer()
-
-@dp.callback_query(F.data == "renew_service")
-async def renew_handler(callback: CallbackQuery):
-    await callback.message.edit_text(
-        "🔄 جهت تمدید سرویس فعلی خود، لطفاً پلن مورد نظر را انتخاب و رسید را ارسال نمایید یا با پشتیبانی در ارتباط باشید.",
-        reply_markup=plans_keyboard()
-    )
-    await callback.answer()
-
-@dp.callback_query(F.data == "help_guide")
-async def help_handler(callback: CallbackQuery):
-    guide_text = (
-        "📚 **راهنمای اتصال به سرویس‌ها**\n\n"
-        "🔸 سرویس‌های فعال: V2Ray پرسرعت\n"
-        "🔸 سرویس‌های در حال راه‌اندازی (به‌زودی اضافه خواهند شد):\n"
-        "   - L2TP/IPSec\n"
-        "   - PPTP\n"
-        "   - OpenVPN\n"
-        "   - Cisco AnyConnect\n\n"
-        f"در صورت بروز هرگونه مشکل با پشتیبانی در ارتباط باشید:\n@{SUPPORT_USERNAME}"
-    )
-    await callback.message.edit_text(
-        guide_text,
-        reply_markup=back_to_main_keyboard(),
-        parse_mode="Markdown"
-    )
-    await callback.answer()
-
-# ----------------------------------------------------
-# 5. وب‌سرور داخلی (برای زنده ماندن در پلتفرم رندر)
-# ----------------------------------------------------
-async def health_check(request):
-    return web.Response(text="Mikrotik Bot is Running & Healthy!", status=200)
-
-async def start_web_server():
-    app = web.Application()
-    app.router.add_get("/", health_check)
-    app.router.add_get("/health", health_check)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", PORT)
-    await site.start()
-    logger.info(f"🌐 وب‌سرور داخلی روی پورت {PORT} با موفقیت اجرا شد.")
-
-# ----------------------------------------------------
-# 6. تابع اصلی اجرا (Main Entry Point)
-# ----------------------------------------------------
-async def main():
-    bot = Bot(token=BOT_TOKEN)
-    
-    # راه‌اندازی سرور جهت باز بودن پورت در Render
-    await start_web_server()
-    
-    # حذف آپدیت‌های معوقه برای جلوگیری از تداخل
-    await bot.delete_webhook(drop_pending_updates=True)
-    
-    logger.info("🤖 ربات با موفقیت فعال شد و پولینگ آغاز گردید...")
-    try:
-        await dp.start_polling(bot)
-    finally:
-        await bot.session.close()
-
-if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
-        logger.info("🛑 ربات متوقف شد.")
