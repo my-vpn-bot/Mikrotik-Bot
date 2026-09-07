@@ -9,7 +9,7 @@ from aiogram.types import (
     InlineKeyboardMarkup,
     InlineKeyboardButton
 )
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -28,7 +28,7 @@ ADMIN_ID = os.getenv("ADMIN_ID")
 SUPPORT_RAW = os.getenv("SUPPORT_USERNAME") or os.getenv("SUPPORT_ID") or os.getenv("ADMIN_USERNAME") or os.getenv("SUPPORT") or "support"
 SUPPORT_USERNAME = SUPPORT_RAW.replace("@", "").strip()
 
-# کارت پیش‌فرض جهت واریز
+# اطلاعات کارت جهت واریز
 CARD_NUMBER = os.getenv("CARD_NUMBER", "6037-9918-XXXX-XXXX")
 CARD_HOLDER = os.getenv("CARD_HOLDER", "پشتیبانی سرویس")
 
@@ -50,14 +50,16 @@ def main_menu_keyboard():
     keyboard = [
         [
             InlineKeyboardButton(text="🛍 خرید اشتراک", callback_data="buy_service"),
-            InlineKeyboardButton(text="🎁 تست رایگان", callback_data="free_test")
-        ],
-        [
-            InlineKeyboardButton(text="👤 حساب کاربری", callback_data="user_profile"),
             InlineKeyboardButton(text="💳 تمدید سرویس", callback_data="renew_service")
         ],
         [
-            InlineKeyboardButton(text="📚 راهنمای اتصال", callback_data="help_guide"),
+            InlineKeyboardButton(text="⚙️ کانفیگ سفارشی", callback_data="custom_config"),
+            InlineKeyboardButton(text="👤 حساب کاربری", callback_data="user_profile")
+        ],
+        [
+            InlineKeyboardButton(text="📚 راهنمای اتصال", callback_data="help_guide")
+        ],
+        [
             InlineKeyboardButton(text="💬 پشتیبانی آنلاین", url=f"https://t.me/{SUPPORT_USERNAME}")
         ]
     ]
@@ -65,9 +67,9 @@ def main_menu_keyboard():
 
 def plans_keyboard():
     keyboard = [
-        [InlineKeyboardButton(text="🚀 ۱ ماهه - ۳۰ گیگ (۵۰,۰۰۰ ت)", callback_data="plan_1m_30g")],
-        [InlineKeyboardButton(text="🚀 ۱ ماهه - ۶۰ گیگ (۸۰,۰۰۰ ت)", callback_data="plan_1m_60g")],
-        [InlineKeyboardButton(text="⚡️ ۳ ماهه - ۱۰۰ گیگ (۱۴۰,۰۰۰ ت)", callback_data="plan_3m_100g")],
+        [InlineKeyboardButton(text="🚀 ۱ ماهه - ۳۰ گیگ (۳۵۰,۰۰۰ ت)", callback_data="plan_1m_30g")],
+        [InlineKeyboardButton(text="🚀 ۲ ماهه - ۶۰ گیگ (۶۵۰,۰۰۰ ت)", callback_data="plan_2m_60g")],
+        [InlineKeyboardButton(text="⚡️ ۳ ماهه - ۹۰ گیگ (۹۵۰,۰۰۰ ت)", callback_data="plan_3m_90g")],
         [InlineKeyboardButton(text="🔙 بازگشت به منوی اصلی", callback_data="back_to_main")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
@@ -116,6 +118,15 @@ async def buy_service_handler(callback: CallbackQuery):
     )
     await callback.answer()
 
+@dp.callback_query(F.data == "custom_config")
+async def custom_config_handler(callback: CallbackQuery):
+    await callback.message.edit_text(
+        "⚙️ جهت دریافت کانفیگ سفارشی، لطفاً به آیدی پشتیبانی پیام دهید:\n\n"
+        f"🆔 @{SUPPORT_USERNAME}",
+        reply_markup=back_to_main_keyboard()
+    )
+    await callback.answer()
+
 @dp.callback_query(F.data == "back_to_plans")
 async def back_to_plans_handler(callback: CallbackQuery, state: FSMContext):
     await state.clear()
@@ -159,14 +170,14 @@ async def process_receipt_photo(message: Message, state: FSMContext, bot: Bot):
     selected_plan = user_data.get("selected_plan", "نامشخص")
     photo_id = message.photo[-1].file_id
 
-    # ارسال برای کاربر
+    # ارسال پیام تأیید به کاربر
     await message.answer(
         "✅ رسید شما با موفقیت دریافت شد و برای مدیریت ارسال گردید.\n"
         "پس از بررسی، کانفیگ برای شما ارسال خواهد شد.",
         reply_markup=main_menu_keyboard()
     )
 
-    # ارسال برای ادمین در صورت تنظیم ADMIN_ID
+    # ارسال رسید به ادمین در صورت تنظیم ADMIN_ID
     if ADMIN_ID:
         try:
             admin_msg = (
@@ -191,15 +202,6 @@ async def process_receipt_invalid(message: Message):
     await message.answer(
         "⚠️ لطفاً رسید را فقط به صورت تصویر (عکس) ارسال کنید."
     )
-
-@dp.callback_query(F.data == "free_test")
-async def free_test_handler(callback: CallbackQuery):
-    await callback.message.edit_text(
-        "🎁 جهت دریافت اکانت تست رایگان، لطفاً به آیدی پشتیبانی پیام دهید:\n\n"
-        f"🆔 @{SUPPORT_USERNAME}",
-        reply_markup=back_to_main_keyboard()
-    )
-    await callback.answer()
 
 @dp.callback_query(F.data == "user_profile")
 async def profile_handler(callback: CallbackQuery):
@@ -230,8 +232,12 @@ async def renew_handler(callback: CallbackQuery):
 async def help_handler(callback: CallbackQuery):
     guide_text = (
         "📚 **راهنمای اتصال به سرویس‌ها**\n\n"
-        "🔸 برای ویندوز: کانکشن L2TP/IPSec داخلی سیستم‌عامل\n"
-        "🔸 برای اندروید و iOS: نرم‌افزارهای استاندارد VPN یا تنظیمات دستی شبکه\n\n"
+        "🔸 سرویس‌های فعال: V2Ray پرسرعت\n"
+        "🔸 سرویس‌های در حال راه‌اندازی (به‌زودی اضافه خواهند شد):\n"
+        "   - L2TP/IPSec\n"
+        "   - PPTP\n"
+        "   - OpenVPN\n"
+        "   - Cisco AnyConnect\n\n"
         f"در صورت بروز هرگونه مشکل با پشتیبانی در ارتباط باشید:\n@{SUPPORT_USERNAME}"
     )
     await callback.message.edit_text(
@@ -266,7 +272,7 @@ async def main():
     # راه‌اندازی سرور جهت باز بودن پورت در Render
     await start_web_server()
     
-    # حذف آپدیت‌های معوقه برای جلوگیری از رفتارهای ناخواسته بعد از ری‌استارت
+    # حذف آپدیت‌های معوقه برای جلوگیری از تداخل
     await bot.delete_webhook(drop_pending_updates=True)
     
     logger.info("🤖 ربات با موفقیت فعال شد و پولینگ آغاز گردید...")
@@ -280,18 +286,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
         logger.info("🛑 ربات متوقف شد.")
-def main_menu_keyboard():
-    keyboard = [
-        [
-            InlineKeyboardButton(text="🛍 خرید اشتراک", callback_data="buy_service"),
-            InlineKeyboardButton(text="💳 تمدید سرویس", callback_data="renew_service")
-        ],
-        [
-            InlineKeyboardButton(text="👤 حساب کاربری", callback_data="user_profile"),
-            InlineKeyboardButton(text="📚 راهنمای اتصال", callback_data="help_guide")
-        ],
-        [
-            InlineKeyboardButton(text="💬 پشتیبانی آنلاین", url=f"https://t.me/{SUPPORT_USERNAME}")
-        ]
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
