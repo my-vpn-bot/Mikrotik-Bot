@@ -27,63 +27,50 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ==================== متغیرهای محیطی ====================
-BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
+ADMIN_ID = os.getenv("ADMIN_ID", "").strip()
+
 MARZBAN_URL = os.getenv("MARZBAN_URL", "").rstrip("/")
-MARZBAN_USERNAME = os.getenv("MARZBAN_USERNAME", "")
-MARZBAN_PASSWORD = os.getenv("MARZBAN_PASSWORD", "")
-SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "Support_Admin")
-CARD_NUMBER = os.getenv("CARD_NUMBER", "0000-0000-0000-0000")
-CARD_HOLDER = os.getenv("CARD_HOLDER", "پشتیبانی")
+MARZBAN_USERNAME = os.getenv("MARZBAN_USERNAME", "").strip()
+MARZBAN_PASSWORD = os.getenv("MARZBAN_PASSWORD", "").strip()
+
+SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "Support_Admin").replace("@", "").strip()
+
+# سازگاری کامل با هر دو مدل نام‌گذاری در Render
+CARD_NUMBER = (os.getenv("PAYMENT_CARD") or os.getenv("CARD_NUMBER") or "0000-0000-0000-0000").strip()
+CARD_HOLDER = (os.getenv("PAYMENT_NAME") or os.getenv("CARD_HOLDER") or "مدیریت").strip()
+
 PORT = int(os.environ.get("PORT", 10000))
 
 # ==================== پلن‌های فروش ====================
 PLANS = {
-    "plan_1m_30g": {"title": "یک‌ماهه - ۳۰ گیگابایت", "price": "۶۰,۰۰۰ تومان", "days": 30, "traffic": 30},
-    "plan_1m_50g": {"title": "یک‌ماهه - ۵۰ گیگابایت", "price": "۹۰,۰۰۰ تومان", "days": 30, "traffic": 50},
-    "plan_1m_100g": {"title": "یک‌ماهه - ۱۰۰ گیگابایت", "price": "۱۶۰,۰۰۰ تومان", "days": 30, "traffic": 100},
-    "plan_3m_150g": {"title": "سه‌ماهه - ۱۵۰ گیگابایت", "price": "۲۴۰,۰۰۰ تومان", "days": 90, "traffic": 150},
+    "plan_1m_30g": {"title": "🚀 یک‌ماهه | ۳۰ گیگابایت", "price": "۶۰,۰۰۰ تومان", "days": 30, "traffic": 30},
+    "plan_1m_50g": {"title": "⚡ یک‌ماهه | ۵۰ گیگابایت", "price": "۹۰,۰۰۰ تومان", "days": 30, "traffic": 50},
+    "plan_1m_100g": {"title": "🔥 یک‌ماهه | ۱۰۰ گیگابایت", "price": "۱۶۰,۰۰۰ تومان", "days": 30, "traffic": 100},
+    "plan_3m_150g": {"title": "💎 سه‌ماهه | ۱۵۰ گیگابایت", "price": "۲۴۰,۰۰۰ تومان", "days": 90, "traffic": 150},
 }
 
-def get_shamsi_datetime() -> str:
-    now = jdatetime.datetime.now()
-    return now.strftime("%Y/%m/%d - %H:%M")
+def get_shamsi_datetime()_URL = os.getenv("MARZBAN_URL", "").rstrip("/")
+MARZBAN_USERNAME = os.getenv("MARZBAN_USERNAME", "").strip()
+MARZBAN_PASSWORD = os.getenv("MARZBAN_PASSWORD", "").strip()
 
-# ==================== مرزبان API ====================
-class MarzbanAPI:
-    def __init__(self, base_url: str, username: str, password: str):
-        self.base_url = base_url
-        self.username = username
-        self.password = password
-        self.token = None
+SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "Support_Admin").replace("@", "").strip()
 
-    async def get_token(self) -> str | None:
-        if not self.base_url or not self.username or not self.password:
-            return None
-        url = f"{self.base_url}/api/admin/token"
-        data = {"username": self.username, "password": self.password}
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, data=data, timeout=10) as resp:
-                    if resp.status == 200:
-                        res_data = await resp.json()
-                        self.token = res_data.get("access_token")
-                        return self.token
-                    else:
-                        logger.error(f"Marzban Auth Error: {resp.status}")
-                        return None
-        except Exception as e:
-            logger.error(f"Marzban Connection Error: {e}")
-            return None
+# سازگاری کامل با هر دو مدل نام‌گذاری در Render
+CARD_NUMBER = (os.getenv("PAYMENT_CARD") or os.getenv("CARD_NUMBER") or "0000-0000-0000-0000").strip()
+CARD_HOLDER = (os.getenv("PAYMENT_NAME") or os.getenv("CARD_HOLDER") or "مدیریت").strip()
 
-    async def create_user(self, username: str, expire_days: int, traffic_gb: int) -> dict | None:
-        token = await self.get_token()
-        if not token:
-            return None
-        url = f"{self.base_url}/api/user"
-        headers = {"Authorization": f"Bearer {token}"}
-        expire_timestamp = int((jdatetime.datetime.now() + jdatetime.timedelta(days=expire_days)).timestamp())
-        payload = {
-            "username": username,
+PORT = int(os.environ.get("PORT", 10000))
+
+# ==================== پلن‌های فروش ====================
+PLANS = {
+    "plan_1m_30g": {"title": "🚀 یک‌ماهه | ۳۰ گیگابایت", "price": "۶۰,۰۰۰ تومان", "days": 30, "traffic": 30},
+    "plan_1m_50g": {"title": "⚡ یک‌ماهه | ۵۰ گیگابایت", "price": "۹۰,۰۰۰ تومان", "days": 30, "traffic": 50},
+    "plan_1m_100g": {"title": "🔥 یک‌ماهه | ۱۰۰ گیگابایت", "price": "۱۶۰,۰۰۰ تومان", "days": 30, "traffic": 100},
+    "plan_3m_150g": {"title": "💎 سه‌ماهه | ۱۵۰ گیگابایت", "price": "۲۴۰,۰۰۰ تومان", "days": 90, "traffic": 150},
+}
+
+def get_shamsi_datetime()username": username,
             "proxies": {"vless": {}, "vmess": {}},
             "inbounds": {},
             "expire": expire_timestamp,
@@ -108,34 +95,27 @@ marzban_client = MarzbanAPI(MARZBAN_URL, MARZBAN_USERNAME, MARZBAN_PASSWORD)
 class UserState(StatesGroup):
     waiting_for_receipt = State()
 
-# ==================== کیبوردها ====================
+# ==================== کیبوردهای مدرن و بازطراحی‌شده ====================
 def main_menu_keyboard() -> InlineKeyboardMarkup:
     buttons = [
         [
-            InlineKeyboardButton(text="💳 خرید کانفیگ", callback_data="buy_plans"),
-            InlineKeyboardButton(text="⏳ تمدید کانفیگ", callback_data="extend_config"),
+            InlineKeyboardButton(text="🛍 خرید اشتراک جدید", callback_data="buy_plans"),
+            InlineKeyboardButton(text="🔄 تمدید اشتراک فعلی", callback_data="extend_config"),
         ],
         [
-            InlineKeyboardButton(text="✨ تمدید کانفیگ رایگان", callback_data="free_test"),
+            InlineKeyboardButton(text="🔍 استعلام وضعیت و حجم", callback_data="check_config"),
+            InlineKeyboardButton(text="🛠 رفع اشکال و اتصال", callback_data="fix_config"),
         ],
         [
-            InlineKeyboardButton(text="🔧 رفع نقص کانفیگ", callback_data="fix_config"),
+            InlineKeyboardButton(text="📱 دریافت QR Code", callback_data="get_skin"),
+            InlineKeyboardButton(text="✏️ تغییر نام کانفیگ", callback_data="rename_config"),
         ],
         [
-            InlineKeyboardButton(text="🔍 بررسی کانفیگ", callback_data="check_config"),
-            InlineKeyboardButton(text="📷 دریافت اسکین", callback_data="get_skin"),
+            InlineKeyboardButton(text="⏳ سرویس‌های رو به اتمام", callback_data="expired_configs"),
+            InlineKeyboardButton(text="🗑 حذف یا ابطال سرویس", callback_data="delete_config"),
         ],
         [
-            InlineKeyboardButton(text="✍️ تغییر نام کانفیگ", callback_data="rename_config"),
-        ],
-        [
-            InlineKeyboardButton(text="🗑 حذف کانفیگ", callback_data="delete_config"),
-        ],
-        [
-            InlineKeyboardButton(text="🔥 کانفیگ‌های در حال انقضا", callback_data="expired_configs"),
-        ],
-        [
-            InlineKeyboardButton(text=" پشتیبانی و راهنما", callback_data="support"),
+            InlineKeyboardButton(text="💬 پشتیبانی و ارتباط با ادمین", callback_data="support"),
         ]
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -143,14 +123,14 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
 def plans_keyboard() -> InlineKeyboardMarkup:
     buttons = []
     for plan_id, info in PLANS.items():
-        buttons.append([InlineKeyboardButton(text=f"⚡ {info['title']} - {info['price']}", callback_data=f"select_{plan_id}")])
+        buttons.append([InlineKeyboardButton(text=f"{info['title']} ▫️ {info['price']}", callback_data=f"select_{plan_id}")])
     buttons.append([InlineKeyboardButton(text="🔙 بازگشت به منوی اصلی", callback_data="main_menu")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def payment_keyboard(plan_id: str) -> InlineKeyboardMarkup:
     buttons = [
-        [InlineKeyboardButton(text="✅ پرداخت و ارسال فیش", callback_data=f"pay_{plan_id}")],
-        [InlineKeyboardButton(text="🔙 بازگشت به لیست پلن‌ها", callback_data="buy_plans")],
+        [InlineKeyboardButton(text="💳 پرداخت کردم (ارسال فیش واریز)", callback_data=f"pay_{plan_id}")],
+        [InlineKeyboardButton(text="📋 انتخاب پلن دیگر", callback_data="buy_plans")],
         [InlineKeyboardButton(text="🔙 بازگشت به منوی اصلی", callback_data="main_menu")],
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -158,7 +138,7 @@ def payment_keyboard(plan_id: str) -> InlineKeyboardMarkup:
 def back_to_main_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 بازگشت به منوی اصلی", callback_data="main_menu")]])
 
-# ==================== روتر و پردازش پیام‌ها ====================
+# ==================== روتر و مدیریت پیام‌ها ====================
 router = Router()
 
 async def render_screen(target, text: str, reply_markup: InlineKeyboardMarkup):
@@ -178,10 +158,10 @@ async def start_handler(message: Message, state: FSMContext):
     await state.clear()
     full_name = message.from_user.full_name if message.from_user else "کاربر"
     text = (
-        f"سلام <b>{full_name}</b> عزیز! 👋\n"
-        "به ربات رسمی فروش و پشتیبانی سرویس‌های <b>L2TP / Marzban VPN</b> خوش آمدید.\n\n"
+        f"سلام <b>{full_name}</b> عزیز، خوش آمدید 🌹\n\n"
+        "⚡ <b>سامانه مدیریت و خرید سرویس‌های پرسرعت و پایدار</b>\n"
         f"📅 تاریخ: <code>{get_shamsi_datetime()}</code>\n\n"
-        "برای استفاده از خدمات ربات، از منوی زیر استفاده کنید:"
+        "👇 لطفاً خدمت مورد نظر خود را از منوی زیر انتخاب کنید:"
     )
     await render_screen(message, text, main_menu_keyboard())
 
@@ -191,10 +171,10 @@ async def main_menu_callback(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     full_name = callback.from_user.full_name if callback.from_user else "کاربر"
     text = (
-        f"سلام <b>{full_name}</b> عزیز! 👋\n"
-        "به منوی اصلی بازگشتید.\n\n"
+        f"<b>منوی اصلی ربات</b> 🏠\n\n"
+        f"کاربر گرامی: <b>{full_name}</b>\n"
         f"📅 تاریخ: <code>{get_shamsi_datetime()}</code>\n\n"
-        "برای استفاده از خدمات ربات، از منوی زیر استفاده کنید:"
+        "یکی از گزینه‌های زیر را انتخاب نمایید:"
     )
     await render_screen(callback, text, main_menu_keyboard())
 
@@ -202,9 +182,11 @@ async def main_menu_callback(callback: CallbackQuery, state: FSMContext):
 async def buy_plans_callback(callback: CallbackQuery):
     await callback.answer()
     text = (
-        "💳 <b>خرید اشتراک جدید</b>\n\n"
-        "⚡ سرورهای اختصاصی با بالاترین سرعت و پینگ پایین\n"
-        "👇 لطفاً پلن مد نظر خود را انتخاب کنید:"
+        "🛍 <b>خرید اشتراک اختصاصی</b>\n\n"
+        "🔹 سرعت فوق‌العاده با پروتکل‌های ضد فیلتر\n"
+        "🔹 پینگ بسیار پایین مناسب وب‌گردی و گیمینگ\n"
+        "🔹 پشتیبانی ۲۴ ساعته و اتصال پایدار\n\n"
+        "👇 <b>پلن مورد نظرتان را انتخاب کنید:</b>"
     )
     await render_screen(callback, text, plans_keyboard())
 
@@ -214,16 +196,21 @@ async def select_plan_callback(callback: CallbackQuery):
     plan_id = callback.data.replace("select_", "")
     plan = PLANS.get(plan_id)
     if not plan:
-        await callback.answer("پلن یافت نشد!", show_alert=True)
+        await callback.answer("پلن مورد نظر یافت نشد!", show_alert=True)
         return
 
     text = (
-        f"🧾 <b>پیش‌فاکتور خرید</b>\n\n"
-        f"🔹 <b>پلن:</b> {plan['title']}\n"
-        f"💰 <b>مبلغ:</b> {plan['price']}\n\n"
-        f"💳 <b>شماره کارت:</b>\n<code>{CARD_NUMBER}</code>\n"
-        f"👤 <b>به نام:</b> {CARD_HOLDER}\n\n"
-        "⚠️ پس از پرداخت، دکمه «پرداخت و ارسال فیش» را بزنید و عکس رسید را ارسال کنید."
+        "🧾 <b>پیش‌فاکتور سفارش</b>\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        f"📦 <b>سرویس انتخابی:</b> {plan['title']}\n"
+        f"💰 <b>مبلغ قابل پرداخت:</b> {plan['price']}\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        "💳 <b>اطلاعات پرداخت:</b>\n\n"
+        f"🔢 شماره کارت (لمس کنید تا کپی شود):\n"
+        f"<code>{CARD_NUMBER}</code>\n\n"
+        f"👤 به نام: <b>{CARD_HOLDER}</b>\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        "⚠️ <i>پس از واریز مبلغ، دکمه «پرداخت کردم» را زده و تصویر فیش واریزی را ارسال نمایید.</i>"
     )
     await render_screen(callback, text, payment_keyboard(plan_id))
 
@@ -235,54 +222,58 @@ async def pay_plan_callback(callback: CallbackQuery, state: FSMContext):
     await state.set_state(UserState.waiting_for_receipt)
 
     text = (
-        "📸 لطفاً <b>عکس فیش واریزی</b> را در همین گفتگو ارسال نمایید.\n\n"
-        "⏳ بلافاصله پس از تایید توسط پشتیبانی، کانفیگ اختصاصی شما صادر خواهد شد."
+        "📸 <b>ارسال فیش واریزی</b>\n\n"
+        "لطفاً تصویر خوانا از فیش یا رسید انتقال وجه را در همین صفحه ارسال فرمایید.\n\n"
+        "⏳ <i>به‌محض ارسال، درخواست شما بررسی شده و کانفیگ تحویل داده می‌شود.</i>"
     )
     await render_screen(callback, text, back_to_main_keyboard())
 
 @router.message(UserState.waiting_for_receipt, F.photo)
-async def receipt_photo_handler(message: Message, state: FSMContext):
+async def receipt_photo_handler(message: Message, state: FSMContext, bot: Bot):
     data = await state.get_data()
     plan_id = data.get("selected_plan", "نامشخص")
     plan_info = PLANS.get(plan_id, {}).get("title", plan_id)
+    plan_price = PLANS.get(plan_id, {}).get("price", "نامشخص")
+    user = message.from_user
     await state.clear()
 
+    # پیام تایید برای کاربر
     await message.reply(
-        "✅ <b>فیش واریزی با موفقیت دریافت شد.</b>\n\n"
-        f"📌 پلن انتخابی: {plan_info}\n"
-        "درخواست شما به صف تایید منتقل شد.",
+        "✅ <b>رسید شما با موفقیت دریافت شد!</b>\n\n"
+        f"📌 سرویس: <b>{plan_info}</b>\n"
+        f"💰 مبلغ: <b>{plan_price}</b>\n\n"
+        "🕒 درخواست شما در صف تایید قرار گرفت و سرویس به‌زودی تحویل داده خواهد شد.",
         reply_markup=back_to_main_keyboard(),
         parse_mode=ParseMode.HTML
     )
 
-@router.callback_query(F.data == "free_test")
-async def free_test_callback(callback: CallbackQuery):
-    await callback.answer()
-    user_id = callback.from_user.id
-    username = f"test_{user_id}"
-    res = await marzban_client.create_user(username=username, expire_days=1, traffic_gb=1)
-    
-    if res and "subscription_url" in res:
-        text = (
-            "✨ <b>کانفیگ تست رایگان شما آماده شد:</b>\n\n"
-            f"🔗 لینک اتصال:\n<code>{res['subscription_url']}</code>\n\n"
-            "لینک بالا را کپی کرده و در نرم‌افزار متصل کنید."
-        )
-    else:
-        text = (
-            "✨ <b>تمدید / دریافت تست رایگان</b>\n\n"
-            "جهت دریافت تست رایگان با پشتیبانی ارتباط بگیرید:\n"
-            f"🆔 @{SUPPORT_USERNAME}"
-        )
-    await render_screen(callback, text, back_to_main_keyboard())
+    # فوروارد فیش برای ادمین در صورت تنظیم بودن ADMIN_ID
+    if ADMIN_ID and ADMIN_ID.isdigit():
+        try:
+            admin_text = (
+                "🔔 <b>فیش واریزی جدید دریافت شد!</b>\n\n"
+                f"👤 <b>کاربر:</b> {user.full_name} (@{user.username if user.username else 'بدون نام کاربری'})\n"
+                f"🆔 <b>شناسه عددی:</b> <code>{user.id}</code>\n"
+                f"📦 <b>پلن انتخابی:</b> {plan_info}\n"
+                f"💰 <b>مبلغ:</b> {plan_price}\n"
+                f"📅 <b>زمان:</b> {get_shamsi_datetime()}"
+            )
+            await bot.send_photo(
+                chat_id=int(ADMIN_ID),
+                photo=message.photo[-1].file_id,
+                caption=admin_text,
+                parse_mode=ParseMode.HTML
+            )
+        except Exception as e:
+            logger.error(f"Error forwarding receipt to admin: {e}")
 
 @router.callback_query(F.data == "extend_config")
 async def extend_callback(callback: CallbackQuery):
     await callback.answer()
     text = (
-        "⏳ <b>تمدید کانفیگ</b>\n\n"
-        "جهت تمدید، نام کاربری یا لینک کانفیگ خود را به آیدی زیر ارسال کنید:\n\n"
-        f"🆔 @{SUPPORT_USERNAME}"
+        "🔄 <b>تمدید اشتراک</b>\n\n"
+        "برای تمدید سرویس، نام کاربری اشتراک یا لینک اتصال فعلی خود را برای پشتیبانی ارسال فرمایید:\n\n"
+        f"👨‍💻 <b>آیدی پشتیبانی:</b> @{SUPPORT_USERNAME}"
     )
     await render_screen(callback, text, back_to_main_keyboard())
 
@@ -290,11 +281,11 @@ async def extend_callback(callback: CallbackQuery):
 async def fix_callback(callback: CallbackQuery):
     await callback.answer()
     text = (
-        "🔧 <b>رفع نقص و عیب‌یابی</b>\n\n"
-        "۱. اینترنت گوشی را خاموش و روشن کنید.\n"
-        "۲. لینک سابسکریپشن را در برنامه Update کنید.\n"
-        "۳. در صورت رفع نشدن با پشتیبانی هماهنگ کنید:\n\n"
-        f"🆔 @{SUPPORT_USERNAME}"
+        "🛠 <b>راهنمای رفع مشکل و عیب‌یابی</b>\n\n"
+        "۱. حالت پرواز (Airplane Mode) گوشی را ۵ ثانیه روشن و خاموش کنید.\n"
+        "۲. در نرم‌افزار خود (v2rayNG / Streisand / V2Box) گزینه <b>Update Subscription</b> را بزنید.\n"
+        "۳. در صورت برطرف نشدن مشکل، سریعاً به پشتیبانی پیام دهید:\n\n"
+        f"👨‍💻 <b>آیدی پشتیبانی:</b> @{SUPPORT_USERNAME}"
     )
     await render_screen(callback, text, back_to_main_keyboard())
 
@@ -302,9 +293,9 @@ async def fix_callback(callback: CallbackQuery):
 async def check_callback(callback: CallbackQuery):
     await callback.answer()
     text = (
-        "🔍 <b>بررسی وضعیت کانفیگ</b>\n\n"
-        "برای استعلام حجم و زمان باقی‌مانده اشتراک با پشتیبانی در ارتباط باشید:\n\n"
-        f"🆔 @{SUPPORT_USERNAME}"
+        "🔍 <b>استعلام وضعیت سرویس</b>\n\n"
+        "جهت اطلاع دقیق از ترافیک مصرفی و تاریخ انقضای سرویس، به آیدی پشتیبانی پیام دهید:\n\n"
+        f"👨‍💻 <b>آیدی پشتیبانی:</b> @{SUPPORT_USERNAME}"
     )
     await render_screen(callback, text, back_to_main_keyboard())
 
@@ -312,9 +303,9 @@ async def check_callback(callback: CallbackQuery):
 async def skin_callback(callback: CallbackQuery):
     await callback.answer()
     text = (
-        "📷 <b>دریافت QR Code</b>\n\n"
-        "جهت دریافت بارکد اتصال به پشتیبانی پیام دهید:\n\n"
-        f"🆔 @{SUPPORT_USERNAME}"
+        "📱 <b>دریافت بارکد (QR Code)</b>\n\n"
+        "برای دریافت بارکد اتصال سریع برای اسکن در گوشی یا تلویزیون، به پشتیبانی پیام دهید:\n\n"
+        f"👨‍💻 <b>آیدی پشتیبانی:</b> @{SUPPORT_USERNAME}"
     )
     await render_screen(callback, text, back_to_main_keyboard())
 
@@ -322,9 +313,9 @@ async def skin_callback(callback: CallbackQuery):
 async def rename_callback(callback: CallbackQuery):
     await callback.answer()
     text = (
-        "✍️ <b>تغییر نام کانفیگ</b>\n\n"
-        "جهت تغییر نام اشتراک به پشتیبانی اطلاع دهید:\n\n"
-        f"🆔 @{SUPPORT_USERNAME}"
+        "✏️ <b>تغییر نام اشتراک</b>\n\n"
+        "جهت سفارشی‌سازی و تغییر نام کاربری کانفیگ خود با پشتیبانی هماهنگ کنید:\n\n"
+        f"👨‍💻 <b>آیدی پشتیبانی:</b> @{SUPPORT_USERNAME}"
     )
     await render_screen(callback, text, back_to_main_keyboard())
 
@@ -332,9 +323,9 @@ async def rename_callback(callback: CallbackQuery):
 async def delete_callback(callback: CallbackQuery):
     await callback.answer()
     text = (
-        "🗑 <b>حذف کانفیگ</b>\n\n"
-        "جهت ابطال و حذف کانفیگ با پشتیبانی در ارتباط باشید:\n\n"
-        f"🆔 @{SUPPORT_USERNAME}"
+        "🗑 <b>حذف یا ابطال سرویس</b>\n\n"
+        "برای حذف کامل اکانت و بستن دسترسی‌ها با ادمین در ارتباط باشید:\n\n"
+        f"👨‍💻 <b>آیدی پشتیبانی:</b> @{SUPPORT_USERNAME}"
     )
     await render_screen(callback, text, back_to_main_keyboard())
 
@@ -342,9 +333,9 @@ async def delete_callback(callback: CallbackQuery):
 async def expired_callback(callback: CallbackQuery):
     await callback.answer()
     text = (
-        "🔥 <b>کانفیگ‌های در حال انقضا</b>\n\n"
-        "جهت تمدید پیش از موعد و دریافت آفر ویژه به پشتیبانی پیام دهید:\n\n"
-        f"🆔 @{SUPPORT_USERNAME}"
+        "⏳ <b>سرویس‌های رو به اتمام</b>\n\n"
+        "اگر سرویس شما در روزهای پایانی است، هم‌اکنون تمدید کنید تا از <b>تخفیف ویژه تمدید زودهنگام</b> بهره‌مند شوید:\n\n"
+        f"👨‍💻 <b>ارتباط با پشتیبانی:</b> @{SUPPORT_USERNAME}"
     )
     await render_screen(callback, text, back_to_main_keyboard())
 
@@ -352,9 +343,10 @@ async def expired_callback(callback: CallbackQuery):
 async def support_callback(callback: CallbackQuery):
     await callback.answer()
     text = (
-        " <b>پشتیبانی اختصاصی</b>\n\n"
-        "پاسخگویی سریع ۲۴ ساعته:\n\n"
-        f"🆔 @{SUPPORT_USERNAME}"
+        "💬 <b>مرکز پشتیبانی و راهنمایی</b>\n\n"
+        "▫️ پاسخگویی سریع به مشکلات فنی و مالی\n"
+        "▫️ ارسال راهنما و لینک‌های دانلود نرم‌افزار\n\n"
+        f"👨‍💻 <b>ارتباط مستقیم:</b> @{SUPPORT_USERNAME}"
     )
     await render_screen(callback, text, back_to_main_keyboard())
 
@@ -367,15 +359,15 @@ async def start_dummy_server():
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
-    logger.info(f"Render Dummy Server bound immediately to port {PORT}")
+    logger.info(f"Render Server bound immediately to port {PORT}")
 
 # ==================== اجرای اصلی ====================
 async def main():
     if not BOT_TOKEN:
-        logger.error("BOT_TOKEN is missing!")
+        logger.error("BOT_TOKEN is missing! Please set BOT_TOKEN in environment variables.")
         return
 
-    # استارت سرور قبل از تلگرام تا پورت آنی توسط رندر شناسایی شود
+    # اتصال پورت رندر بلافاصله قبل از پولینگ
     await start_dummy_server()
 
     bot = Bot(token=BOT_TOKEN)
