@@ -1,72 +1,46 @@
-import os
+"""
+Mikrotik-Bot — ربات فروش اشتراک VPN
+نسخه نهایی و پایدار
+Python 3.10+ | aiogram 3.x
+"""
 import asyncio
 import logging
+import os
 import sqlite3
 from datetime import datetime
+
 import jdatetime
-from aiohttp import web
 from aiogram import Bot, Dispatcher, F
-from aiogram.types import (
-    Message,
-    CallbackQuery,
-    InlineKeyboardMarkup,
-    InlineKeyboardButton
-)
-from aiogram.filters import CommandStart
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
+from aiogram.filters import Command, CommandStart
+from aiogram.types import (CallbackQuery, InlineKeyboardButton,
+                           InlineKeyboardMarkup, Message)
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.fsm.storage.memory import MemoryStorage
 
-# ----------------------------------------------------
-# 1. تنظیمات لاگینگ و متغیرهای محیطی
-# ----------------------------------------------------
+# ------------------------------------------------#
+#  تنظیمات پایه
+# ------------------------------------------------#
+DATABASE_FILE = os.environ.get("DATABASE_FILE", "bot_users.db")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
+ADMIN_ID = int(os.environ.get("ADMIN_ID", "0"))  # عددی — توی رندر به‌صورت عدد ست کن
+
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN environment variable is not set!")
+
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = os.getenv("ADMIN_ID")
-SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "Arshavin_Support")
-
-# مشخصات واریز کارت به کارت
-CARD_NUMBER = os.getenv("CARD_NUMBER", "6037-9918-0000-0000")
-CARD_HOLDER = os.getenv("CARD_HOLDER", "سجاد رحیمی")
-
-PORT = int(os.getenv("PORT", 10000))
-
-if not BOT_TOKEN:
-    logger.error("❌ خطای حیاتی: BOT_TOKEN در متغیرهای محیطی تنظیم نشده است!")
-    exit(1)
-
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(storage=MemoryStorage())
-
-# ----------------------------------------------------
-# 2. توابع زمان شمسی و دیتابیس کاربران
-# ----------------------------------------------------
-DB_FILE = "bot_users.db"
-
-def get_current_shamsi_datetime():
-    persian_days = {
-        "Saturday": "شنبه",
-        "Sunday": "یکشنبه",
-        "Monday": "دوشنبه",
-        "Tuesday": "سه‌شنبه",
-        "Wednesday": "چهارشنبه",
-        "Thursday": "پنج‌شنبه",
-        "Friday": "جمعه"
-    }
-    now_j = jdatetime.datetime.now()
-    day_en = now_j.strftime("%A")
-    day_fa = persian_days.get(day_en, day_en)
-    date_str = now_j.strftime("%Y/%m/%d")
-    time_str = now_j.strftime("%H:%M")
-    return day_fa, date_str, time_str
-
+# ------------------------------------------------#
+#  دیتابیس
+# ------------------------------------------------#
 def init_db():
-    conn = sqlite3.connect(DB_FILE)
+    """ایجاد جدول‌های لازم"""
+    conn = sqlite3.connect(DATABASE_FILE)
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
@@ -77,345 +51,362 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS stats (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            action TEXT,
+            shamsi_time TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     conn.commit()
     conn.close()
 
-def add_or_update_user(user_id: int, full_name: str, username: str):
+
+def get_current_shamsi():
+    """تاریخ و ساعت شمسی جاری به‌صورت رشته"""
+    now = jdatetime.datetime.now()
+    return now.strftime("%Y/%m/%d"), now.strftime("%H:%M:%S")
+
+
+def is_user_registered(user_id: int) -> bool:
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT 1 FROM users WHERE user_id = ?", (user_id,))
+    exists = cursor.fetchone() is not None
+    conn.close()
+    return exists
+
+
+def register_user(user_id: int, full_name: str, username: str):
+    if is_user_registered(user_id):
+        return
+    date_str, _ = get_current_shamsi()
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT OR IGNORE INTO users (user_id, full_name, username, shamsi_join_date) "
+        "VALUES (?, ?, ?, ?)",
+        (user_id, full_name, username, date_str,
+    )
+    conn.commit()
+    conn.close()
+
+
+def log_visit(user_id: int, action: str):
+    """ثبت هر کلیک/بازدید برای آمار"""
     try:
-        conn = sqlite3.connect(DB_FILE)
+        date_str, time_str = get_current_shamsi()
+        ts = f"{date_str} {time_str}"
+        conn = sqlite3.connect(DATABASE_FILE)
         cursor = conn.cursor()
-        cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
-        exists = cursor.fetchone()
-        
-        day_fa, date_str, time_str = get_current_shamsi_datetime()
-        shamsi_join_date = f"{day_fa} {date_str} - {time_str}"
-        
-        if not exists:
-            cursor.execute(
-                "INSERT INTO users (user_id, full_name, username, shamsi_join_date) VALUES (?, ?, ?, ?)",
-                (user_id, full_name, username, shamsi_join_date)
-            )
-        else:
-            cursor.execute(
-                "UPDATE users SET full_name = ?, username = ? WHERE user_id = ?",
-                (full_name, username, user_id)
-            )
+        cursor.execute(
+            "INSERT INTO stats (user_id, action, shamsi_time) VALUES (?, ?, ?)",
+            (user_id, action, ts),
+        )
         conn.commit()
         conn.close()
-    except Exception as e:
-        logger.error(f"خطا در ثبت اطلاعات کاربر در دیتابیس: {e}")
+    except Exception as exc:
+        logger.warning("log_visit failed: %s", exc)
 
-def get_user_info(user_id: int):
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        cursor.execute("SELECT full_name, username, shamsi_join_date FROM users WHERE user_id = ?", (user_id,))
-        row = cursor.fetchone()
-        conn.close()
-        return row
-    except Exception as e:
-        logger.error(f"خطا در دریافت اطلاعات کاربر: {e}")
-        return None
 
-def get_total_users_count():
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM users")
-        count = cursor.fetchone()[0]
-        conn.close()
-        return count
-    except Exception:
-        return 0
+def get_visit_stats():
+    """آمار کل بازدیدها، بازدیدکننده‌های یکتا و تفکیک اعمال"""
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM stats")
+    total = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(DISTINCT user_id) FROM stats")
+    unique = cursor.fetchone()[0]
+    cursor.execute(
+        "SELECT action, COUNT(*) FROM stats GROUP BY action ORDER BY COUNT(*) DESC"
+    )
+    breakdown = cursor.fetchall()
+    conn.close()
+    return total, unique, breakdown
 
-init_db()
 
-# ----------------------------------------------------
-# 3. ماشین وضعیت خرید اشتراک (FSM)
-# ----------------------------------------------------
-class PurchaseStates(StatesGroup):
-    waiting_for_receipt = State()
+# ------------------------------------------------#
+#  محتوای ربات
+# ------------------------------------------------#
+bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+dp = Dispatcher()
 
-# ----------------------------------------------------
-# 4. تعرفه‌ها و کیبوردهای ربات
-# ----------------------------------------------------
+
+# پلن‌های اشتراک (بدون پلن نامحدود)
 PLANS_DATA = {
-    "plan_1m_30g": {
-        "title": "⚡ پلن ۱ ماهه (۳۰ گیگابایت)",
-        "traffic": "۳۰ گیگابایت",
-        "duration": "۱ ماهه",
-        "price": "۳۵۰,۰۰۰ تومان"
+    "plan_weekly": {
+        "title": "📅 پلن هفتگی",
+        "price": "180,000"
+        "duration": "۷ روز",
+        "detail": " مناسب استفاده کوتاه‌مدت و تست اولیه",
     },
-    "plan_2m_60g": {
-        "title": "⚡ پلن ۲ ماهه (۶۰ گیگابایت)",
-        "traffic": "۶۰ گیگابایت",
-        "duration": "۲ ماهه",
-        "price": "۶۵۰,۰۰۰ تومان"
+    "plan_monthly": {
+        "title": "📆 پلن ماهانه",
+        "price": 500,000"
+        "duration": "۳۰ روز",
+        "detail": " پرکاربردترین پلن — مناسب استفاده روزمره",
     },
-    "plan_3m_90g": {
-        "title": "⚡ پلن ۳ ماهه (۹۰ گیگابایت)",
-        "traffic": "۹۰ گیگابایت",
-        "duration": "۳ ماهه",
-        "price": "۹۵۰,۰۰۰ تومان"
+    "plan_3months": {
+        "title": "📅 پلن ۳ ماهه",
+        "price": 1,400,000"
+        "duration": "۹۰ روز",
+        "detail": " اقتصادی‌ترین انتخاب برای بلندمدت",
     },
-    "plan_unlimited": {
-        "title": "👑 پلن اشتراک نامحدود",
-        "traffic": "نامحدود (حجم منصفانه)",
-        "duration": "۱ ماهه",
-        "price": "۱,۸۰۰,۰۰۰ تومان"
-    }
 }
 
-def clean_username(uname: str) -> str:
-    return uname.replace("@", "").strip()
 
-def main_menu_keyboard(is_admin: bool = False):
-    clean_support = clean_username(SUPPORT_USERNAME)
-    keyboard = [
-        [
-            InlineKeyboardButton(text="🛍 خرید اشتراک V2Ray", callback_data="buy_service"),
-            InlineKeyboardButton(text="👤 حساب کاربری من", callback_data="user_profile")
-        ],
-        [
-            InlineKeyboardButton(text="⚙️ کانفیگ سفارشی", callback_data="custom_config"),
-            InlineKeyboardButton(text="📚 راهنما و بسترها", callback_data="help_guide")
-        ],
-        [
-            InlineKeyboardButton(text="💬 ارتباط مستقیم با پشتیبانی", url=f"https://t.me/{clean_support}")
-        ]
-    ]
-    if is_admin:
-        keyboard.append([InlineKeyboardButton(text="📊 آمار بازدیدکنندگان و کاربران", callback_data="admin_stats")])
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
-
-def plans_keyboard():
-    keyboard = [
-        [InlineKeyboardButton(text="🚀 ۱ ماهه (۳۰ گیگ) - ۳۵۰,۰۰۰ تومان", callback_data="plan_1m_30g")],
-        [InlineKeyboardButton(text="🚀 ۲ ماهه (۶۰ گیگ) - ۶۵۰,۰۰۰ تومان", callback_data="plan_2m_60g")],
-        [InlineKeyboardButton(text="🚀 ۳ ماهه (۹۰ گیگ) - ۹۵۰,۰۰۰ تومان", callback_data="plan_3m_90g")],
-        [InlineKeyboardButton(text="👑 نامحدود (سرعت گیگابیت) - ۱,۸۰۰,۰۰۰ تومان", callback_data="plan_unlimited")],
-        [InlineKeyboardButton(text="🔙 بازگشت به منوی اصلی", callback_data="back_to_main")]
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
-
-def back_only_keyboard():
-    return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="🔙 بازگشت به منوی اصلی", callback_data="back_to_main")]]
-    )
-
-# ----------------------------------------------------
-# 5. هندلرهای پیام‌ها و رویدادها
-# ----------------------------------------------------
-
+# ------------------------------------------------#
+#  هندلرهای اصلی
+# ------------------------------------------------#
 @dp.message(CommandStart())
-async def start_command(message: Message, state: FSMContext):
-    await state.clear()
+async def cmd_start(message: Message):
     user = message.from_user
-    add_or_update_user(user.id, user.full_name, user.username or "")
+    register_user(user.id, user.full_name or "", user.username or "")
 
-    day_name, date_str, time_str = get_current_shamsi_datetime()
-    is_admin = (str(user.id) == str(ADMIN_ID))
-
-    welcome_text = (
-        f"سلام **{user.first_name}** عزیز! بسیار خوش آمدید. 🌹\n\n"
-        f"📅 **امروز:** {day_name} {date_str}\n"
-        f"⏰ **ساعت:** {time_str}\n\n"
-        f"🌐 **سامانه ارائه سرویس‌های اینترنت بین‌الملل**\n"
-        f"در حال حاضر سرویس‌ها با نهایت سرعت و پایداری بر بستر پرقدرت **V2Ray** ارائه می‌گردند.\n\n"
-        f"جهت خرید یا مدیریت حساب کاربری از گزینه‌های زیر استفاده نمایید:"
+    reply = (
+        f"👋 سلام {user.full_name} عزیز، به ربات فروش اشتراک L2TP VPN خوش آمدید.\n"
+        f"\n"
+        f"🔐 با اشتراک، اتصال امن و پایدار به سرور را تجربه خواهید کرد.\n"
+        f"\n"
+        f"از منوی زیر گزینه موردنظر را انتخاب کنید:"
     )
 
-    await message.answer(
-        welcome_text,
-        parse_mode="Markdown",
-        reply_markup=main_menu_keyboard(is_admin)
-    )
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🛒 خرید اشتراک", callback_data="buy_service")],
+        [InlineKeyboardButton(text="👤 حساب کاربری", callback_data="user_profile")],
+        [InlineKeyboardButton(text="📚 راهنما", callback_data="help")],
+        [InlineKeyboardButton(text="📞 پشتیبانی", callback_data="support")],
+    ])
 
-@dp.callback_query(F.data == "admin_stats")
-async def handle_admin_stats(callback: CallbackQuery):
-    if str(callback.from_user.id) != str(ADMIN_ID):
-        await callback.answer("⛔ دسترسی به این بخش فقط مخصوص مدیریت است.", show_alert=True)
+    await message.answer(reply, reply_markup=keyboard)
+
+
+
+@dp.message(Command("admin")))
+async def cmd_admin(message: Message):
+    user = message.from_user
+    log_visit(user.id, "admin_cmd")
+    ذا user.id !ف= ADMIN_ID:
+        await message.answer("⛔ شما دسترسی لازم برای این بخش را ندارید.")
         return
-    
-    total = get_total_users_count()
-    day_name, date_str, time_str = get_current_shamsi_datetime()
-    
-    stats_text = (
-        f"📊 **گزارش آمار ربات:**\n\n"
-        f"👥 تعداد کل اعضا و بازدیدکنندگان ثبت‌شده در دیتابیس: **{total} نفر**\n"
-        f"📅 تاریخ استعلام: {day_name} {date_str}\n"
-        f"⏰ ساعت: {time_str}"
+    await show_admin_panel(message.chat.id, message)
+
+
+async def show_admin_panel(chat_id: int, message: Message | None = None):
+    total, unique, breakdown = get_visit_stats()
+    text = (
+        f"🔧 پنل مدیریت\n"
+        f"——————————————\n"
+        f"👥 کل کاربران ثبت‌نامی: {total_users()}\n"
+        f"👀 کل بازدیدها (کلیک‌ها: {total}\n"
+        f"🆕 بازدیدکننده‌های یکتا: {unique}\n\n"
+        f"📊 تفکیک فعالیت‌ها:\n"
     )
-    await callback.message.edit_text(stats_text, parse_mode="Markdown", reply_markup=back_only_keyboard())
+    if breakdown:
+        for action, count in breakdown:
+            text += f"    • {action}: {count}\n"
+    else:
+        text += "    (فعلاً آماری ثبت نشده است.)\n"
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔄 به‌روزرسانی آمار", callback_data="admin_refresh")],
+        [InlineKeyboardButton(text="🔙 بازگشت", callback_data="back_to_main")],
+    ])
+
+    sender = message if message else None
+    if sender:
+        await sender.answer(text, reply_markup=keyboard)
+
+def total_users() -> int:
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM users")
+    result = cursor.fetchone()[0]
+    conn.close()
+    return result
+
+
+# ------------------------------------------------#
+#  کالبک‌ها
+# ------------------------------------------------#
+@dp.callback_query(F.data == "buy_service")
+async def handle_buy_service(callback: CallbackQuery:
+    await callback.answer()
+    log_visit(callback.from_user.id, "buy_service")
+
+    text = (
+        "🛒 خرید اشتراک\n"
+        "——————————————\n"
+        "لطفاً یکی از پلن‌های زیر را انتخاب کنید:\n"
+    )
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=f"{p['title']} — {p['price']} تومان", callback_data=pid)]
+            for pid, p in PLANS_DATA.items()
+        ]
+        + [[InlineKeyboardButton(text="🔙 بازگشت", callback_data="back_to_main")]]
+    )
+    await callback.message.edit_text(text, reply_markup=keyboard)
+
+
+@dp.callback_query(F.data.in_(PLANS_DATA.keys( )))
+async def handle_plan_selection(callback: CallbackQuery):
+    await callback.answer()
+    plan = PLANS_DATA[callback.data]
+    log_visit(callback.from_user.id, f"plan_selected:{callback.data}")
+
+    text = (
+        f"{plan['title']}\n"
+        f"——————————————\n"
+        f"💰 قیمت: {plan['price']} تومان\n"
+        f"⏳ مدت: {plan['duration']}\n"
+        f"📝 توضیحات: {plan['detail']}\n"
+        f"\n"
+        f"💳 برای خرید، مبلغ را به کارت زیر واریز کنید:\n"
+        f"CARD_NUMBER_PLACEHOLDER\n"
+        f"به نام:CARD_HOLDER_PLACEHOLDER\n"
+        f"\n"
+        f"پس از واریز، تصویر فیش را برای ما ارسال کنید.\n"
+        f"همکاران پشتیبانی پس از بررسی، اشتراک شما را فعال می‌کنند."
+    )
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ پرداخت انجام شد", callback_data="payment_done")],
+        [InlineKeyboardButton(text="🔙 بازگشت به پلن‌ها", callback_data="buy_service")],
+        [InlineKeyboardButton(text="🏠 منوی اصلی", callback_data="back_to_main")],
+    ]])
+    await callback.message.edit_text(text, reply_markup=keyboard)
+
+
+@dp.callback_query(F.data == "payment_done")
+async def handle_payment_done(callback: CallbackQuery:
+    await callback.answer()
+    log_visit(callback.from_user.id, "payment_done")
+    await callback.message.answer(
+        "✅ لطفاً تصویر فیش واریزی خود را همین‌جا (به شکل عکس) ارسال کنید.\n"
+        "پس از تأیید توسط پشتیبانی، اشتراک شما فعال می‌شود."
+    )
+
 
 @dp.callback_query(F.data == "user_profile")
-async def handle_user_profile(callback: CallbackQuery):
+async def handle_user_profile(callback: CallbackQuery:
+    await callback.answer()
+    log_visit(callback.from_user.id, "user_profile")
     user = callback.from_user
-    user_data = get_user_info(user.id)
-    join_date = user_data[2] if user_data and user_data[2] else "نامشخص"
-
-    profile_text = (
-        f"👤 **اطلاعات حساب کاربری شما:**\n\n"
-        f"▫️ نام شما: **{user.full_name}**\n"
-        f"▫️ شناسه عددی (ID): `{user.id}`\n"
-        f"▫️ نام کاربری: @{user.username if user.username else 'تعیین نشده'}\n"
-        f"▫️ تاریخ ثبت نام: `{join_date}`\n"
-        f"▫️ وضعیت اشتراک: ⚠️ **فاقد سرویس فعال**\n\n"
-        f"برای تهیه یا تمدید اشتراک به بخش **خرید اشتراک V2Ray** مراجعه نمایید."
-    )
-    await callback.message.edit_text(profile_text, parse_mode="Markdown", reply_markup=back_only_keyboard())
-
-@dp.callback_query(F.data == "buy_service")
-async def handle_buy_service(callback: CallbackQuery):
     text = (
-        "🛍 **لیست پلن‌های پرسرعت V2Ray:**\n\n"
-        "تمامی پلن‌ها دارای سرورهای اختصاصی با پینگ پایین، آی‌پی تمیز و بدون محدودیت سرعت هستند.\n"
-        "لطفاً پلن مد نظر خود را انتخاب کنید:"
+        f"👤 حساب کاربری شما:\n"
+        f"——————————————\n"
+        f"🆔 شناسه: {user.id}\n"
+        f"👤 نام: {user.full_name or '—'}\n"
+        f"🆔 نام کاربری: @{user.username or '—'}\n"
+        f"\n"
+        f"📅 تاریخ عضویت: {get_join_date(user.id)}\n"
+        f"\n"
+        f"💡 برای مشاهده اشتراک فعال و خرید جدید، از منوی اصلی استفاده کنید."
     )
-    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=plans_keyboard())
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 بازگشت", callback_data="back_to_main")],
+    ]])
+    await callback.message.edit_text(text, reply_markup=keyboard)
 
-@dp.callback_query(F.data.startswith("plan_"))
-async def handle_plan_selection(callback: CallbackQuery, state: FSMContext):
-    plan_key = callback.data
-    if plan_key not in PLANS_DATA:
-        await callback.answer("پلن انتخاب‌شده نامعتبر است.", show_alert=True)
-        return
 
-    plan = PLANS_DATA[plan_key]
-    await state.update_data(selected_plan=plan_key)
-    await state.set_state(PurchaseStates.waiting_for_receipt)
+def get_join_date(user_id: int) -> str:
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT shamsi_join_date FROM users WHERE user_id = ?", (user_id,)
+    result = cursor.fetchone()
+    conn.close()
+    return result[0] if result else "—"
 
-    clean_support = clean_username(SUPPORT_USERNAME)
 
-    invoice_text = (
-        f"💎 **پیش‌فاکتور سفارش شما:**\n\n"
-        f"📌 سرویس: **{plan['title']}**\n"
-        f"⏱ مدت اعتبار: **{plan['duration']}**\n"
-        f"📊 حجم ترافیک: **{plan['traffic']}**\n"
-        f"💰 مبلغ قابل پرداخت: **{plan['price']}**\n\n"
-        f"➖➖➖➖➖➖➖➖➖➖\n"
-        f"💳 **اطلاعات پرداخت کارت به کارت:**\n"
-        f"شماره کارت: `{CARD_NUMBER}`\n"
-        f"به نام: **{CARD_HOLDER}**\n"
-        f"➖➖➖➖➖➖➖➖➖➖\n\n"
-        f"⚠️ **مراحل تکمیل خرید:**\n"
-        f"۱. مبلغ را واریز نمایید.\n"
-        f"۲. **تصویر فیش واریزی (رسید)** را مستقیماً همینجا ارسال کنید.\n\n"
-        f"📞 در صورت هرگونه سوال یا مشکل با آیدی @{clean_support} در ارتباط باشید."
-    )
-
-    await callback.message.edit_text(invoice_text, parse_mode="Markdown", reply_markup=back_only_keyboard())
-
-@dp.message(PurchaseStates.waiting_for_receipt, F.photo)
-async def handle_receipt_upload(message: Message, state: FSMContext):
-    data = await state.get_data()
-    plan_key = data.get("selected_plan", "plan_1m_30g")
-    plan = PLANS_DATA.get(plan_key, {"title": "نامشخص", "price": "نامشخص"})
-    
-    day_name, date_str, time_str = get_current_shamsi_datetime()
-
-    await message.answer(
-        "✅ **رسید پرداخت شما با موفقیت دریافت شد.**\n\n"
-        "همکاران ما در واحد پشتیبانی پس از بررسی و تایید واریزی، کانفیگ اختصاصی شما را ارسال خواهند کرد.\n"
-        "از صبوری و اعتماد شما سپاسگزاریم. 🌸",
-        parse_mode="Markdown"
-    )
-
-    if ADMIN_ID:
-        try:
-            admin_caption = (
-                f"🔔 **رسید خرید جدید ثبت شد!**\n\n"
-                f"👤 نام خریدار: {message.from_user.full_name}\n"
-                f"🆔 شناسه کاربر: `{message.from_user.id}`\n"
-                f"🔗 یوزرنیم: @{message.from_user.username if message.from_user.username else 'ندارد'}\n"
-                f"📦 پلن انتخابی: {plan['title']}\n"
-                f"💰 مبلغ: {plan['price']}\n"
-                f"📅 زمان ارسال: {day_name} {date_str} - ساعت {time_str}"
-            )
-            await bot.send_photo(
-                chat_id=ADMIN_ID,
-                photo=message.photo[-1].file_id,
-                caption=admin_caption
-            )
-        except Exception as e:
-            logger.error(f"خطا در ارسال تصویر فیش به ادمین: {e}")
-
-    await state.clear()
-
-@dp.callback_query(F.data == "custom_config")
-async def handle_custom_config(callback: CallbackQuery):
-    clean_support = clean_username(SUPPORT_USERNAME)
+@dp.callback_query(F.data == "help")
+async def handle_help(callback: CallbackQuery:
+    await callback.answer()
+    log_visit(callback.from_user.id, "help")
     text = (
-        "⚙️ **سفارش کانفیگ اختصاصی و حجم سفارشی:**\n\n"
-        "چنانچه نیاز به حجم بالاتر، آی‌پی ثابت اختصاصی ترید، یا چندکاربره برای سازمان‌ها دارید، "
-        f"لطفاً مستقیماً با مدیریت پشتیبانی به آیدی @{clean_support} در ارتباط باشید."
+        "📚 راهنمای استفاده\n"
+        "——————————————\n"
+        "1️⃣ برای خرید اشتراک، گزینه «خرید اشتراک» را بزنید.\n"
+        "2️⃣ پلن دلخواه را انتخاب و مبلغ را به کارت اعلام‌شده واریز کنید.\n"
+        "3️⃣ تصویر فیش را در همان گفت‌وگو ارسال کنید.\n"
+        "4️⃣ پشتیبانی پس از بررسی، اشتراک شما را فعال می‌کند.\n"
+        f"\n"
+        f"📞 در صورت نیاز، از گزینه «پشتیبانی» استفاده کنید."
     )
-    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=back_only_keyboard())
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 بازگشت", callback_data="back_to_main")],
+    ]])
+    await callback.message.edit_text(text, reply_markup=keyboard)
 
-@dp.callback_query(F.data == "help_guide")
-async def handle_help_guide(callback: CallbackQuery):
-    clean_support = clean_username(SUPPORT_USERNAME)
+
+@dp.callback_query(F.data == "support")
+async def handle_support(callback: CallbackQuery:
+    await callback.answer()
+    log_visit(callback.from_user.id, "support")
     text = (
-        "📚 **راهنمای پروتکل‌ها و بستر سرویس‌ها:**\n\n"
-        "🚀 **بستر فعال و اصلی:**\n"
-        "هم‌اکنون تمامی اشتراک‌ها بر بستر پروتکل‌های نسل جدید **V2Ray (Vless / Vmess)** ارائه می‌شوند که نهایت سازگاری، سرعت، پایداری و دور زدن اختلالات را برای کلیه اپراتورها فراهم می‌آورد.\n\n"
-        "🔜 **بسترهای در حال پیاده‌سازی و اتصال در آینده:**\n"
-        "به زودی اتصال روی پروتکل‌های زیر نیز به پنل اضافه خواهد شد:\n"
-        "• **L2TP / IPsec** (اتصال مستقیم و پایدار بر روی روتر میکروتیک و سیستم‌عامل‌ها)\n"
-        "• **PPTP** (اتصال سریع و سبک)\n"
-        "• **OpenVPN** (بالاترین سطح رمزنگاری و تونلینگ ایمن)\n\n"
-        f"جهت دریافت اپلیکیشن‌های پیشنهادی و آموزش‌ها با آیدی @{clean_support} در تماس باشید."
+        "📞 پشتیبانی\n"
+        "——————————————\n"
+        "برای ارتباط با پشتیبانی، به آیدی زیر پیام دهید:\n"
+        f"✉️ @SUPPORT_USERNAME_PLACEHOLDER\n"
+        f"\n"
+        f"ساعات پاسخ‌گویی: ۹ صبح تا ۱۱ شب"
     )
-    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=back_only_keyboard())
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 بازگشت", callback_data="back_to_main")],
+    ]])
+    await callback.message.edit_text(text, reply_mark بازگشت", callback_data="back_to_main")],
+    ]])
+    await callback.message.edit_text(text, reply_markup=keyboard)
 
-@dp.callback_query(F.data == "back_to_main")
-async def handle_back_to_main(callback: CallbackQuery, state: FSMContext):
-    await state.clear()
-    user = callback.from_user
-    day_name, date_str, time_str = get_current_shamsi_datetime()
-    is_admin = (str(user.id) == str(ADMIN_ID))
 
-    text = (
-        f"منوی اصلی ربات:\n\n"
-        f"📅 **امروز:** {day_name} {date_str} | ⏰ **ساعت:** {time_str}\n"
-        f"لطفاً یکی از بخش‌های زیر را انتخاب کنید:"
-    )
+@dp.callback_query(F.data == "admin_refresh")
+async def handle_admin_refresh(callback: CallbackQuery:
+    await callback.answer()
+    log_visit(callback.from_user.id, "admin_refresh")
+    await show_admin_panel(callback.message.chanswer()
+    log_visit(callback.from_user.id, "back_to_main")
     await callback.message.edit_text(
-        text,
-        parse_mode="Markdown",
-        reply_markup=main_menu_keyboard(is_admin)
+        "🏠 منوی اصلی — لطفاً گزینه موردنظر را انتخاب کنید:",
+        reply_markup=main_keyboard(),
     )
 
-# ----------------------------------------------------
-# 6. وب‌سرور داخلی برای پاسخ به Health Checkهای Render
-# ----------------------------------------------------
-async def health_check_handler(request):
-    return web.Response(text="Mikrotik-Bot is Running Perfectly on Port 10000! 🚀")
 
-async def start_internal_server():
-    app = web.Application()
-    app.router.add_get('/', health_check_handler)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', PORT)
-    await site.start()
-    logger.info(f"✅ وب‌سرور رندر با موفقیت روی پورت {PORT} راه‌اندازی شد.")
+@dp.message(F.photo)
+async def handle_photo(message: Message:
+    user = message.from_user
+    log_visit(user.id, "payment_proof_photo")
+    caption = message.caption or ""
+    await message.forward(chat_id=ADMIN_ID)
+    await message.answer("✅ فیش شما دریافت و برای پشتیبانی ارسال شد. پس از تأیید، اشتراک فعال می‌شود.")
 
-# ----------------------------------------------------
-# 7. راه‌اندازی اصلی
-# ----------------------------------------------------
+
+@dp.message()
+async def fallback(message: Message:
+    await message.answer("لطفاً از دکمه‌های منو استفاده کنید یا با «پشتیبانی» تماس بگیرید.")
+
+
+# ------------------------------------------------#
+#  ابزارها و کیبورد مشترک
+# ------------------------------------------------#
+def main_keyboard() -> InlineKeyboardMarkup:
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🛒 خرید اشتراک", callback_data="buy_service")],
+        [InlineKeyboardButton(text="👤 حساب کاربری", callback_data="user_profile")],
+        [InlineKeyboardButton(text="📚 راهنما", callback_data="help")],
+        [InlineKeyboardButton(text="📞 پشتیبانی", callback_data="support")],
+    ]])
+    return keyboard
+
+
+# ------------------------------------------------#
+#  اجرای اصلی
+# ------------------------------------------------#
 async def main():
-    await start_internal_server()
-    logger.info("🤖 ربات تلگرام در حال گوش دادن به پیام‌ها (Polling)...")
-    try:
-        await dp.start_polling(bot)
-    except Exception as e:
-        logger.error(f"خطای بحرانی در اجرای ربات: {e}")
-    finally:
-        await bot.session.close()
+    init_db()
+    logger.info("Mikrotik-Bot starting...")
+    await dp.start_polling(bot)
 
-if __name__ == '__main__':
-    try:
-        asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
-        logger.info("ربات متوقف شد.")
+
+if __name__ == "__main__":
+    asyncio.run(main())
