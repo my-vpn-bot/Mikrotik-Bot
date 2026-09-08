@@ -1,6 +1,6 @@
 """
 Mikrotik-Bot — ربات فروش اشتراک VPN
-نسخه نهایی و پایدار
+نسخه نهایی و پایدار (ادغام‌شده با وب‌سرور Health Check برای Render)
 Python 3.10+ | aiogram 3.x
 """
 import asyncio
@@ -10,6 +10,7 @@ import sqlite3
 from datetime import datetime
 
 import jdatetime
+from aiohttp import web
 from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -149,7 +150,7 @@ def get_join_date(user_id: int) -> str:
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 
-# پلن‌های اشتراک (بدون پلن نامحدود و کاملاً کوتیشن‌گذاری‌شده)
+# پلن‌های اشتراک (بدون پلن نامحدود)
 PLANS_DATA = {
     "plan_weekly": {
         "title": "📅 پلن هفتگی",
@@ -225,16 +226,13 @@ async def show_admin_panel(message: Message):
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔄 به‌روزرسانی آمار", callback_data="admin_refresh")],
-        [InlineKeyboardButton(text="🔙 بازگشت", callback_data="back_to_main")],
-    ])
-    await message.answer(text, reply_markup=keyboard)
+        [InlineKeyboard • {action}: {count}\n"
+    else:
+        text += "    (فعلاً آماری ثبت نشده است.)\n"
 
-
-# ------------------------------------------------#
-#  هندلرهای کالبک (دکمه‌های شیشه‌ای)
-# ------------------------------------------------#
-@dp.callback_query(F.data == "buy_service")
-async def handle_buy_service(callback: CallbackQuery):
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔄 به‌روزرسانی آمار", callback_data="admin_refresh")],
+        [InlineKeyboardButton(text="🔙 بازگشت",):
     await callback.answer()
     log_visit(callback.from_user.id, "buy_service")
 
@@ -245,7 +243,15 @@ async def handle_buy_service(callback: CallbackQuery):
     )
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text=f"{p['title']} — {p['price']} تومان", callback_data=pid)]
+            [InlineKeyboardButton(
+                text=f"{p['title']} — {p['price']} تومان",
+                callback_data=pid,
+            )]
+            for pid, p in PLANS_DATA.items()
+        ]
+        + [[InlineKeyboardButton(text="🔙 باز",
+                callback_data=pid,
+            )]
             for pid, p in PLANS_DATA.items()
         ]
         + [[InlineKeyboardButton(text="🔙 بازگشت", callback_data="back_to_main")]]
@@ -254,10 +260,7 @@ async def handle_buy_service(callback: CallbackQuery):
 
 
 @dp.callback_query(F.data.in_(PLANS_DATA.keys()))
-async def handle_plan_selection(callback: CallbackQuery):
-    await callback.answer()
-    plan = PLANS_DATA[callback.data]
-    log_visit(callback.from_user.id, f"plan_selected:{callback.data}")
+async def handle_plan_selection:{callback.data}")
 
     text = (
         f"{plan['title']}\n"
@@ -269,7 +272,7 @@ async def handle_plan_selection(callback: CallbackQuery):
         f"CARD_NUMBER_PLACEHOLDER\n"
         f"به نام: CARD_HOLDER_PLACEHOLDER\n\n"
         f"پس از واریز، تصویر فیش را برای ما ارسال کنید.\n"
-        f"همکاران پشتیبانی پس از بررسی، اشتراک شما را فعال می‌کنند."
+        f"پشتیبانی پس از بررسی، اشتراک شما را فعال می‌کند."
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ پرداخت انجام شد", callback_data="payment_done")],
@@ -390,7 +393,10 @@ async def handle_photo(message: Message):
     log_visit(user.id, "payment_proof_photo")
     if ADMIN_ID != 0:
         await message.forward(chat_id=ADMIN_ID)
-    await message.answer("✅ فیش شما دریافت و برای پشتیبانی ارسال شد. پس از تأیید، اشتراک فعال می‌شود.")
+    await message.answer(
+        "✅ فیش شما دریافت و برای پشتیبانی ارسال شد. "
+        "پس از تأیید، اشتراک فعال می‌شود."
+    )
 
 
 @dp.message()
@@ -399,11 +405,30 @@ async def fallback(message: Message):
 
 
 # ------------------------------------------------#
+#  وب‌سرور Health Check (برای راضی نگه‌داشتن Render)
+# ------------------------------------------------#
+async def health_check(request):
+    return web.Response(text="Bot is running happily!")
+
+
+# ------------------------------------------------#
 #  اجرای اصلی
 # ------------------------------------------------#
 async def main():
     init_db()
     logger.info("Mikrotik-Bot starting...")
+
+    # اجرای وب‌سرور سبک برای باز نگه‌داشتن پورت Render
+    port = int(os.environ.get("PORT", 8080))
+    app = web.Application()
+    app.router.add_get("/", health_check)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    logger.info(f"Dummy Web Server running on port {port}")
+
+    # شروع پولینگ ربات تلگرام
     await dp.start_polling(bot)
 
 
