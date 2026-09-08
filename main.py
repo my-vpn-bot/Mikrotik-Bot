@@ -16,15 +16,13 @@ from aiogram.enums import ParseMode
 from aiogram.filters import Command, CommandStart
 from aiogram.types import (CallbackQuery, InlineKeyboardButton,
                            InlineKeyboardMarkup, Message)
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
 
 # ------------------------------------------------#
 #  تنظیمات پایه
 # ------------------------------------------------#
 DATABASE_FILE = os.environ.get("DATABASE_FILE", "bot_users.db")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
-ADMIN_ID = int(os.environ.get("ADMIN_ID", "0"))  # عددی — توی رندر به‌صورت عدد ست کن
+ADMIN_ID = int(os.environ.get("ADMIN_ID", "0"))  # عددی — در رندر به‌صورت عدد ست شود
 
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN environment variable is not set!")
@@ -88,7 +86,7 @@ def register_user(user_id: int, full_name: str, username: str):
     cursor.execute(
         "INSERT OR IGNORE INTO users (user_id, full_name, username, shamsi_join_date) "
         "VALUES (?, ?, ?, ?)",
-        (user_id, full_name, username, date_str,
+        (user_id, full_name, username, date_str),
     )
     conn.commit()
     conn.close()
@@ -127,38 +125,64 @@ def get_visit_stats():
     return total, unique, breakdown
 
 
+def total_users() -> int:
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM users")
+    result = cursor.fetchone()[0]
+    conn.close()
+    return result
+
+
+def get_join_date(user_id: int) -> str:
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT shamsi_join_date FROM users WHERE user_id = ?", (user_id,))
+    result = cursor.fetchone()
+    conn.close()
+    return result[0] if result else "—"
+
+
 # ------------------------------------------------#
 #  محتوای ربات
 # ------------------------------------------------#
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 
-
-# پلن‌های اشتراک (بدون پلن نامحدود)
+# پلن‌های اشتراک (بدون پلن نامحدود و کاملاً کوتیشن‌گذاری‌شده)
 PLANS_DATA = {
     "plan_weekly": {
         "title": "📅 پلن هفتگی",
-        "price": "180,000"
+        "price": "180,000",
         "duration": "۷ روز",
-        "detail": " مناسب استفاده کوتاه‌مدت و تست اولیه",
+        "detail": "مناسب استفاده کوتاه‌مدت و تست اولیه",
     },
     "plan_monthly": {
         "title": "📆 پلن ماهانه",
-        "price": 500,000"
+        "price": "500,000",
         "duration": "۳۰ روز",
-        "detail": " پرکاربردترین پلن — مناسب استفاده روزمره",
+        "detail": "پرکاربردترین پلن — مناسب استفاده روزمره",
     },
     "plan_3months": {
         "title": "📅 پلن ۳ ماهه",
-        "price": 1,400,000"
+        "price": "1,400,000",
         "duration": "۹۰ روز",
-        "detail": " اقتصادی‌ترین انتخاب برای بلندمدت",
+        "detail": "اقتصادی‌ترین انتخاب برای بلندمدت",
     },
 }
 
 
+def main_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🛒 خرید اشتراک", callback_data="buy_service")],
+        [InlineKeyboardButton(text="👤 حساب کاربری", callback_data="user_profile")],
+        [InlineKeyboardButton(text="📚 راهنما", callback_data="help")],
+        [InlineKeyboardButton(text="📞 پشتیبانی", callback_data="support")],
+    ])
+
+
 # ------------------------------------------------#
-#  هندلرهای اصلی
+#  هندلرهای اصلی پیام
 # ------------------------------------------------#
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
@@ -166,41 +190,30 @@ async def cmd_start(message: Message):
     register_user(user.id, user.full_name or "", user.username or "")
 
     reply = (
-        f"👋 سلام {user.full_name} عزیز، به ربات فروش اشتراک L2TP VPN خوش آمدید.\n"
-        f"\n"
-        f"🔐 با اشتراک، اتصال امن و پایدار به سرور را تجربه خواهید کرد.\n"
-        f"\n"
+        f"👋 سلام {user.full_name} عزیز، به ربات فروش اشتراک L2TP VPN خوش آمدید.\n\n"
+        f"🔐 با اشتراک، اتصال امن و پایدار به سرور را تجربه خواهید کرد.\n\n"
         f"از منوی زیر گزینه موردنظر را انتخاب کنید:"
     )
-
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🛒 خرید اشتراک", callback_data="buy_service")],
-        [InlineKeyboardButton(text="👤 حساب کاربری", callback_data="user_profile")],
-        [InlineKeyboardButton(text="📚 راهنما", callback_data="help")],
-        [InlineKeyboardButton(text="📞 پشتیبانی", callback_data="support")],
-    ])
-
-    await message.answer(reply, reply_markup=keyboard)
+    await message.answer(reply, reply_markup=main_keyboard())
 
 
-
-@dp.message(Command("admin")))
+@dp.message(Command("admin"))
 async def cmd_admin(message: Message):
     user = message.from_user
     log_visit(user.id, "admin_cmd")
-    ذا user.id !ف= ADMIN_ID:
+    if user.id != ADMIN_ID:
         await message.answer("⛔ شما دسترسی لازم برای این بخش را ندارید.")
         return
-    await show_admin_panel(message.chat.id, message)
+    await show_admin_panel(message)
 
 
-async def show_admin_panel(chat_id: int, message: Message | None = None):
+async def show_admin_panel(message: Message):
     total, unique, breakdown = get_visit_stats()
     text = (
         f"🔧 پنل مدیریت\n"
         f"——————————————\n"
         f"👥 کل کاربران ثبت‌نامی: {total_users()}\n"
-        f"👀 کل بازدیدها (کلیک‌ها: {total}\n"
+        f"👀 کل بازدیدها (کلیک‌ها): {total}\n"
         f"🆕 بازدیدکننده‌های یکتا: {unique}\n\n"
         f"📊 تفکیک فعالیت‌ها:\n"
     )
@@ -214,25 +227,14 @@ async def show_admin_panel(chat_id: int, message: Message | None = None):
         [InlineKeyboardButton(text="🔄 به‌روزرسانی آمار", callback_data="admin_refresh")],
         [InlineKeyboardButton(text="🔙 بازگشت", callback_data="back_to_main")],
     ])
-
-    sender = message if message else None
-    if sender:
-        await sender.answer(text, reply_markup=keyboard)
-
-def total_users() -> int:
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM users")
-    result = cursor.fetchone()[0]
-    conn.close()
-    return result
+    await message.answer(text, reply_markup=keyboard)
 
 
 # ------------------------------------------------#
-#  کالبک‌ها
+#  هندلرهای کالبک (دکمه‌های شیشه‌ای)
 # ------------------------------------------------#
 @dp.callback_query(F.data == "buy_service")
-async def handle_buy_service(callback: CallbackQuery:
+async def handle_buy_service(callback: CallbackQuery):
     await callback.answer()
     log_visit(callback.from_user.id, "buy_service")
 
@@ -251,7 +253,7 @@ async def handle_buy_service(callback: CallbackQuery:
     await callback.message.edit_text(text, reply_markup=keyboard)
 
 
-@dp.callback_query(F.data.in_(PLANS_DATA.keys( )))
+@dp.callback_query(F.data.in_(PLANS_DATA.keys()))
 async def handle_plan_selection(callback: CallbackQuery):
     await callback.answer()
     plan = PLANS_DATA[callback.data]
@@ -262,12 +264,10 @@ async def handle_plan_selection(callback: CallbackQuery):
         f"——————————————\n"
         f"💰 قیمت: {plan['price']} تومان\n"
         f"⏳ مدت: {plan['duration']}\n"
-        f"📝 توضیحات: {plan['detail']}\n"
-        f"\n"
+        f"📝 توضیحات: {plan['detail']}\n\n"
         f"💳 برای خرید، مبلغ را به کارت زیر واریز کنید:\n"
         f"CARD_NUMBER_PLACEHOLDER\n"
-        f"به نام:CARD_HOLDER_PLACEHOLDER\n"
-        f"\n"
+        f"به نام: CARD_HOLDER_PLACEHOLDER\n\n"
         f"پس از واریز، تصویر فیش را برای ما ارسال کنید.\n"
         f"همکاران پشتیبانی پس از بررسی، اشتراک شما را فعال می‌کنند."
     )
@@ -275,12 +275,12 @@ async def handle_plan_selection(callback: CallbackQuery):
         [InlineKeyboardButton(text="✅ پرداخت انجام شد", callback_data="payment_done")],
         [InlineKeyboardButton(text="🔙 بازگشت به پلن‌ها", callback_data="buy_service")],
         [InlineKeyboardButton(text="🏠 منوی اصلی", callback_data="back_to_main")],
-    ]])
+    ])
     await callback.message.edit_text(text, reply_markup=keyboard)
 
 
 @dp.callback_query(F.data == "payment_done")
-async def handle_payment_done(callback: CallbackQuery:
+async def handle_payment_done(callback: CallbackQuery):
     await callback.answer()
     log_visit(callback.from_user.id, "payment_done")
     await callback.message.answer(
@@ -290,7 +290,7 @@ async def handle_payment_done(callback: CallbackQuery:
 
 
 @dp.callback_query(F.data == "user_profile")
-async def handle_user_profile(callback: CallbackQuery:
+async def handle_user_profile(callback: CallbackQuery):
     await callback.answer()
     log_visit(callback.from_user.id, "user_profile")
     user = callback.from_user
@@ -299,29 +299,18 @@ async def handle_user_profile(callback: CallbackQuery:
         f"——————————————\n"
         f"🆔 شناسه: {user.id}\n"
         f"👤 نام: {user.full_name or '—'}\n"
-        f"🆔 نام کاربری: @{user.username or '—'}\n"
-        f"\n"
-        f"📅 تاریخ عضویت: {get_join_date(user.id)}\n"
-        f"\n"
+        f"🆔 نام کاربری: @{user.username or '—'}\n\n"
+        f"📅 تاریخ عضویت: {get_join_date(user.id)}\n\n"
         f"💡 برای مشاهده اشتراک فعال و خرید جدید، از منوی اصلی استفاده کنید."
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔙 بازگشت", callback_data="back_to_main")],
-    ]])
+    ])
     await callback.message.edit_text(text, reply_markup=keyboard)
 
 
-def get_join_date(user_id: int) -> str:
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    cursor.execute("SELECT shamsi_join_date FROM users WHERE user_id = ?", (user_id,)
-    result = cursor.fetchone()
-    conn.close()
-    return result[0] if result else "—"
-
-
 @dp.callback_query(F.data == "help")
-async def handle_help(callback: CallbackQuery:
+async def handle_help(callback: CallbackQuery):
     await callback.answer()
     log_visit(callback.from_user.id, "help")
     text = (
@@ -330,41 +319,61 @@ async def handle_help(callback: CallbackQuery:
         "1️⃣ برای خرید اشتراک، گزینه «خرید اشتراک» را بزنید.\n"
         "2️⃣ پلن دلخواه را انتخاب و مبلغ را به کارت اعلام‌شده واریز کنید.\n"
         "3️⃣ تصویر فیش را در همان گفت‌وگو ارسال کنید.\n"
-        "4️⃣ پشتیبانی پس از بررسی، اشتراک شما را فعال می‌کند.\n"
-        f"\n"
-        f"📞 در صورت نیاز، از گزینه «پشتیبانی» استفاده کنید."
+        "4️⃣ پشتیبانی پس از بررسی، اشتراک شما را فعال می‌کند.\n\n"
+        "📞 در صورت نیاز، از گزینه «پشتیبانی» استفاده کنید."
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔙 بازگشت", callback_data="back_to_main")],
-    ]])
+    ])
     await callback.message.edit_text(text, reply_markup=keyboard)
 
 
 @dp.callback_query(F.data == "support")
-async def handle_support(callback: CallbackQuery:
+async def handle_support(callback: CallbackQuery):
     await callback.answer()
     log_visit(callback.from_user.id, "support")
     text = (
         "📞 پشتیبانی\n"
         "——————————————\n"
         "برای ارتباط با پشتیبانی، به آیدی زیر پیام دهید:\n"
-        f"✉️ @SUPPORT_USERNAME_PLACEHOLDER\n"
-        f"\n"
-        f"ساعات پاسخ‌گویی: ۹ صبح تا ۱۱ شب"
+        f"✉️ @SUPPORT_USERNAME_PLACEHOLDER\n\n"
+        "ساعات پاسخ‌گویی: ۹ صبح تا ۱۱ شب"
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔙 بازگشت", callback_data="back_to_main")],
-    ]])
-    await callback.message.edit_text(text, reply_mark بازگشت", callback_data="back_to_main")],
-    ]])
+    ])
     await callback.message.edit_text(text, reply_markup=keyboard)
 
 
 @dp.callback_query(F.data == "admin_refresh")
-async def handle_admin_refresh(callback: CallbackQuery:
+async def handle_admin_refresh(callback: CallbackQuery):
     await callback.answer()
     log_visit(callback.from_user.id, "admin_refresh")
-    await show_admin_panel(callback.message.chanswer()
+    total, unique, breakdown = get_visit_stats()
+    text = (
+        f"🔧 پنل مدیریت (به‌روزرسانی‌شده)\n"
+        f"——————————————\n"
+        f"👥 کل کاربران ثبت‌نامی: {total_users()}\n"
+        f"👀 کل بازدیدها (کلیک‌ها): {total}\n"
+        f"🆕 بازدیدکننده‌های یکتا: {unique}\n\n"
+        f"📊 تفکیک فعالیت‌ها:\n"
+    )
+    if breakdown:
+        for action, count in breakdown:
+            text += f"    • {action}: {count}\n"
+    else:
+        text += "    (فعلاً آماری ثبت نشده است.)\n"
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔄 به‌روزرسانی آمار", callback_data="admin_refresh")],
+        [InlineKeyboardButton(text="🔙 بازگشت", callback_data="back_to_main")],
+    ])
+    await callback.message.edit_text(text, reply_markup=keyboard)
+
+
+@dp.callback_query(F.data == "back_to_main")
+async def handle_back_to_main(callback: CallbackQuery):
+    await callback.answer()
     log_visit(callback.from_user.id, "back_to_main")
     await callback.message.edit_text(
         "🏠 منوی اصلی — لطفاً گزینه موردنظر را انتخاب کنید:",
@@ -372,31 +381,21 @@ async def handle_admin_refresh(callback: CallbackQuery:
     )
 
 
+# ------------------------------------------------#
+#  هندلرهای عکس و پیام‌های متفرقه
+# ------------------------------------------------#
 @dp.message(F.photo)
-async def handle_photo(message: Message:
+async def handle_photo(message: Message):
     user = message.from_user
     log_visit(user.id, "payment_proof_photo")
-    caption = message.caption or ""
-    await message.forward(chat_id=ADMIN_ID)
+    if ADMIN_ID != 0:
+        await message.forward(chat_id=ADMIN_ID)
     await message.answer("✅ فیش شما دریافت و برای پشتیبانی ارسال شد. پس از تأیید، اشتراک فعال می‌شود.")
 
 
 @dp.message()
-async def fallback(message: Message:
+async def fallback(message: Message):
     await message.answer("لطفاً از دکمه‌های منو استفاده کنید یا با «پشتیبانی» تماس بگیرید.")
-
-
-# ------------------------------------------------#
-#  ابزارها و کیبورد مشترک
-# ------------------------------------------------#
-def main_keyboard() -> InlineKeyboardMarkup:
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🛒 خرید اشتراک", callback_data="buy_service")],
-        [InlineKeyboardButton(text="👤 حساب کاربری", callback_data="user_profile")],
-        [InlineKeyboardButton(text="📚 راهنما", callback_data="help")],
-        [InlineKeyboardButton(text="📞 پشتیبانی", callback_data="support")],
-    ]])
-    return keyboard
 
 
 # ------------------------------------------------#
