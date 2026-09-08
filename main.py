@@ -157,6 +157,12 @@ PLANS_DATA = {
         "traffic": "۹۰ گیگابایت",
         "duration": "۳ ماهه",
         "price": "۹۵۰,۰۰۰ تومان"
+    },
+    "plan_unlimited": {
+        "title": "👑 پلن اشتراک نامحدود",
+        "traffic": "نامحدود (حجم منصفانه)",
+        "duration": "۱ ماهه",
+        "price": "۱,۸۰۰,۰۰۰ تومان"
     }
 }
 
@@ -187,6 +193,7 @@ def plans_keyboard():
         [InlineKeyboardButton(text="🚀 ۱ ماهه (۳۰ گیگ) - ۳۵۰,۰۰۰ تومان", callback_data="plan_1m_30g")],
         [InlineKeyboardButton(text="🚀 ۲ ماهه (۶۰ گیگ) - ۶۵۰,۰۰۰ تومان", callback_data="plan_2m_60g")],
         [InlineKeyboardButton(text="🚀 ۳ ماهه (۹۰ گیگ) - ۹۵۰,۰۰۰ تومان", callback_data="plan_3m_90g")],
+        [InlineKeyboardButton(text="👑 نامحدود (سرعت گیگابیت) - ۱,۸۰۰,۰۰۰ تومان", callback_data="plan_unlimited")],
         [InlineKeyboardButton(text="🔙 بازگشت به منوی اصلی", callback_data="back_to_main")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
@@ -235,7 +242,7 @@ async def handle_admin_stats(callback: CallbackQuery):
     
     stats_text = (
         f"📊 **گزارش آمار ربات:**\n\n"
-        f"👥 تعداد کل اعضا و بازدیدکنندگان ثبت‌شده: **{total} نفر**\n"
+        f"👥 تعداد کل اعضا و بازدیدکنندگان ثبت‌شده در دیتابیس: **{total} نفر**\n"
         f"📅 تاریخ استعلام: {day_name} {date_str}\n"
         f"⏰ ساعت: {time_str}"
     )
@@ -343,7 +350,7 @@ async def handle_custom_config(callback: CallbackQuery):
         "چنانچه نیاز به حجم بالاتر، آی‌پی ثابت اختصاصی ترید، یا چندکاربره برای سازمان‌ها دارید، "
         f"لطفاً مستقیماً با مدیریت پشتیبانی به آیدی @{clean_support} در ارتباط باشید."
     )
-    await callback.message.edit_text(text, reply_markup=back_only_keyboard())
+    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=back_only_keyboard())
 
 @dp.callback_query(F.data == "help_guide")
 async def handle_help_guide(callback: CallbackQuery):
