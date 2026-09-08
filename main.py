@@ -34,7 +34,7 @@ SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "Arshavin_Support")
 CARD_NUMBER = os.getenv("CARD_NUMBER", "6037-9918-0000-0000")
 CARD_HOLDER = os.getenv("CARD_HOLDER", "سجاد رحیمی")
 
-PORT = int(os.getenv("PORT", 8080))
+PORT = int(os.getenv("PORT", 10000))
 
 if not BOT_TOKEN:
     logger.error("❌ خطای حیاتی: BOT_TOKEN در متغیرهای محیطی تنظیم نشده است!")
@@ -44,9 +44,26 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
 # ----------------------------------------------------
-# 2. دیتابیس پایدار کاربران (ثبت آمار بازدید و اعضا)
+# 2. توابع زمان شمسی و دیتابیس کاربران
 # ----------------------------------------------------
 DB_FILE = "bot_users.db"
+
+def get_current_shamsi_datetime():
+    persian_days = {
+        "Saturday": "شنبه",
+        "Sunday": "یکشنبه",
+        "Monday": "دوشنبه",
+        "Tuesday": "سه‌شنبه",
+        "Wednesday": "چهارشنبه",
+        "Thursday": "پنج‌شنبه",
+        "Friday": "جمعه"
+    }
+    now_j = jdatetime.datetime.now()
+    day_en = now_j.strftime("%A")
+    day_fa = persian_days.get(day_en, day_en)
+    date_str = now_j.strftime("%Y/%m/%d")
+    time_str = now_j.strftime("%H:%M")
+    return day_fa, date_str, time_str
 
 def init_db():
     conn = sqlite3.connect(DB_FILE)
@@ -63,58 +80,40 @@ def init_db():
     conn.commit()
     conn.close()
 
-def get_current_shogram.filters import CommandStart
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.fsm.storage.memory import MemoryStorage
+def add_or_update_user(user_id: int, full_name: str, username: str):
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
+        exists = cursor.fetchone()
+        
+        day_fa, date_str, time_str = get_current_shamsi_datetime()
+        shamsi_join_date = f"{day_fa} {date_str} - {time_str}"
+        
+        if not exists:
+            cursor.execute(
+                "INSERT INTO users (user_id, full_name, username, shamsi_join_date) VALUES (?, ?, ?, ?)",
+                (user_id, full_name, username, shamsi_join_date)
+            )
+        else:
+            cursor.execute(
+                "UPDATE users SET full_name = ?, username = ? WHERE user_id = ?",
+                (full_name, username, user_id)
+            )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.error(f"خطا در ثبت اطلاعات کاربر در دیتابیس: {e}")
 
-# ----------------------------------------------------
-# 1. تنظیمات لاگینگ و متغیرهای محیطی
-# ----------------------------------------------------
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
-
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = os.getenv("ADMIN_ID")
-SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "Arshavin_Support")
-
-# مشخصات واریز کارت به کارت
-CARD_NUMBER = os.getenv("CARD_NUMBER", "6037-9918-0000-0000")
-CARD_HOLDER = os.getenv("CARD_HOLDER", "سجاد رحیمی")
-
-PORT = int(os.getenv("PORT", 8080))
-
-if not BOT_TOKEN:
-    logger.error("❌ خطای حیاتی: BOT_TOKEN در متغیرهای محیطی تنظیم نشده است!")
-    exit(1)
-
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(storage=MemoryStorage())
-
-# ----------------------------------------------------
-# 2. دیتابیس پایدار کاربران (ثبت آمار بازدید و اعضا)
-# ----------------------------------------------------
-DB_FILE = "bot_users.db"
-
-def init_db():
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY,
-            full_name TEXT,
-            username TEXT,
-            shamsi_join_date TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    conn.commit()
-    conn.close()
-
-def get_current_sh e:
+def get_user_info(user_id: int):
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("SELECT full_name, username, shamsi_join_date FROM users WHERE user_id = ?", (user_id,))
+        row = cursor.fetchone()
+        conn.close()
+        return row
+    except Exception as e:
         logger.error(f"خطا در دریافت اطلاعات کاربر: {e}")
         return None
 
@@ -384,7 +383,7 @@ async def handle_back_to_main(callback: CallbackQuery, state: FSMContext):
 # 6. وب‌سرور داخلی برای پاسخ به Health Checkهای Render
 # ----------------------------------------------------
 async def health_check_handler(request):
-    return web.Response(text="Mikrotik-Bot is Running Perfectly! 🚀")
+    return web.Response(text="Mikrotik-Bot is Running Perfectly on Port 10000! 🚀")
 
 async def start_internal_server():
     app = web.Application()
