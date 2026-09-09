@@ -13,7 +13,7 @@ from aiogram.types import (
     InlineKeyboardButton, CallbackQuery
 )
 
-# Configuration & Logging
+# تنظیمات لاگینگ دقیق
 logging.basicConfig(
     level=logging.INFO, 
     format="%(asctime)s - [%(levelname)s] - %(name)s - %(message)s", 
@@ -21,32 +21,36 @@ logging.basicConfig(
 )
 logger = logging.getLogger("Mikrotik-Bot")
 
+# خواندن مستقیم و دقیق متغیرهای محیطی از سرور Render
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 PORT = int(os.getenv("PORT", 10000))
 DB_PATH = "bot_database.db"
 
-# Normalizing Telegram URLs securely
-def clean_tg_link(val: str, default: str) -> str:
-    cleaned = (val or default).strip()
-    if cleaned.startswith("http://") or cleaned.startswith("https://"):
-        return cleaned
-    cleaned = cleaned.lstrip("@").strip()
-    return f"https://t.me/{cleaned}"
+# نرمال‌سازی فوق‌العاده قوی لینک پشتیبانی و کانال
+def make_clean_url(val: str, default_username: str) -> str:
+    raw = (val or default_username).strip()
+    # حذف کامل پروتکل‌ها و @
+    raw = raw.replace("https://t.me/", "").replace("http://t.me/", "").replace("tg://resolve?domain=", "")
+    username = raw.lstrip("@").strip()
+    return f"https://t.me/{username}"
 
-raw_support = os.getenv("SUPPORT_USERNAME", "L2TP_Support")
-SUPPORT_URL = clean_tg_link(raw_support, "L2TP_Support")
+SUPPORT_URL = make_clean_url(os.getenv("SUPPORT_USERNAME", ""), "L2TP_Support")
+CHANNEL_URL = make_clean_url(os.getenv("CHANNEL_URL", ""), "L2tp_vpn402")
 
-raw_channel = os.getenv("CHANNEL_URL", "https://t.me/L2tp_vpn402")
-CHANNEL_URL = clean_tg_link(raw_channel, "L2tp_vpn402")
+# دریافت مقادیر مالی و کارت مستقیم از Render
+def get_card_number():
+    return os.getenv("CARD_NUMBER", "6037-9918-0000-0000").strip()
 
-CARD_NUMBER = os.getenv("CARD_NUMBER", "6037-9918-0000-0000").strip()
-CARD_HOLDER = os.getenv("CARD_HOLDER", "رحیمی").strip()
+def get_card_holder():
+    return os.getenv("CARD_HOLDER", "رحیمی").strip()
 
-PLAN1_PRICE = os.getenv("PLAN1_PRICE", "۲۵۰,۰۰۰").strip()
-PLAN2_PRICE = os.getenv("PLAN2_PRICE", "۴۰۰,۰۰۰").strip()
-PLAN3_PRICE = os.getenv("PLAN3_PRICE", "۶۰۰,۰۰۰").strip()
+def get_plan_prices():
+    p1 = os.getenv("PLAN1_PRICE", "۲۵۰,۰۰۰").strip()
+    p2 = os.getenv("PLAN2_PRICE", "۴۰۰,۰۰۰").strip()
+    p3 = os.getenv("PLAN3_PRICE", "۶۰۰,۰۰۰").strip()
+    return p1, p2, p3
 
-# Database Setup
+# پایگاه داده محلی SQLite
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -63,10 +67,11 @@ def init_db():
     conn.close()
 
 init_db()
+
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Keyboards (4-Row Layout)
+# کیبورد اصلی استاندارد (۴ ردیفه اختصاصی آرشاوین)
 main_keyboard = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="🛒 خرید اشتراک")],
@@ -78,16 +83,17 @@ main_keyboard = ReplyKeyboardMarkup(
     is_persistent=True
 )
 
-def get_plans_keyboard():
+def build_plans_keyboard():
+    p1, p2, p3 = get_plan_prices()
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"🔹 پلن ۱ ماهه ({PLAN1_PRICE} تومان)", callback_data="buy_plan_1")],
-        [InlineKeyboardButton(text=f"🔹 پلن ۲ ماهه ({PLAN2_PRICE} تومان)", callback_data="buy_plan_2")],
-        [InlineKeyboardButton(text=f"🔹 پلن ۳ ماهه ({PLAN3_PRICE} تومان)", callback_data="buy_plan_3")],
+        [InlineKeyboardButton(text=f"🔹 پلن ۱ ماهه ({p1} تومان)", callback_data="buy_plan_1")],
+        [InlineKeyboardButton(text=f"🔹 پلن ۲ ماهه ({p2} تومان)", callback_data="buy_plan_2")],
+        [InlineKeyboardButton(text=f"🔹 پلن ۳ ماهه ({p3} تومان)", callback_data="buy_plan_3")],
         [InlineKeyboardButton(text="🧾 ارتباط با پشتیبانی / ارسال فیش", url=SUPPORT_URL)],
-        [InlineKeyboardButton(text="❌ بستن پنجره", callback_data="close_menu")]
+        [InlineKeyboardButton(text="❌ بستن منو", callback_data="close_menu")]
     ])
 
-# Welcome Handler with Exact Tehran Timezone (UTC+3:30)
+# استارت ربات و پیام خوش‌آمد با زمان دقیق تهران
 @dp.message(CommandStart())
 async def send_welcome(message: types.Message):
     tehran_tz = timezone(timedelta(hours=3, minutes=30))
@@ -126,7 +132,7 @@ async def send_welcome(message: types.Message):
         "🛡 اتصال رمزنگاری‌شده و امن: حفظ کامل حریم خصوصی و امنیت داده‌ها\n"
         "🌐 حجم کاملاً نامحدود: بدون محدودیت مصرف در طول دوره اشتراک\n"
         "🕒 پشتیبانی ۲۴ ساعته: همراهی مستمر در تمام ساعات شبانه‌روز\n\n"
-        f"📢 کانال اطلاع‌رسانی و آموزش: {CHANNEL_URL}\n\n"
+        f"📢 کانال اطلاع‌رسانی و آموزش:\n{CHANNEL_URL}\n\n"
         "👇 برای شروع، از منوی زیر گزینه مورد نظر خود را انتخاب کنید:"
     )
     await message.answer(welcome_msg, reply_markup=main_keyboard)
@@ -135,30 +141,34 @@ async def send_welcome(message: types.Message):
 async def handle_buy(message: types.Message):
     await message.answer(
         "🛍️ لیست پلن‌های فعال اشتراک اختصاصی:\n\n👇 لطفاً پلن مورد نظر خود را انتخاب کنید:", 
-        reply_markup=get_plans_keyboard()
+        reply_markup=build_plans_keyboard()
     )
 
 @dp.callback_query(F.data.startswith("buy_plan_"))
 async def handle_plan_callback(callback: CallbackQuery):
     plan_id = callback.data.split("_")[-1]
-    prices = {"1": (PLAN1_PRICE, "۱ ماهه"), "2": (PLAN2_PRICE, "۲ ماهه"), "3": (PLAN3_PRICE, "۳ ماهه")}
-    selected_price, plan_name = prices.get(plan_id, (PLAN1_PRICE, "۱ ماهه"))
+    p1, p2, p3 = get_plan_prices()
+    prices = {"1": (p1, "۱ ماهه"), "2": (p2, "۲ ماهه"), "3": (p3, "۳ ماهه")}
+    selected_price, plan_name = prices.get(plan_id, (p1, "۱ ماهه"))
     
+    card_num = get_card_number()
+    card_holder = get_card_holder()
+
     pay_text = (
         f"💳 **اطلاعات پرداخت اشتراک {plan_name}:**\n\n"
         f"💰 مبلغ قابل پرداخت: **{selected_price}** تومان\n"
-        f"💳 شماره کارت: `{CARD_NUMBER}`\n"
-        f"👤 به نام: **{CARD_HOLDER}**\n\n"
-        f"📌 لطفا پس از واریز، تصویر فیش را برای پشتیبانی ارسال کنید."
+        f"💳 شماره کارت: `{card_num}`\n"
+        f"👤 به نام: **{card_holder}**\n\n"
+        f"📌 لطفا پس از واریز، تصویر فیش را برای پشتیبانی ارسال فرمایید."
     )
     
     pay_markup = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🧾 ارسال فیش واریزی به پشتیبانی", url=SUPPORT_URL)],
+        [InlineKeyboardButton(text="🧾 ارسال مستقیم فیش به پشتیبانی", url=SUPPORT_URL)],
         [InlineKeyboardButton(text="🔙 بازگشت به لیست پلن‌ها", callback_data="back_to_plans")],
         [InlineKeyboardButton(text="❌ انصراف و بستن", callback_data="close_menu")]
     ])
     
-    # پیام را ویرایش می‌کنیم تا چت شلوغ نشود
+    # تغییر درجا برای جلوگیری از پر شدن صفحه چت
     await callback.message.edit_text(pay_text, parse_mode="Markdown", reply_markup=pay_markup)
     await callback.answer()
 
@@ -166,25 +176,28 @@ async def handle_plan_callback(callback: CallbackQuery):
 async def back_to_plans(callback: CallbackQuery):
     await callback.message.edit_text(
         "🛍️ لیست پلن‌های فعال اشتراک اختصاصی:\n\n👇 لطفاً پلن مورد نظر خود را انتخاب کنید:", 
-        reply_markup=get_plans_keyboard()
+        reply_markup=build_plans_keyboard()
     )
     await callback.answer()
 
 @dp.callback_query(F.data == "close_menu")
 async def close_menu(callback: CallbackQuery):
     try:
+        # پیام منو را کامل حذف می‌کند تا صفحه چت خلوت بماند
         await callback.message.delete()
     except Exception:
         await callback.message.edit_text("❌ عملیات لغو شد.")
-    await callback.answer("منو بسته شد.")
+    await callback.answer("بسته شد")
 
 @dp.message(F.text == "💰 شارژ حساب")
 async def handle_wallet_charge(message: types.Message):
+    card_num = get_card_number()
+    card_holder = get_card_holder()
     charge_text = (
-        f"💳 **اطلاعات حساب جهت شارژ:**\n\n"
-        f"💳 شماره کارت: `{CARD_NUMBER}`\n"
-        f"👤 به نام: **{CARD_HOLDER}**\n\n"
-        f"📌 پس از واریز مبلغ مورد نظر، عکس رسید را به پشتیبانی ارسال کنید تا حساب شما شارژ شود:"
+        f"💳 **اطلاعات حساب جهت شارژ کیف پول:**\n\n"
+        f"💳 شماره کارت: `{card_num}`\n"
+        f"👤 به نام: **{card_holder}**\n\n"
+        f"📌 پس از واریز مبلغ، تصویر رسید را از دکمه زیر به پشتیبانی ارسال کنید:"
     )
     charge_markup = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🧾 ارسال فیش واریزی", url=SUPPORT_URL)],
@@ -195,9 +208,9 @@ async def handle_wallet_charge(message: types.Message):
 @dp.message(F.text == "👥 پشتیبانی")
 async def handle_support(message: types.Message):
     await message.answer(
-        "👥 واحد پشتیبانی:\nبرای ارتباط با کارشناسان یا ارسال فیش واریزی روی دکمه زیر کلیک کنید:", 
+        "👥 واحد پشتیبانی ۲۴ ساعته:\nبرای ارتباط، ارسال رسید یا رفع اشکال روی دکمه زیر کلیک کنید:", 
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="💬 ارتباط با پشتیبانی / ارسال رسید", url=SUPPORT_URL)],
+            [InlineKeyboardButton(text="💬 چت با پشتیبانی", url=SUPPORT_URL)],
             [InlineKeyboardButton(text="❌ بستن", callback_data="close_menu")]
         ])
     )
@@ -226,21 +239,22 @@ async def handle_faq(message: types.Message):
     faq_text = (
         "❓ **سوالات متداول:**\n\n"
         "۱. **تحویل اشتراک چگونه است؟**\n"
-        "پس از ارسال فیش واریزی به پشتیبانی، اشتراک شما در سریع‌ترین زمان فعال و اطلاعات آن ارسال می‌شود.\n\n"
-        "۲. **آیا سرویس‌ها ضمانت دارند؟**\n"
-        "بله، تمامی پلن‌ها تا آخرین روز اشتراک دارای ضمانت سرعت و پایداری می‌باشند."
+        "پس از ارسال فیش واریزی به پشتیبانی، اطلاعات و کانفیگ اختصاصی شما بلافاصله صادر و ارسال می‌گردد.\n\n"
+        "۲. **آیا سرویس‌ها ضمانت اتصال دارند؟**\n"
+        "بله، تمامی پلن‌ها تا آخرین روز دوره دارای گارانتی پایداری، سرعت و تعویض سرور هستند."
     )
     await message.answer(faq_text, parse_mode="Markdown")
 
 @dp.message(F.text == "⚙️ کانفیگ‌ها و آموزش اتصال")
 async def handle_configs(message: types.Message):
     await message.answer(
-        f"⚙️ **راهنمای اتصال و دانلود برنامه‌ها:**\n\n📢 برای دریافت جدیدترین کانفیگ‌ها و آموزش‌های اتصال به کانال رسمی ما بپیوندید:\n{CHANNEL_URL}",
+        f"⚙️ **راهنمای اتصال و دانلود برنامه‌ها:**\n\n📢 برای دریافت آخرین آموزش‌ها و برنامه‌های اتصال به کانال ما بپیوندید:\n{CHANNEL_URL}",
         disable_web_page_preview=True
     )
 
+# وب سرور برای Health Check در پلتفرم Render
 async def health_check(request):
-    return web.Response(text="Mikrotik-Bot is active!", status=200)
+    return web.Response(text="Mikrotik-Bot is active and healthy!", status=200)
 
 async def main():
     app = web.Application()
@@ -248,8 +262,10 @@ async def main():
     runner = web.AppRunner(app)
     await runner.setup()
     await web.TCPSite(runner, "0.0.0.0", PORT).start()
+    
+    # اطمینان از بسته شدن هوک‌ها و شروع تمیز پولینگ
     await bot.delete_webhook(drop_pending_updates=True)
-    await dp.start_polling(bot)
+    await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
 
 if __name__ == "__main__":
     asyncio.run(main())
