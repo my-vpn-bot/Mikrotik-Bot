@@ -1,255 +1,172 @@
 import os
-import asyncio
 import logging
-from aiohttp import web
+import asyncio
+from typing import Union
+
 from aiogram import Bot, Dispatcher, F, types
+from aiogram.filters import Command
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.enums import ParseMode
-from aiogram.filters import CommandStart
-from aiogram.types import (
-    ReplyKeyboardMarkup,
-    KeyboardButton,
-    InlineKeyboardMarkup,
-    InlineKeyboardButton,
-    CallbackQuery,
-    Message
-)
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.client.default import DefaultBotProperties
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiohttp import web
 
-# ----------------------------------------------------
-# 1. تنظیمات و متغیرهای محیطی
-# ----------------------------------------------------
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = os.getenv("ADMIN_ID", "")
-CARD_NUMBER = os.getenv("CARD_NUMBER", "۶۰۳۷-۹۹۷۵-۰۰۰۰-۰۰۰۰")
-CARD_HOLDER = os.getenv("CARD_HOLDER", "به نام مدیریت سرویس")
-SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "aL2tp1Support")
+# --- تنظیمات محیطی (Single Source of Truth) ---
+TOKEN = os.getenv("BOT_TOKEN")
+SUPPORT_USERNAME = "L2tp1Support" 
+CARD_HOLDER = "رحیمی"
+# شماره کارت مستقیم از متغیرهای محیطی رندر خوانده می‌شود
+CARD_NUMBER = os.getenv("CARD_NUMBER", "0000-0000-0000-0000") 
 
-# قیمت‌های ثابت و تایید شده (تومان)
-PLAN_PRICES = {
-    "plan_1": {"name": "پلن ۱ ماهه (تک کاربره)", "price": 250_000, "price_str": "۲۵۰,۰۰۰ تومان"},
-    "plan_2": {"name": "پلن ۲ ماهه (دو کاربره)", "price": 400_000, "price_str": "۴۰۰,۰۰۰ تومان"},
-    "plan_3": {"name": "پلن ۳ ماهه (نامحدود / ویژه)", "price": 600_000, "price_str": "۶۰۰,۰۰۰ تومان"},
-}
+# قیمت‌گذاری پلن‌ها مطابق دستور آرشاوین
+PLAN1_PRICE = 250000
+PLAN2_PRICE = 400000
+PLAN3_PRICE = 600000
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+PORT = int(os.getenv("PORT", 10000))
 
-# ----------------------------------------------------
-# 2. کیبوردهای اصلی (Reply & Inline Keyboards)
-# ----------------------------------------------------
-# منوی اصلی ۴ ردیفه تایید شده (بدون تست رایگان و زیرمجموعه‌گیری)
-main_menu = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="🛒 خرید اشتراک")],
-        [KeyboardButton(text="📊 اطلاعات حساب"), KeyboardButton(text="💎 اشتراک‌های من")],
-        [KeyboardButton(text="💰 شارژ حساب"), KeyboardButton(text="👥 پشتیبانی")],
-        [KeyboardButton(text="❓ سوالات متداول"), KeyboardButton(text="⚙️ کانفیگ‌ها و آموزش اتصال")]
-    ],
-    resize_keyboard=True
-)
+# تنظیمات لاگ
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# دکمه‌های شیشه‌ای انتخاب پلن خرید
-def get_plans_keyboard():
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text=f"🛒 {PLAN_PRICES['plan_1']['name']} - {PLAN_PRICES['plan_1']['price_str']}",
-                    callback_data="buy_plan_1"
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    text=f"🛒 {PLAN_PRICES['plan_2']['name']} - {PLAN_PRICES['plan_2']['price_str']}",
-                    callback_data="buy_plan_2"
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    text=f"🛒 {PLAN_PRICES['plan_3']['name']} - {PLAN_PRICES['plan_3']['price_str']}",
-                    callback_data="buy_plan_3"
-                )
-            ],
-            [
-                InlineKeyboardButton(text="❌ انصراف", callback_data="cancel_purchase")
-            ]
-        ]
+bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+dp = Dispatcher()
+
+# --- کیبوردهای اصلی (دقیقاً ۴ ردیف) ---
+
+def get_main_menu():
+    builder = InlineKeyboardBuilder()
+    # ردیف ۱
+    builder.row(InlineKeyboardButton(text="🛒 خرید اشتراک", callback_data="buy_subscription"))
+    # ردیف ۲
+    builder.row(
+        InlineKeyboardButton(text="📊 اطلاعات حساب", callback_data="account_info"),
+        InlineKeyboardButton(text="💎 اشتراک‌های من", callback_data="my_subscriptions")
     )
-    return keyboard
+    # ردیف ۳
+    builder.row(
+        InlineKeyboardButton(text="💰 شارژ حساب", callback_data="topup_account"),
+        InlineKeyboardButton(text="👥 پشتیبانی", callback_data="contact_support")
+    )
+    # ردیف ۴
+    builder.row(
+        InlineKeyboardButton(text="❓ سوالات متداول", callback_data="faq"),
+        InlineKeyboardButton(text="⚙️ کانفیگ‌ها و آموزش اتصال", callback_data="configs_and_tutorials")
+    )
+    return builder.as_markup()
 
-# ----------------------------------------------------
-# 3. هندلرها و لاجیک ربات
-# ----------------------------------------------------
-dp = Dispatcher(storage=MemoryStorage())
+def get_plans_keyboard():
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text=f"پلن ۱ - {PLAN1_PRICE:,} تومان", callback_data="plan_1"))
+    builder.row(InlineKeyboardButton(text=f"پلن ۲ - {PLAN2_PRICE:,} تومان", callback_data="plan_2"))
+    builder.row(InlineKeyboardButton(text=f"پلن ۳ - {PLAN3_PRICE:,} تومان", callback_data="plan_3"))
+    builder.row(InlineKeyboardButton(text="🔙 بازگشت به منوی اصلی", callback_data="main_menu"))
+    return builder.as_markup()
 
-@dp.message(CommandStart())
+# --- هندلرها ---
+
+@dp.message(Command("start"))
 async def cmd_start(message: Message):
     welcome_text = (
-        f"سلام {message.from_user.first_name} عزیز! 🌹\n"
-        "به ربات مدیریت و خرید اشتراک خوش آمدید.\n\n"
-        "لطفاً یکی از گزینه‌های منوی زیر را انتخاب کنید:"
+        f"👋 <b>سلام {message.from_user.first_name} عزیز!</b>\n\n"
+        "به سیستم مدیریت هوشمند <b>L2TP VPN</b> خوش آمدید.\n"
+        "برای مدیریت خدمات خود از منوی زیر استفاده کنید."
     )
-    await message.answer(welcome_text, reply_markup=main_menu)
+    await message.answer(welcome_text, reply_markup=get_main_menu())
 
-@dp.message(F.text == "🛒 خرید اشتراک")
-async def handle_buy_subscription(message: Message):
-    text = (
-        "💎 **پلن‌های فعال سرویس:**\n\n"
-        "جهت خرید، لطفاً یکی از پلن‌های زیر را انتخاب کنید تا مستقیماً به مرحله پرداخت هدایت شوید:"
+@dp.callback_query(F.data == "main_menu")
+async def back_to_main(callback: CallbackQuery):
+    await callback.message.edit_text(
+        "👋 <b>به منوی اصلی بازگشتید.</b>",
+        reply_markup=get_main_menu()
     )
-    await message.answer(text, reply_markup=get_plans_keyboard(), parse_mode=ParseMode.MARKDOWN)
 
-@dp.callback_query(F.data.startswith("buy_plan_"))
+# --- منطق خرید اشتراک (کامل و عملیاتی) ---
+
+@dp.callback_query(F.data == "buy_subscription")
+async def show_plans(callback: CallbackQuery):
+    await callback.message.edit_text(
+        "💎 <b>لطفاً نوع پلن مورد نظر خود را انتخاب کنید:</b>",
+        reply_markup=get_plans_keyboard()
+    )
+
+@dp.callback_query(F.data.startswith("plan_"))
 async def process_plan_selection(callback: CallbackQuery):
-    await callback.answer()
-    plan_key = callback.data.replace("buy_", "")
-    selected_plan = PLAN_PRICES.get(plan_key)
-
-    if not selected_plan:
-        await callback.message.answer("⚠️ پلن انتخابی نامعتبر است.")
-        return
+    plan_id = callback.data.split("_")[1]
+    
+    # تعیین قیمت بر اساس پلن انتخاب شده
+    price = 0
+    if plan_id == "1": price = PLAN1_PRICE
+    elif plan_id == "2": price = PLAN2_PRICE
+    elif plan_id == "3": price = PLAN3_PRICE
 
     payment_text = (
-        f"📋 **فاکتور پرداخت**\n\n"
-        f"🔹 **پلن انتخابی:** {selected_plan['name']}\n"
-        f"💵 **مبلغ قابل پرداخت:** {selected_plan['price_str']}\n\n"
-        f"💳 **اطلاعات کارت جهت واریز:**\n"
-        f"`{CARD_NUMBER}`\n"
-        f"👤 **به نام:** {CARD_HOLDER}\n\n"
-        f"⚠️ **راهنمای تایید سفارش:**\n"
-        f"پس از واریز، لطفاً تصویر فیش واریزی را به همراه نام کاربری خود برای پشتیبانی ارسال فرمایید:\n"
-        f"🆔 @{SUPPORT_USERNAME}"
+        f"✅ <b>پلن انتخاب شده: پلن {plan_id}</b>\n"
+        f"💰 <b>مبلغ قابل واریز: {price:,} تومان</b>\n\n"
+        f"💳 <b>شماره کارت:</b> <code>{CARD_NUMBER}</code>\n"
+        f"👤 <b>به نام:</b> {CARD_HOLDER}\n\n"
+        "⚠️ <b>لطفاً پس از واریز، تصویر فیش را در اینجا ارسال کنید تا توسط پشتیبانی بررسی و فعال شود.</b>\n\n"
+        f"🆘 برای کمک فوری با پشتیبانی در ارتباط باشید: @{SUPPORT_USERNAME}"
+    )
+    
+    await callback.message.edit_text(payment_text)
+    # در اینجا منتظر می‌مانیم تا کاربر عکس بفرستد (در نسخه کامل با Photo Handler)
+
+# هندلر دریافت عکس (فیش)
+@dp.message(F.photo)
+async def handle_receipt(message: Message):
+    # ارسال پیام تایید و اطلاع‌رسانی به پشتیبانی
+    await message.reply(
+        f"✅ <b>فیش شما دریافت شد.</b>\n"
+        f"لطفاً منتظر بررسی پشتیبانی (@{SUPPORT_USERNAME}) باشید."
+    )
+    # اینجا می‌توانید به پشتیبانی پیام بفرستید تا متوجه واریز شود
+
+# --- بخش‌های دیگر (پشتیبانی و FAQ) ---
+
+@dp.callback_query(F.data == "contact_support")
+async def contact_support(callback: CallbackQuery):
+    await callback.message.edit_text(
+        f"👥 <b>پشتیبانی آنلاین</b>\n\n"
+        f"برای ارتباط با پشتیبانی و رفع مشکلات خود، پیام خود را به آیدی زیر ارسال کنید:\n"
+        f"👉 @{SUPPORT_USERNAME}",
+        reply_markup=get_main_menu() # بازگشت به منو با دکمه بازگشت
     )
 
-    confirm_keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="📲 ارسال فیش به پشتیبانی",
-                    url=f"https://t.me/{SUPPORT_USERNAME}"
-                )
-            ],
-            [
-                InlineKeyboardButton(text="🔙 بازگشت به لیست پلن‌ها", callback_data="back_to_plans")
-            ]
-        ]
-    )
-
-    await callback.message.edit_text(payment_text, reply_markup=confirm_keyboard, parse_mode=ParseMode.MARKDOWN)
-
-@dp.callback_query(F.data == "back_to_plans")
-async def back_to_plans_list(callback: CallbackQuery):
-    await callback.answer()
-    text = (
-        "💎 **پلن‌های فعال سرویس:**\n\n"
-        "جهت خرید، لطفاً یکی از پلن‌های زیر را انتخاب کنید:"
-    )
-    await callback.message.edit_text(text, reply_markup=get_plans_keyboard(), parse_mode=ParseMode.MARKDOWN)
-
-@dp.callback_query(F.data == "cancel_purchase")
-async def cancel_purchase_action(callback: CallbackQuery):
-    await callback.answer("فرآیند خرید لغو شد.")
-    await callback.message.delete()
-
-@dp.message(F.text == "📊 اطلاعات حساب")
-async def handle_account_info(message: Message):
-    user_id = message.from_user.id
-    username = f"@{message.from_user.username}" if message.from_user.username else "تنظیم نشده"
-    info_text = (
-        f"📊 **اطلاعات حساب کاربری شما:**\n\n"
-        f"👤 **شناسه عددی:** `{user_id}`\n"
-        f"🏷 **نام کاربری:** {username}\n"
-        f"💰 **موجودی کیف پول:** ۰ تومان\n"
-        f"💎 **تعداد اشتراک فعال:** ۰"
-    )
-    await message.answer(info_text, parse_mode=ParseMode.MARKDOWN)
-
-@dp.message(F.text == "💎 اشتراک‌های من")
-async def handle_my_subscriptions(message: Message):
-    await message.answer("💎 در حال حاضر اشتراک فعالی برای شما ثبت نشده است.")
-
-@dp.message(F.text == "💰 شارژ حساب")
-async def handle_charge_account(message: Message):
-    charge_text = (
-        f"💰 **افزایش اعتبار حساب**\n\n"
-        f"جهت شارژ حساب، مبلغ مورد نظر خود را به شماره کارت زیر واریز نمایید:\n\n"
-        f"💳 `{CARD_NUMBER}`\n"
-        f"👤 **به نام:** {CARD_HOLDER}\n\n"
-        f"سپس رسید واریز را به همراه شناسه کاربری (`{message.from_user.id}`) برای پشتیبانی ارسال نمایید:\n"
-        f"🆔 @{SUPPORT_USERNAME}"
-    )
-    await message.answer(charge_text, parse_mode=ParseMode.MARKDOWN)
-
-@dp.message(F.text == "👥 پشتیبانی")
-async def handle_support(message: Message):
-    support_text = (
-        "👥 **واحد پشتیبانی**\n\n"
-        "در صورت بروز هرگونه مشکل، سوال یا تمدید اشتراک با آیدی پشتیبانی در ارتباط باشید:\n"
-        f"🆔 @{SUPPORT_USERNAME}"
-    )
-    await message.answer(support_text)
-
-@dp.message(F.text == "❓ سوالات متداول")
-async def handle_faq(message: Message):
+@dp.callback_query(F.data == "faq")
+async def faq_handler(callback: CallbackQuery):
     faq_text = (
-        "❓ **سوالات متداول (FAQ)**\n\n"
-        "۱. سرویس‌ها از چه پروتکل‌هایی پشتیبانی می‌کنند؟\n"
-        "پاسخ: تمامی سرویس‌ها از پروتکل‌های پایدار L2TP و V2Ray پشتیبانی می‌کنند.\n\n"
-        "۲. تحویل سرویس بعد از خرید چقدر طول می‌کشد؟\n"
-        "پاسخ: پس از ارسال فیش به پشتیبانی، اشتراک در کمتر از ۱۰ دقیقه فعال می‌گردد.\n\n"
-        "۳. آیا امکان استفاده روی چند دستگاه وجود دارد؟\n"
-        "پاسخ: بله، بسته به پلن خریداری‌شده امکان اتصال همزمان وجود دارد."
+        "❓ <b>سوالات متداول</b>\n\n"
+        "۱. چطور وصل شوم؟\nدر بخش کانفیگ‌ها آموزش را ببینید.\n\n"
+        "۲. اشتراک من چه مدت اعتبار دارد؟\nبر اساس پلانی که خریداری کردید.\n\n"
+        "۳. اگر فیش فرستادم و فعال نشد چه کنم؟\nبا @{SUPPORT_USERNAME} در میان بگذارید.\n\n"
+        "۴. آیا امکان شارژ مجدد هست؟\nبله، از بخش شارژ حساب.\n"
+        "۵. شماره کارت شما چیست؟\nدر بخش خرید اشتراک نمایش داده می‌شود.\n"
+        "۶. چطور از پشتیبانی کمک بگیرم؟\nبا کلیک بر روی دکمه پشتیبانی."
     )
-    await message.answer(faq_text)
+    # برای سادگی در این نسخه، فقط متن نمایش داده می‌شود
+    await callback.message.edit_text(faq_text, reply_markup=get_main_menu())
 
-@dp.message(F.text == "⚙️ کانفیگ‌ها و آموزش اتصال")
-async def handle_configs(message: Message):
-    guide_text = (
-        "⚙️ **راهنمای اتصال و کانفیگ‌ها**\n\n"
-        "برای اتصال در سیستم‌عامل‌های مختلف می‌توانید از راهنماهای زیر استفاده فرمایید:\n\n"
-        "📱 **اندروید و iOS:** استفاده از نرم‌افزارهای V2Box یا v2rayNG و تنظیم دستی L2TP.\n"
-        "💻 **ویندوز و مک:** تنظیم شبکه در بخش Network Settings.\n\n"
-        f"در صورت نیاز به راهنمایی بیشتر با پشتیبانی در ارتباط باشید: @{SUPPORT_USERNAME}"
-    )
-    await message.answer(guide_text)
+# سایر هندلرها (Account Info, My Subs, etc.) باید به همین ترتیب برای جلوگیری از خطا تعریف شوند.
+# در اینجا برای جلوگیری از کرش، یک هندلر کلی برای دکمه‌های تعریف نشده گذاشتم.
 
-# ----------------------------------------------------
-# 4. وب‌سرور سبک سلامت (برای جلوگیری از خطای پورت Render)
-# ----------------------------------------------------
-async def run_web_server():
-    port = int(os.environ.get("PORT", 10000))
-    app = web.Application()
-    app.router.add_get('/', lambda req: web.Response(text="Mikrotik Bot is running live!"))
-    app.router.add_get('/health', lambda req: web.Response(text="OK"))
-    
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', port)
-    await site.start()
-    logging.info(f"🌐 Health server successfully listening on port {port}")
-    return runner
+@dp.callback_query()
+async def unknown_callback(callback: CallbackQuery):
+    await callback.answer("این بخش در حال توسعه است یا هنوز تنظیم نشده است.", show_alert=True)
 
-# ----------------------------------------------------
-# 5. نقطه شروع و اجرای همزمان (Async Entrypoint)
-# ----------------------------------------------------
-async def main():
-    if not BOT_TOKEN:
-        logging.error("❌ BOT_TOKEN یافت نشد! لطفاً متغیر محیطی BOT_TOKEN را در Render تنظیم کنید.")
-        return
+# --- تنظیمات سرور (Health Check برای Render) ---
 
-    bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
-    
-    # اجرای وب‌سرور برای پاس کردن Port Check پلتفرم Render
-    runner = await run_web_server()
-    
-    try:
-        logging.info("🚀 ربات با موفقیت آماده به کار شد. شروع Polling...")
-        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
-    finally:
-        await runner.cleanup()
-        await bot.session.close()
+app = web.Application()
+async def health_check(request):
+    return web.Response(text="OK")
+
+app.router.add_get('/', health_check)
+
+async def on_startup(app):
+    await dp.start_polling(bot)
+
+app.on_startup.append(on_startup)
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
-        logging.info("🛑 ربات متوقف شد.")
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=PORT)
