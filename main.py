@@ -10,7 +10,7 @@ from aiogram.exceptions import TelegramConflictError
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-# متغیرهای محیطی
+# Environment variables
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = os.getenv("ADMIN_ID")
 SUPPORT_ID = os.getenv("SUPPORT_ID", "al2tpiSupport")
@@ -29,20 +29,19 @@ if not BOT_TOKEN:
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# ─── اطلاعات پلن‌ها ───
+# --- Plan Definitions ---
 PLANS = {
     "plan_1m": {"title": "🥉 پلن ۱ ماهه", "volume": "۳۰ گیگابایت", "days": "۳۰ روز", "price": "۳۵۰,۰۰۰ تومان"},
     "plan_2m": {"title": "🥈 پلن ۲ ماهه", "volume": "۶۰ گیگابایت", "days": "۶۰ روز", "price": "۶۵۰,۰۰۰ تومان"},
     "plan_3m": {"title": "🥇 پلن ۳ ماهه", "volume": "۹۰ گیگابایت", "days": "۹۰ روز", "price": "۹۰۰,۰۰۰ تومان"},
 }
 
-# ─── کیبوردها ───
+# --- Keyboards ---
 def kb_main():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🛒 خرید اشتراک", callback_data="buy_sub"),
          InlineKeyboardButton(text="💎 تعرفه‌ها", callback_data="tariffs")],
-        [InlineKeyboardButton(text="👤 حساب کاربری", callback_data="my_account"),
-         InlineKeyboardButton(text="🎁 تست رایگان", callback_data="free_test")],
+        [InlineKeyboardButton(text="👤 حساب کاربری", callback_data="my_account")],
         [InlineKeyboardButton(text="🛠 پشتیبانی", callback_data="support")],
     ])
 
@@ -65,7 +64,7 @@ def kb_pay():
         [InlineKeyboardButton(text="🔙 بازگشت به پلن‌ها", callback_data="buy_sub")],
     ])
 
-# ─── هندلرها ───
+# --- Handlers ---
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     await message.answer(
@@ -140,17 +139,6 @@ async def cb_account(callback: CallbackQuery):
     )
     await callback.answer()
 
-@dp.callback_query(F.data == "free_test")
-async def cb_free(callback: CallbackQuery):
-    await callback.message.edit_text(
-        "🎁 **تست رایگان سرویس:**\n\n"
-        "جهت دریافت اکانت تست رایگان ۲۴ ساعته، به آیدی پشتیبانی پیام دهید:\n\n"
-        f"🆔 {SUPPORT_USERNAME}",
-        parse_mode="Markdown",
-        reply_markup=kb_back()
-    )
-    await callback.answer()
-
 @dp.callback_query(F.data == "support")
 async def cb_support(callback: CallbackQuery):
     await callback.message.edit_text(
@@ -162,7 +150,7 @@ async def cb_support(callback: CallbackQuery):
     )
     await callback.answer()
 
-# ─── وب‌سرور داخلی برای Render (Health Check) ───
+# --- Internal Web Server for Render (Health Check) ---
 async def handle_ping(request):
     return web.Response(text="Bot is running happily!", status=200)
 
@@ -176,25 +164,28 @@ async def start_web_server():
     await site.start()
     logger.info(f"Health-check web server started on port {PORT}")
 
-# ─── اجرای ربات ───
+# --- Bot Startup ---
 async def main():
     await start_web_server()
     
-    # حذف وب‌هوک و پاکسازی تمام پیام‌های در صف
-    logger.info("Dropping pending updates & deleting webhook...")
+    # Delete webhook and clear pending updates
+    logger.info("Deleting webhook and dropping pending updates...")
     await bot.delete_webhook(drop_pending_updates=True)
-    await asyncio.sleep(2)  # وقفه کوتاه برای آزادسازی کامل اتصال‌های قبلی
+    await asyncio.sleep(2) # Short delay to ensure previous connections are fully released
     
     logger.info("Starting Polling loop...")
     try:
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     except TelegramConflictError:
-        logger.error("Conflict detected! Another instance is still alive. Waiting...")
+        logger.error("Conflict detected! Another instance might still be running. Waiting...")
+    except Exception as e:
+        logger.error(f"An unexpected error occurred: {e}")
     finally:
         await bot.session.close()
+        logger.info("Bot session closed.")
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        pass
+        logger.info("Bot stopped manually.")
