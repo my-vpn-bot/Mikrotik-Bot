@@ -13,11 +13,7 @@ from aiogram.types import (
 )
 
 # Configuration & Logging
-logging.basicConfig(
-    level=logging.INFO, 
-    format="%(asctime)s - [%(levelname)s] - %(name)s - %(message)s", 
-    handlers=[logging.StreamHandler(sys.stdout)]
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - [%(levelname)s] - %(name)s - %(message)s", handlers=[logging.StreamHandler(sys.stdout)])
 logger = logging.getLogger("Mikrotik-Bot")
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
@@ -48,20 +44,11 @@ PLAN3_PRICE = os.getenv("PLAN3_PRICE", "۶۰۰,۰۰۰").strip()
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY, 
-            username TEXT, 
-            full_name TEXT, 
-            join_date TEXT, 
-            balance INTEGER DEFAULT 0
-        )
-    """)
+    cursor.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, username TEXT, full_name TEXT, join_date TEXT, balance INTEGER DEFAULT 0)")
     conn.commit()
     conn.close()
 
 init_db()
-
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
@@ -78,9 +65,9 @@ main_keyboard = ReplyKeyboardMarkup(
 )
 
 plans_inline_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text=f"🔹 پلن ۱ ماهه ({PLAN1_PRICE} تومان)", callback_data="buy_plan_1")], 
-    [InlineKeyboardButton(text=f"🔹 پلن ۲ ماهه ({PLAN2_PRICE} تومان)", callback_data="buy_plan_2")], 
-    [InlineKeyboardButton(text=f"🔹 پلن ۳ ماهه ({PLAN3_PRICE} تومان)", callback_data="buy_plan_3")], 
+    [InlineKeyboardButton(text=f"🔹 پلن ۱ ماهه ({PLAN1_PRICE} تومان)", callback_data="buy_plan_1")],
+    [InlineKeyboardButton(text=f"🔹 پلن ۲ ماهه ({PLAN2_PRICE} تومان)", callback_data="buy_plan_2")],
+    [InlineKeyboardButton(text=f"🔹 پلن ۳ ماهه ({PLAN3_PRICE} تومان)", callback_data="buy_plan_3")],
     [InlineKeyboardButton(text="🧾 ارسال فیش واریزی", url=SUPPORT_URL)]
 ])
 
@@ -91,83 +78,42 @@ support_inline_keyboard = InlineKeyboardMarkup(inline_keyboard=[
 # Handlers
 @dp.message(CommandStart())
 async def send_welcome(message: types.Message):
-    user_id = message.from_user.id
-    username = message.from_user.username or ""
-    full_name = message.from_user.full_name or ""
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute(
         "INSERT OR IGNORE INTO users (user_id, username, full_name, join_date) VALUES (?, ?, ?, ?)",
-        (user_id, username, full_name, now)
+        (message.from_user.id, message.from_user.username or "", message.from_user.full_name or "", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     )
     conn.commit()
     conn.close()
-
-    welcome_text = (
-        f"سلام {full_name} عزیز! 🌹\n\n"
-        "به ربات رسمی فروش و مدیریت اشتراک خوش آمدید.\n"
-        "جهت استفاده از خدمات، از منوی زیر گزینه مورد نظر را انتخاب کنید:"
-    )
-    await message.answer(welcome_text, reply_markup=main_keyboard)
+    await message.answer(f"سلام {message.from_user.full_name} عزیز! 🌹\nبه ربات رسمی فروش و مدیریت اشتراک خوش آمدید.", reply_markup=main_keyboard)
 
 @dp.message(F.text == "🛒 خرید اشتراک")
 async def handle_buy(message: types.Message):
-    text = (
-        "🛍️ **لیست پلن‌های فعال اشتراک اختصاصی:**\n\n"
-        f"۱️⃣ پلن یک ماهه: **{PLAN1_PRICE} تومان**\n"
-        f"۲️⃣ پلن دو ماهه: **{PLAN2_PRICE} تومان**\n"
-        f"۳️⃣ پلن سه ماهه: **{PLAN3_PRICE} تومان**\n\n"
-        "👇 لطفاً پلن مورد نظر خود را انتخاب کنید:"
-    )
-    await message.answer(text, parse_mode="Markdown", reply_markup=plans_inline_keyboard)
+    await message.answer("🛍️ لیست پلن‌های فعال اشتراک اختصاصی:\n\n👇 لطفاً پلن مورد نظر خود را انتخاب کنید:", reply_markup=plans_inline_keyboard)
 
 @dp.callback_query(F.data.startswith("buy_plan_"))
 async def handle_plan_callback(callback: CallbackQuery):
     plan_id = callback.data.split("_")[-1]
     prices = {"1": PLAN1_PRICE, "2": PLAN2_PRICE, "3": PLAN3_PRICE}
-    selected_price = prices.get(plan_id, "نامشخص")
-    
-    text = (
-        f"💳 **اطلاعات پرداخت پلن {plan_id} ماهه:**\n\n"
-        f"🔹 مبلغ قابل پرداخت: **{selected_price} تومان**\n"
-        f"🔹 شماره کارت: `{CARD_NUMBER}`\n"
-        f"🔹 به نام: **{CARD_HOLDER}**\n\n"
-        "⚠️ لطفاً پس از واریز، تصویر فیش پرداختی را از طریق دکمه زیر برای پشتیبانی ارسال فرمایید تا سرویس شما فعال گردد."
-    )
     await callback.message.answer(
-        text, 
-        parse_mode="Markdown", 
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🧾 ارسال فیش واریزی", url=SUPPORT_URL)]
-        ])
+        f"💳 اطلاعات پرداخت:\nمبلغ: {prices.get(plan_id)} تومان\nشماره کارت: `{CARD_NUMBER}`\nبه نام: **{CARD_HOLDER}**",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🧾 ارسال فیش واریزی", url=SUPPORT_URL)]])
     )
     await callback.answer()
 
 @dp.message(F.text == "💰 شارژ حساب")
 async def handle_wallet_charge(message: types.Message):
-    text = (
-        "💰 **شارژ حساب کاربری:**\n\n"
-        f"💳 شماره کارت: `{CARD_NUMBER}`\n"
-        f"👤 به نام: **{CARD_HOLDER}**\n\n"
-        "پس از واریز مبلغ مورد نظر، عکس رسید را همراه با آیدی عددی خود به پشتیبانی ارسال کنید:"
-    )
     await message.answer(
-        text, 
-        parse_mode="Markdown", 
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🧾 ارسال فیش واریزی", url=SUPPORT_URL)]
-        ])
+        f"💳 شماره کارت: `{CARD_NUMBER}`\n👤 به نام: **{CARD_HOLDER}**\n\nپس از واریز، عکس رسید را به پشتیبانی ارسال کنید:",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🧾 ارسال فیش واریزی", url=SUPPORT_URL)]])
     )
 
 @dp.message(F.text == "👥 پشتیبانی")
 async def handle_support(message: types.Message):
-    text = (
-        "👥 **واحد پشتیبانی و ارتباط با مشتریان:**\n\n"
-        "در صورت وجود هرگونه سوال، پیگیری سفارش، یا ارسال رسید، روی دکمه زیر کلیک نمایید:"
-    )
-    await message.answer(text, reply_markup=support_inline_keyboard)
+    await message.answer("👥 واحد پشتیبانی:", reply_markup=support_inline_keyboard)
 
 @dp.message(F.text == "📊 اطلاعات حساب")
 async def handle_account_info(message: types.Message):
@@ -182,7 +128,7 @@ async def handle_account_info(message: types.Message):
     join_date = row[1] if row else "نامشخص"
 
     info_text = (
-        "📊 **اطلاعات حساب کاربری شما:**\n\n"
+        f"📊 اطلاعات حساب کاربری شما:\n\n"
         f"🆔 شناسه کاربری: `{user_id}`\n"
         f"👤 نام: {message.from_user.full_name}\n"
         f"💰 موجودی کیف پول: {balance:,} تومان\n"
@@ -197,7 +143,7 @@ async def handle_my_subscriptions(message: types.Message):
 @dp.message(F.text == "❓ سوالات متداول")
 async def handle_faq(message: types.Message):
     faq_text = (
-        "❓ **سوالات متداول:**\n\n"
+        "❓ سوالات متداول:\n\n"
         "۱. تحویل اشتراک چقدر زمان می‌برد؟\n"
         "پس از ارسال فیش و تایید، در سریع‌ترین زمان ارسال می‌شود.\n\n"
         "۲. آیا سرویس‌ها دارای ضمانت هستند؟\n"
@@ -207,28 +153,19 @@ async def handle_faq(message: types.Message):
 
 @dp.message(F.text == "⚙️ کانفیگ‌ها و آموزش اتصال")
 async def handle_configs(message: types.Message):
-    configs_text = (
-        "⚙️ **راهنمای اتصال و کانفیگ‌ها:**\n\n"
-        f"📢 برای دریافت آخرین نرم‌افزارها و آموزش‌های گام‌به‌گام اتصال، به کانال ما مراجعه کنید:\n"
-        f"{CHANNEL_URL}"
-    )
-    await message.answer(configs_text)
+    await message.answer(f"⚙️ راهنمای اتصال و کانفیگ‌ها:\n\n📢 برای دریافت آخرین نرم‌افزارها و آموزش‌ها به کانال ما مراجعه کنید:\n{CHANNEL_URL}")
 
-# Health Check & Polling Runner
+# Health Check & Server
 async def health_check(request):
-    return web.Response(text="Mikrotik-Bot is active and running!", status=200)
+    return web.Response(text="Mikrotik-Bot is active!", status=200)
 
 async def main():
     app = web.Application()
     app.router.add_get("/", health_check)
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", PORT)
-    await site.start()
-    logger.info(f"Health-check server running on port {PORT}")
-
+    await web.TCPSite(runner, "0.0.0.0", PORT).start()
     await bot.delete_webhook(drop_pending_updates=True)
-    logger.info("Polling started successfully...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
