@@ -26,7 +26,7 @@ if not BOT_TOKEN:
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# --- Plan Definitions (قیمت‌ها دست‌نخورده) ---
+# --- Plan Definitions ---
 PLANS = {
     "plan_1m": {"title": "🥉 پلن ۱ ماهه", "volume": "۳۰ گیگابایت", "days": "۳۰ روز", "price": "۳۵۰,۰۰۰ تومان"},
     "plan_2m": {"title": "🥈 پلن ۲ ماهه", "volume": "۶۰ گیگابایت", "days": "۶۰ روز", "price": "۶۵۰,۰۰۰ تومان"},
@@ -37,7 +37,7 @@ def get_time_header():
     now = datetime.now()
     return now.strftime("📅 %Y/%m/%d — ⏰ %H:%M")
 
-# --- Keyboards (همه تمام‌عرض) ---
+# --- Keyboards ---
 def kb_main():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🛒 خرید اشتراک / 💎 تعرفه‌ها", callback_data="buy_sub")],
@@ -60,15 +60,17 @@ def kb_plans():
     ])
 
 def kb_pay():
-    clean_username = SUPPORT_USER_data="plan_2m")],
-        [InlineKeyboardButton(text="🥇 ۳ ماهه | ۹۰ گیگ | ۹۰۰,۰۰۰ تومان", callback_data="plan_3m")],
-        [InlineKeyboardButton(text="🔙 بازگشت", callback_data="main_menu")]
-    ])
-
-def kb_pay():
     clean_username = SUPPORT_USERNAME.lstrip("@")
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📩 ارسال فیش به پشتیبانی{message.from_user.first_name}** عزیز، به ربات خوش آمدید!\n\n"
+        [InlineKeyboardButton(text="📩 ارسال فیش به پشتیبانی", url=f"https://t.me/{clean_username}")],
+        [InlineKeyboardButton(text="🔙 بازگشت به پلن‌ها", callback_data="buy_sub")]
+    ])
+
+# --- Handlers ---
+@dp.message(Command("start"))
+async def cmd_start(message: Message):
+    text = (
+        f"👋 سلام **{message.from_user.first_name}** عزیز، به ربات خوش آمدید!\n\n"
         "⚡ سرویس‌های پرسرعت و پایدار **V2Ray**\n"
         f"{get_time_header()}\n\n"
         "یکی از گزینه‌های زیر را انتخاب کنید:"
@@ -87,7 +89,6 @@ async def cb_main(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "buy_sub")
 async def cb_buy(callback: CallbackQuery):
-    # خرید اشتراک = همان تعرفه‌ها
     text = (
         "💎 **تعرفه‌های اشتراک (سرویس V2Ray):**\n\n"
         "🥉 **پلن ۱ ماهه:** ۳۰ گیگابایت ⬅️ `۳۵۰,۰۰۰ تومان`\n\n"
@@ -107,7 +108,7 @@ async def cb_future_services(callback: CallbackQuery):
         "🌐 **OpenVPN**\n"
         "🌐 **WireGuard**\n"
         "🌐 **و سایر پروتکل‌های محبوب**\n\n"
-        "⚡ برای اطلاع از فعال‌سازی سرویس جدید، منو را به‌روزرسانی کنید یا با پشتیبانی در ارتباط باشید."
+        "⚡ برای اطلاع از زمان دقیق فعال‌سازی، با پشتیبانی در ارتباط باشید."
     )
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=kb_back())
     await callback.answer()
