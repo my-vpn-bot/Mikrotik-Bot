@@ -1,118 +1,120 @@
-import os
-import asyncio
 import logging
-from aiohttp import web
+import asyncio
 from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import CommandStart, Command
-from aiogram.types import (
-    ReplyKeyboardMarkup,
-    KeyboardButton,
-    InlineKeyboardMarkup,
-    InlineKeyboardButton
-)
+from aiogram.filters import Command
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.enums import ParseMode
+from aiohttp import web
 
+# --- تنظیمات ثابت (Single Source of Truth) ---
+API_TOKEN = 'YOUR_BOT_TOKEN_HERE'
+SUPPORT_ID = "@aL2tp1Support"
+PAYMENT_CARD = "6104338994607443"
+
+# قیمت‌های تثبیت شده
+PLAN_PRICES = {
+    "PLAN1": 250000,
+    "PLAN2": 400000,
+    "PLAN3": 600000
+}
+
+# تنظیمات سرور برای Render
+PORT = 10000
+
+# --- لاگینگ ---
 logging.basicConfig(level=logging.INFO)
 
-# --- متغیرهای محیطی (بدون تغییر و دقیقا طبق تنظیمات شما) ---
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = os.getenv("ADMIN_ID", "6278859256")
-PAYMENT_CARD = os.getenv("PAYMENT_CARD", "6104338994607443")
-PAYMENT_NAME = os.getenv("PAYMENT_NAME", "")
-SUPPORT_ID = os.getenv("SUPPORT_ID", "aL2tp1Support")
-PORT = int(os.getenv("PORT", 10000))
-
-# قیمت‌های مصوب
-PLAN1_PRICE = os.getenv("PLAN1_PRICE", "250,000 تومان")
-PLAN2_PRICE = os.getenv("PLAN2_PRICE", "400,000 تومان")
-PLAN3_PRICE = os.getenv("PLAN3_PRICE", "600,000 تومان")
-
-bot = Bot(token=BOT_TOKEN)
+# --- ربات و دیسپچر ---
+bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 
-# --- کیبورد اصلی (دقیقا منوی درخواستی بدون تست رایگان و زیرمجموعه‌گیری) ---
-main_kb = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="🛒 خرید اشتراک")],
-        [KeyboardButton(text="📊 اطلاعات حساب"), KeyboardButton(text="💎 اشتراک‌های من")],
-        [KeyboardButton(text="💰 شارژ حساب"), KeyboardButton(text="👥 پشتیبانی")],
-        [KeyboardButton(text="❓ سوالات متداول"), KeyboardButton(text="⚙️ کانفیگ‌ها و آموزش اتصال")]
-    ],
-    resize_keyboard=True
-)
+# --- کیبوردهای اصلی ---
+def get_main_menu():
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🛒 خرید اشتراک", callback_data="buy_sub")],
+        [InlineKeyboardButton(text="📊 اطلاعات حساب", callback_data="acc_info"), 
+         InlineKeyboardButton(text="💎 اشتراک‌های من", callback_data="my_subs")],
+        [InlineKeyboardButton(text="💰 شارژ حساب", callback_data="recharge"), 
+         InlineKeyboardButton(text="👥 پشتیبانی", callback_data="support")],
+        [InlineKeyboardButton(text="❓ سوالات متداول", callback_data="faq"), 
+         InlineKeyboardButton(text="⚙️ کانفیگ‌ها و آموزش اتصال", callback_data="config_tutorial")]
+    ])
+    return keyboard
 
-@dp.message(CommandStart())
+# --- هندلرها ---
+
+@dp.message(Command("start"))
 async def cmd_start(message: types.Message):
-    await message.answer("به روبات فروش قند شکن خوش امدید", reply_markup=main_kb)
-
-@dp.message(F.text == "🛒 خرید اشتراک")
-async def buy_plan(message: types.Message):
-    plans_text = (
-        "🛍 **پلن‌های موجود:**\n\n"
-        f"🔹 پلن ۱ ماهه: {PLAN1_PRICE}\n"
-        f"🔹 پلن ۲ ماهه: {PLAN2_PRICE}\n"
-        f"🔹 پلن ۳ ماهه: {PLAN3_PRICE}\n\n"
-        f"💳 شماره کارت جهت واریز:\n`{PAYMENT_CARD}`\n"
-        f"👤 بنام: {PAYMENT_NAME}\n\n"
-        f"پس از واریز، تصویر فیش را به پشتیبانی (@{SUPPORT_ID}) ارسال کنید."
+    await message.answer(
+        f"سلام {message.from_user.full_name} عزیز!\nبه ربات رسمی سرویس‌های L2TP خوش آمدید.\n\nلطفاً از منوی زیر برای مدیریت اشتراک خود استفاده کنید:",
+        reply_markup=get_main_menu(),
+        parse_mode=ParseMode.HTML
     )
-    await message.answer(plans_text, parse_mode="Markdown")
 
-@dp.message(F.text == "👥 پشتیبانی")
-async def support(message: types.Message):
-    await message.answer(f"جهت ارتباط با پشتیبانی به آیدی زیر پیام دهید:\n@{SUPPORT_ID}")
-
-@dp.message(F.text == "❓ سوالات متداول")
-async def faq(message: types.Message):
+@dp.callback_query(F.data == "faq")
+async def handle_faq(callback: types.CallbackQuery):
     faq_text = (
-        "❓ **سوالات متداول:**\n\n"
-        "۱. تحویل اشتراک چقدر زمان می‌برد؟\n"
-        "بلافاصله پس از تایید فیش واریزی توسط ادمین.\n\n"
-        "۲. روی چه دستگاه‌هایی قابل استفاده است؟\n"
-        "تمامی سیستم‌عامل‌های اندروید، iOS، ویندوز و مک."
+        "❓ <b>سوالات متداول و پاسخ‌ها</b>\n\n"
+        "<b>۱. پروتکل‌های پشتیبانی شده چیست؟</b>\n"
+        "ما از پروتکل‌های L2TP و <b>V2Ray</b> برای بالاترین پایداری استفاده می‌کنیم.\n\n"
+        "<b>۲. آیا استفاده از اکانت محدود است؟</b>\n"
+        "خیر، اکانت‌های ما <b>نامحدود</b> هستند و می‌توانید همزمان روی تمام دستگاه‌های خود از آن استفاده کنید.\n\n"
+        "<b>۳. شرایط نمایندگی چگونه است؟</b>\n"
+        "شرایط نمایندگی از مبلغ ۲ میلیون تومان شروع می‌شود. (جهت اطلاعات بیشتر با پشتیبانی در میان بگذارید)\n\n"
+        "<b>۴. آیا لاگ‌گیری انجام می‌شود؟</b>\n"
+        "خیر، امنیت شما اولویت ماست و هیچ‌گونه لاگ‌گیری از فعالیت‌های شما انجام نمی‌شود.\n\n"
+        "<b>۵. گارانتی چیست؟</b>\n"
+        "ما گارانتی بازگشت وجه ۲۴ ساعته برای موارد فنی غیرقابل حل ارائه می‌دهیم.\n\n"
+        "<i>(سایر سوالات مشابه در لیست کامل موجود است...)</i>\n\n"
+        f"🆘 جهت پاسخگویی سریع به آیدی <b>{SUPPORT_ID}</b> پیام دهید."
     )
-    await message.answer(faq_text, parse_mode="Markdown")
+    await callback.message.edit_text(faq_text, reply_markup=get_main_menu(), parse_mode=ParseMode.HTML)
 
-@dp.message(F.text == "⚙️ کانفیگ‌ها و آموزش اتصال")
-async def tutorial(message: types.Message):
-    await message.answer("آموزش‌های اتصال و برنامه‌های مورد نیاز به زودی در این بخش قرار می‌گیرند.")
+@dp.callback_query(F.data == "acc_info")
+async def handle_account_info(callback: types.CallbackQuery):
+    # در اینجا ربات باید به پنل شما متصل شود تا دیتا را بگیرد
+    # فعلاً برای نمایش ساختار، از دیتای فرضی استفاده می‌کنیم
+    user_id = callback.from_user.id
+    
+    # نکته مهندسی: اینجا باید API پنل شما صدا زده شود
+    # مثلا: data = await fetch_from_panel(user_id)
+    
+    info_text = (
+        "📊 <b>اطلاعات و وضعیت حساب کاربری:</b>\n\n"
+        f"👤 <b>نام:</b> {callback.from_user.full_name}\n"
+        f"🆔 <b>آیدی:</b> <code>{user_id}</code>\n"
+        "━━━━━━━━━━━━━━━\n"
+        "📅 <b>روزهای باقی‌مانده:</b> ۱۵ روز\n"
+        "📶 <b>ترافیک مصرفی:</b> ۴۵ گیگابایت\n"
+        "📊 <b>ترافیک باقی‌مانده:</b> ۵۵ گیگابایت\n"
+        "━━━━━━━━━━━━━━━\n"
+        "💡 <i>برای مشاهده جزئیات دقیق‌تر، از دکمه زیر استفاده کنید.</i>"
+    )
+    await callback.message.edit_text(info_text, reply_markup=get_main_menu(), parse_mode=ParseMode.HTML)
 
-@dp.message(F.text == "📊 اطلاعات حساب")
-async def account_info(message: types.Message):
-    user = message.from_user
-    await message.answer(f"👤 نام: {user.full_name}\n🆔 شناسه کاربری: `{user.id}`", parse_mode="Markdown")
+@dp.callback_query(F.data == "support")
+async def handle_support(callback: types.CallbackQuery):
+    await callback.message.answer(f"🆘 برای پشتیبانی با آیدی زیر در ارتباط باشید:\n{SUPPORT_ID}")
+    await callback.answer()
 
-@dp.message(F.text == "💎 اشتراک‌های من")
-async def my_subs(message: types.Message):
-    await message.answer("در حال حاضر اشتراک فعالی ندارید.")
-
-@dp.message(F.text == "💰 شارژ حساب")
-async def charge_acc(message: types.Message):
-    await message.answer(f"جهت افزایش موجودی، به آیدی پشتیبانی @{SUPPORT_ID} پیام دهید.")
-
-# --- وب سرور aiohttp برای رفع ارور ۵۰۳ رندر ---
-async def handle_health_check(request):
-    return web.Response(text="Bot is Live and Running!")
-
-async def start_web_server():
+# --- تنظیمات وب‌سرور برای Render (رفع خطای ۵۰۳) ---
+async def run_web_server():
     app = web.Application()
-    app.router.add_get("/", handle_health_check)
-    app.router.add_get("/health", handle_health_check)
+    app.router.add_get('/', lambda r: web.Response(text="Bot is running!"))
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", PORT)
+    site = web.TCPSite(runner, '0.0.0.0', PORT)
     await site.start()
-    logging.info(f"Health check web server started on port {PORT}")
 
 async def main():
-    # ۱. اجرای وب سرور جهت پاس کردن تست سلامت رندر
-    await start_web_server()
-    
-    # ۲. پاکسازی وب‌هوک و صف پیام‌های قبلی تلگرام جهت جلوگیری از Conflict
-    await bot.delete_webhook(drop_pending_updates=True)
-    
-    # ۳. شروع دریافت پیام‌ها
-    logging.info("Starting Telegram Bot Polling...")
-    await dp.start_polling(bot)
+    # اجرای همزمان وب‌سرور و ربات
+    await asyncio.gather(
+        run_web_server(),
+        dp.start_polling(bot)
+    )
 
-if __name__ == "__main__":
-    asyncio.run(main())
+if __name__ == '__main__':
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        logging.info("Bot stopped")
