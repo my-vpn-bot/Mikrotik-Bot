@@ -23,18 +23,11 @@ CARD_NUMBER = os.environ.get("CARD_NUMBER", "6104-XXXX-XXXX-XXXX")
 CARD_HOLDER = os.environ.get("CARD_HOLDER", "نام صاحب کارت")
 SUPPORT_USERNAME = os.environ.get("SUPPORT_USERNAME", "admin")
 
-# ---------------- تعرفه‌ها ----------------
+# ---------------- تعرفه‌ها (بر اساس درخواست شما) ----------------
 PLANS = {
-    "plan_1m": {"title": "پلن ۱ ماهه", "gb": 30, "days": 30, "price": 250_000},
-    "plan_2m": {"title": "پلن ۲ ماهه", "gb": 60, "days": 60, "price": 400_000},
-    "plan_3m": {"title": "پلن ۳ ماهه", "gb": 90, "days": 90, "price": 600_000},
-}
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
-
-
-class BuyState(StatesGroup):
-90, "days": 90, "price": 600_000},
+    "plan_1m": {"title": "پلن ۱ ماهه", "gb": 30, "days": 30, "price": 250000},
+    "plan_2m": {"title": "پلن ۲ ماهه", "gb": 60, "days": 60, "price": 400000},
+    "plan_3m": {"title": "پلن ۳ ماهه", "gb": 90, "days": 90, "price": 600000},
 }
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
@@ -45,12 +38,23 @@ class BuyState(StatesGroup):
 
 
 def fa_date():
+    """تاریخ شمسی تهران را برمی‌گرداند."""
     try:
         import jdatetime
-        return jdatetime.datetime.now().strftime("%Y/%m/%d return ""
+        return jdatetime.datetime.now().strftime("%Y/%m/%d")
+    except ImportError:
+        return ""
 
 
-# ---------------- کیبوردها (دکمه‌های دوخطی) ----------------
+def header():
+    """هدر پیام‌ها شامل تاریخ شمسی را ایجاد می‌کند."""
+    d = fa_date()
+    if d:
+        return f"📅 {d}\n━━━━━━━━━━━━━━━\n"
+    return ""
+
+
+# ---------------- کیبوردها ----------------
 def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🛒 خرید اشتراک\n✨ لینک اختصاصی بگیرید", callback_data="buy")],
@@ -90,7 +94,7 @@ async def cmd_start(message: Message, state: FSMContext):
     await state.clear()
     text = (
         header()
-        + "👋 <b>سلام، خوش آمدید!</b>\n\n"
+        + "👋 <b{سلام، خوش آمدید!</b>\n\n"
         "🔒 <i>ربات فروش اشتراک اختصاصی VPN</i>\n"
         "⚡ سرعت بالا | 🛡 امنیت کامل | 🌍 IP ثابت\n\n"
         "👇 از منوی زیر انتخاب کنید:"
@@ -122,8 +126,10 @@ async def cb_plan(call: CallbackQuery, state: FSMContext):
     if not plan:
         await call.answer("⚠️ پلن نامعتبر است!", show_alert=True)
         return
+
     await state.update_data(plan_key=key)
     await state.set_state(BuyState.waiting_receipt)
+
     text = (
         header()
         + f"🛒 <b>{plan['title']}</b>\n\n"
@@ -140,118 +146,24 @@ async def cb_plan(call: CallbackQuery, state: FSMContext):
 
 async def on_receipt(message: Message, state: FSMContext):
     data = await state.get_data()
-    plan = PLANS.get(data.get("plan_key", ""))
+    plan_key = data.get("plan_key")
+    plan = PLANS.get(plan_key)
+
     if not plan:
         await state.clear()
         await message.answer(
-            header() + "⚠️ خطا در پلن. دوباره از منوی اصلی شروع کنید.",
+            header() + "⚠️ خطا در پلن. لطفاً دوباره از منوی اصلی شروع کنید.",
             reply_markup=main_menu(),
         )
         return
+
     if not message.photo:
         await message.answer(header() + "📸 لطفاً فقط <b>عکس رسید پرداخت</b> را ارسال کنید.")
         return
+
     await state.clear()
-    await message.answer(
-        header()
-        + "✅ <b>رسید شما دریافت شد!</b>\n\n"
-        f"🛒 پلن: <b>{plan['title']}</b>\n"
-        f"💰 مبلغ: <b>{plan['price']:,} تومان</b>\n\n"
-        "⏳ ادمین تا چند دقیقه بررسی و لینک اختصاصی را ارسال می‌کند.",
-        reply_markup=back_menu(),
-    )
-
-
-async def cb_trial(call: CallbackQuery, state: FSMContext):
-    await state.clear()
-    await safe_edit(
-        call,
-        header() + "🎁 <b>تست رایگان</b>\n\n⚡ اشتراک آزمایشی: <b>۱ گیگ — ۲۴ ساعت</b>\n\nبرای دریافت، با پشتیبانی در تماس باشید.",
-        back_menu(),
-    )
-
-
-async def cb_profile(call: CallbackQuery, state: FSMContext):
-    await state.clear()
-    u = call.from_user
-    username = f"@{u.username}" if u.username else "—"
-    text = (
-        header()
-        + "👤 <b>پروفایل من</b>\n\n"
-        f"🆔 آیدی: <code>{u.id}</code>\n"
-        f"📛 نام: <b>{u.full_name()}</b>\n"
-        f"🔗 یوزرنیم: {username}\n\n"
-        "📊 اشتراک فعال: <i>ندارید</i>"
-    )
-    await safe_edit(call, text, back_menu())
-
-
-async def cb_support(call: CallbackQuery, state: FSMContext):
-    await state.clear()
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text="💬 ارتباط با پشتیبانی\n🎧 چت با ادمین",
-            url=f"https://t.me/{SUPPORT_USERNAME}",
-        )],
-        [InlineKeyboardButton(text="🔙 بازگشت\n🏠 منوی اصلی", callback_data="menu")],
-    ])
-    await safe_edit(call, header() + "🎧 <b>پشتیبانی</b>\n\n💬 برای ارتباط با ادمین، روی دکمه زیر بزنید.", kb)
-
-
-# ---------------- اجرا ----------------
-async def run_polling(dp: Dispatcher, bot: Bot):
-    await bot.delete_webhook(drop_pending_updates=True)
-    await dp.start_polling(bot)
-
-
-async def run_webhook(dp: Dispatcher, bot: Bot):
-    from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
-    from aiohttp import web
-
-    base = os.environ["RENDER_EXTERNAL_URL"].rstrip("/")
-    path = "/webhook"
-    await bot.set_webhook(f"{base}{path}", drop_pending_updates=True)
-
-    app = web.Application()
-    SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=path)
-    setup_application(app, dp, bot=bot)
-
-    port = int(os.environ.get("PORT", "8000"))
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, host="0.0.0.0", port=port)
-    await site.start()
-    await asyncio.Event().wait()
-
-
-def build_dp() -> Dispatcher:
-    dp = Dispatcher(storage=MemoryStorage())
-    dp.message.register(cmd_start, CommandStart())
-    dp.message.register(on_receipt, BuyState.waiting_receipt)
-    dp.callback_query.register(cb_menu, F.data == "menu")
-    dp.callback_query.register(cb_buy, F.data == "buy")
-    dp.callback_query.register(cb_plan, F.data.startswith("plan:"))
-    dp.callback_query.register(cb_trial, F.data == "trial")
-    dp.callback_query.register(cb_profile, F.data == "profile")
-    dp.callback_query.register(cb_support, F.data == "support")
-    return dp
-
-
-async def main():
-    if not BOT_TOKEN:
-        raise SystemExit("BOT_TOKEN در متغیرهای محیطی تنظیم نشده است.")
-    bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-    dp = build_dp()
-    if os.environ.get("RENDER_EXTERNAL_URL"):
-        logging.info("Webhook mode (Render)")
-        await run_webhook(dp, bot)
-    else:
-        logging.info("Polling mode")
-        await run_polling(dp, bot)
-
-
-if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
-        logging.info("Bot stopped.")
+    await message.answer_photo(
+        photo=message.photo[-1].file_id,
+        caption=(
+            header()
+            + "✅ <b>رسید شما دریافت شد!
