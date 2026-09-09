@@ -34,7 +34,7 @@ PLAN1_PRICE = os.getenv("PLAN1_PRICE", "۲۵۰,۰۰۰")
 PLAN2_PRICE = os.getenv("PLAN2_PRICE", "۴۰۰,۰۰۰")
 PLAN3_PRICE = os.getenv("PLAN3_PRICE", "۶۰۰,۰۰۰")
 
-# --- دیتابیس SQLite ---
+# --- راه‌اندازی دیتابیس SQLite ---
 conn = sqlite3.connect("bot_database.db", check_same_thread=False)
 cursor = conn.cursor()
 
@@ -82,9 +82,20 @@ def to_persian_digits(text: str) -> str:
         text = str(text).replace(en, fa)
     return text
 
-# --- هندلر /start ---
+def get_plans_inline_markup():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=f"پلن ۱: ۳۰ گیگ ۱ ماهه ({PLAN1_PRICE} تومان)", callback_data="buy_plan_1")],
+            [InlineKeyboardButton(text=f"پلن ۲: ۶۰ گیگ ۲ ماهه ({PLAN2_PRICE} تومان)", callback_data="buy_plan_2")],
+            [InlineKeyboardButton(text=f"پلن ۳: ۳ ماهه نامحدود ({PLAN3_PRICE} تومان)", callback_data="buy_plan_3")],
+            [InlineKeyboardButton(text="🔙 انصراف و بستن منو", callback_data="cancel_plan_selection")]
+        ]
+    )
+
+# --- هندلر /start (متن کامل، اصیل، همراه با کانال و تاریخ/ساعت شمسی) ---
 @dp.message(Command("start"))
-async def cmd_start(message: types.Message):
+async def cmd_start(message: types.Message, state: FSMContext):
+    await state.clear()
     user = message.from_user
     cursor.execute("INSERT OR IGNORE INTO users (user_id, full_name, username) VALUES (?, ?, ?)",
                    (user.id, user.full_name, user.username or ""))
@@ -96,25 +107,44 @@ async def cmd_start(message: types.Message):
     time_formatted = to_persian_digits(now.strftime("%H:%M:%S"))
 
     welcome_text = (
-        f"سلام {user.full_name} عزیز، به ربات هوشمند سرویس V2Ray خوش آمدید 🌹\n\n"
+        f"سلام {user.full_name} عزیز، به ربات هوشمند سرویس اختصاصی V2Ray خوش آمدید 🌹\n\n"
         f"📅 امروز: {day_name}، {date_formatted}\n"
         f"⏰ ساعت: {time_formatted}\n\n"
-        f"🛡 ارائه قدرتمندترین کانفیگ‌های اختصاصی V2Ray با پینگ مناسب و سرعت نامحدود.\n"
-        f"از منوی زیر جهت خرید یا مدیریت اشتراک‌های خود استفاده فرمایید 👇"
+        f"🛡 **سرویس اینترنت پرسرعت و ضد فیلتر V2Ray**\n"
+        f"⚡ پایداری تضمینی، آی‌پی اختصاصی، پینگ فوق‌العاده مناسب برای وب‌گردی، اینستاگرام، یوتیوب، ترید و گیمینگ.\n"
+        f"🌐 سازگار با تمامی سیستم‌عامل‌ها (اندروید، iOS، ویندوز و مک).\n\n"
+        f"📢 کانال اطلاع‌رسانی، سرورها و آموزش‌ها:\n"
+        f"{CHANNEL_LINK}\n\n"
+        f"👇 لطفاً یکی از گزینه‌های منوی زیر را جهت خرید یا مدیریت اشتراک انتخاب فرمایید:"
     )
     await message.answer(welcome_text, reply_markup=get_main_keyboard(), parse_mode="Markdown")
 
 # --- منوی خرید اشتراک ---
 @dp.message(F.text == "🛒 خرید اشتراک")
-async def buy_plan_menu(message: types.Message):
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=f"پلن ۱: ۳۰ گیگ ۱ ماهه ({PLAN1_PRICE} تومان)", callback_data="buy_plan_1")],
-            [InlineKeyboardButton(text=f"پلن ۲: ۶۰ گیگ ۲ ماهه ({PLAN2_PRICE} تومان)", callback_data="buy_plan_2")],
-            [InlineKeyboardButton(text=f"پلن ۳: ۳ ماهه نامحدود ({PLAN3_PRICE} تومان)", callback_data="buy_plan_3")]
-        ]
-    )
-    await message.answer("📦 لطفاً پلن V2Ray مورد نظر خود را انتخاب کنید:", reply_markup=kb)
+async def buy_plan_menu(message: types.Message, state: FSMContext):
+    await state.clear()
+    await message.answer("📦 لطفاً پلن V2Ray مورد نظر خود را انتخاب کنید:", reply_markup=get_plans_inline_markup())
+
+# انصراف از انتخاب پلن (پاک کردن پیام برای تمیز ماندن چت)
+@dp.callback_query(F.data == "cancel_plan_selection")
+async def cancel_plan_selection(callback: types.CallbackQuery, state: FSMContext):
+    await state.clear()
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await callback.answer("عملیات لغو شد.")
+
+# بازگشت از مرحله فاکتور به منوی پلن‌ها
+@dp.callback_query(F.data == "back_to_plans")
+async def back_to_plans(callback: types.CallbackQuery, state: FSMContext):
+    await state.clear()
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await callback.message.answer("📦 لطفاً پلن V2Ray مورد نظر خود را انتخاب کنید:", reply_markup=get_plans_inline_markup())
+    await callback.answer()
 
 @dp.callback_query(F.data.startswith("buy_plan_"))
 async def process_plan_choice(callback: types.CallbackQuery, state: FSMContext):
@@ -127,14 +157,27 @@ async def process_plan_choice(callback: types.CallbackQuery, state: FSMContext):
     name, price = plans[plan_id]
     await state.update_data(selected_plan=name, plan_price=price)
     
+    # حذف پیام قبلی لیست پلن‌ها برای تمیز ماندن چت
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 بازگشت به لیست پلن‌ها", callback_data="back_to_plans")]
+        ]
+    )
+    
     text = (
         f"💳 خرید: **{name}**\n"
         f"مبلغ قابل پرداخت: **{price} تومان**\n\n"
         f"شماره کارت:\n`{PAYMENT_CARD}`\n"
         f"به نام: **{CARD_HOLDER}**\n\n"
-        f"⚠️ پس از واریز، تصویر فیش پرداخت خود را در همین بخش ارسال نمایید:"
+        f"⚠️ پس از واریز، تصویر فیش پرداخت خود را ارسال فرمایید:\n"
+        f"(یا در صورت تمایل برای تغییر پلن، روی دکمه بازگشت کلیک کنید)"
     )
-    await callback.message.answer(text, parse_mode="Markdown")
+    await callback.message.answer(text, reply_markup=kb, parse_mode="Markdown")
     await state.set_state(PaymentStates.waiting_for_receipt)
     await callback.answer()
 
@@ -210,11 +253,16 @@ async def user_subs(message: types.Message):
 # --- شارژ حساب ---
 @dp.message(F.text == "💰 شارژ حساب")
 async def charge_account(message: types.Message):
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="💬 ارتباط با پشتیبانی جهت ارسال فیش", url=f"https://t.me/{SUPPORT_ID}")]]
+    )
     await message.answer(
-        f"💳 جهت شارژ کیف پول خود، مبلغ را به کارت زیر واریز نمایید:\n\n"
+        f"💳 **افزایش موجودی و شارژ کیف پول**\n\n"
+        f"جهت شارژ حساب کاربری، مبلغ مورد نظر را به شماره کارت زیر واریز نمایید:\n\n"
         f"`{PAYMENT_CARD}`\n"
         f"به نام: **{CARD_HOLDER}**\n\n"
-        f"سپس تصویر فیش و مبلغ را برای پشتیبانی (@{SUPPORT_ID}) ارسال کنید.",
+        f"سپس تصویر فیش و شناسه عددی خود را از طریق دکمه زیر برای بخش مالی ارسال فرمایید 👇",
+        reply_markup=kb,
         parse_mode="Markdown"
     )
 
@@ -224,7 +272,7 @@ async def support(message: types.Message):
     kb = InlineKeyboardMarkup(
         inline_keyboard=[[InlineKeyboardButton(text="💬 ارتباط با پشتیبانی", url=f"https://t.me/{SUPPORT_ID}")]]
     )
-    await message.answer(f"جهت پاسخگویی به سوالات و مشکلات به شناسه @{SUPPORT_ID} پیام دهید:", reply_markup=kb)
+    await message.answer("👨‍💻 برای ارتباط مستقیم با کارشناسان فنی و پاسخگویی سریع، روی دکمه زیر کلیک فرمایید:", reply_markup=kb)
 
 # --- کانفیگ‌ها و آموزش اتصال ---
 @dp.message(F.text == "⚙️ کانفیگ‌ها و آموزش اتصال")
@@ -232,7 +280,7 @@ async def configs_tutorial(message: types.Message):
     kb = InlineKeyboardMarkup(
         inline_keyboard=[[InlineKeyboardButton(text="📢 عضویت در کانال آموزش و کانفیگ", url=CHANNEL_LINK)]]
     )
-    await message.answer("جهت مشاهده آموزش‌های اتصال (اندروید، آیفون، ویندوز) و دریافت نرم‌افزارها روی دکمه زیر کلیک کنید:", reply_markup=kb)
+    await message.answer("جهت مشاهده آموزش‌های اتصال (اندروید، آیفون، ویندوز) و دریافت نرم‌افزارهای مورد نیاز، روی دکمه زیر کلیک کنید:", reply_markup=kb)
 
 # --- سوالات متداول ---
 @dp.message(F.text == "❓ سوالات متداول")
