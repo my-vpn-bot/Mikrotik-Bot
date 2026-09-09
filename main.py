@@ -2,6 +2,8 @@ import os
 import asyncio
 import logging
 from datetime import datetime
+import zoneinfo
+import jdatetime
 from aiohttp import web
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command
@@ -28,52 +30,55 @@ dp = Dispatcher()
 
 # --- Plan Definitions ---
 PLANS = {
-    "plan_1m": {"title": "🥉 پلن ۱ ماهه", "volume": "۳۰ گیگابایت", "days": "۳۰ روز", "price": "۳۵۰,۰۰۰ تومان"},
-    "plan_2m": {"title": "🥈 پلن ۲ ماهه", "volume": "۶۰ گیگابایت", "days": "۶۰ روز", "price": "۶۵۰,۰۰۰ تومان"},
-    "plan_3m": {"title": "🥇 پلن ۳ ماهه", "volume": "۹۰ گیگابایت", "days": "۹۰ روز", "price": "۹۰۰,۰۰۰ تومان"},
+    "plan_1m": {"title": "🥇 پلن ۱ ماهه", "volume": "۳۰ گیگ", "days": "۳۰ روز", "price": "۳۵۰,۰۰۰ تومان", "color": "🟡"},
+    "plan_2m": {"title": "🥈 پلن ۲ ماهه", "volume": "۶۰ گیگ", "days": "۶۰ روز", "price": "۶۵۰,۰۰۰ تومان", "color": "🟠"},
+    "plan_3m": {"title": "🥉 پلن ۳ ماهه", "volume": "۹۰ گیگ", "days": "۹۰ روز", "price": "۹۰۰,۰۰۰ تومان", "color": "🟢"},
 }
 
+# --- Helper: Tehran Persian Date & Time ---
 def get_time_header():
-    now = datetime.now()
-    return now.strftime("📅 %Y/%m/%d — ⏰ %H:%M")
+    tehran_tz = zoneinfo.ZoneInfo("Asia/Tehran")
+    now_tehran = datetime.now(tehran_tz)
+    jalali_datetime = jdatetime.datetime.fromgregorian(datetime=now_tehran)
+    return jalali_datetime.strftime("📅 %Y/%m/%d — ⏰ %H:%M")
 
-# --- Keyboards ---
+# --- Keyboards (حرفه‌ای و با دکمه‌های بزرگ) ---
 def kb_main():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🛒 خرید اشتراک / 💎 تعرفه‌ها", callback_data="buy_sub")],
-        [InlineKeyboardButton(text="🔮 سرویس‌های آینده", callback_data="future_services")],
-        [InlineKeyboardButton(text="👤 حساب کاربری", callback_data="my_account")],
-        [InlineKeyboardButton(text="🛠 پشتیبانی", callback_data="support")]
+        [InlineKeyboardButton(text="🛒 خرید اشتراک\n💎 مشاهده تعرفه‌ها", callback_data="buy_sub")],
+        [InlineKeyboardButton(text="🔮 سرویس‌های آینده\n🌐 L2TP | OpenVPN | WireGuard", callback_data="future_services")],
+        [InlineKeyboardButton(text="👤 حساب کاربری من\n📊 وضعیت و مشخصات", callback_data="my_account")],
+        [InlineKeyboardButton(text="🛠 پشتیبانی\n💬 پاسخگویی ۲۴/۷", callback_data="support")]
     ])
 
 def kb_back():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔙 بازگشت به منوی اصلی", callback_data="main_menu")]
+        [InlineKeyboardButton(text="🔙 بازگشت به منوی اصلی\n🏠 صفحه اول", callback_data="main_menu")]
     ])
 
 def kb_plans():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🥉 ۱ ماهه | ۳۰ گیگ | ۳۵۰,۰۰۰ تومان", callback_data="plan_1m")],
-        [InlineKeyboardButton(text="🥈 ۲ ماهه | ۶۰ گیگ | ۶۵۰,۰۰۰ تومان", callback_data="plan_2m")],
-        [InlineKeyboardButton(text="🥇 ۳ ماهه | ۹۰ گیگ | ۹۰۰,۰۰۰ تومان", callback_data="plan_3m")],
-        [InlineKeyboardButton(text="🔙 بازگشت", callback_data="main_menu")]
+        [InlineKeyboardButton(text="🥇 پلن ۱ ماهه\n📦 ۳۰ گیگ | 💰 ۳۵۰,۰۰۰ تومان", callback_data="plan_1m")],
+        [InlineKeyboardButton(text="🥈 پلن ۲ ماهه\n📦 ۶۰ گیگ | 💰 ۶۵۰,۰۰۰ تومان", callback_data="plan_2m")],
+        [InlineKeyboardButton(text="🥉 پلن ۳ ماهه\n📦 ۹۰ گیگ | 💰 ۹۰۰,۰۰۰ تومان", callback_data="plan_3m")],
+        [InlineKeyboardButton(text="🔙 بازگشت به منوی اصلی\n🏠 صفحه اول", callback_data="main_menu")]
     ])
 
 def kb_pay():
     clean_username = SUPPORT_USERNAME.lstrip("@")
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📩 ارسال فیش به پشتیبانی", url=f"https://t.me/{clean_username}")],
-        [InlineKeyboardButton(text="🔙 بازگشت به پلن‌ها", callback_data="buy_sub")]
+        [InlineKeyboardButton(text="📩 ارسال فیش به پشتیبانی\n💬 برای تمدید و فعال‌سازی سرویس", url=f"https://t.me/{clean_username}")],
+        [InlineKeyboardButton(text="🔙 بازگشت به تعرفه‌ها\n💎 نمایش سایر پلن‌ها", callback_data="buy_sub")]
     ])
 
 # --- Handlers ---
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     text = (
-        f"👋 سلام **{message.from_user.first_name}** عزیز، به ربات خوش آمدید!\n\n"
+        f"👋 سلام **{message.from_user.first_name}** عزیز!\n\n"
         "⚡ سرویس‌های پرسرعت و پایدار **V2Ray**\n"
         f"{get_time_header()}\n\n"
-        "یکی از گزینه‌های زیر را انتخاب کنید:"
+        "یکی از گزینه‌های زیر را انتخاب کنید 👇"
     )
     await message.answer(text, parse_mode="Markdown", reply_markup=kb_main())
 
@@ -82,19 +87,22 @@ async def cb_main(callback: CallbackQuery):
     text = (
         f"🏠 **منوی اصلی**\n"
         f"{get_time_header()}\n\n"
-        "یکی از گزینه‌های زیر را انتخاب کنید:"
+        "یکی از گزینه‌های زیر را انتخاب کنید 👇"
     )
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=kb_main())
     await callback.answer()
 
 @dp.callback_query(F.data == "buy_sub")
 async def cb_buy(callback: CallbackQuery):
+    plan_list = "\n".join([
+        f"{p['color']} **{p['title']}**\n📦 حجم: **{p['volume']}** | ⏳ **{p['days']}** | 💰 `{p['price']}`\n"
+        for p in PLANS.values()
+    ])
     text = (
         "💎 **تعرفه‌های اشتراک (سرویس V2Ray):**\n\n"
-        "🥉 **پلن ۱ ماهه:** ۳۰ گیگابایت ⬅️ `۳۵۰,۰۰۰ تومان`\n\n"
-        "🥈 **پلن ۲ ماهه:** ۶۰ گیگابایت ⬅️ `۶۵۰,۰۰۰ تومان`\n\n"
-        "🥇 **پلن ۳ ماهه:** ۹۰ گیگابایت ⬅️ `۹۰۰,۰۰۰ تومان`\n\n"
-        "🚀 پورت پرسرعت اختصاصی | بدون قطعی"
+        f"{plan_list}\n"
+        "🚀 پورت پرسرعت اختصاصی | بدون قطعی\n"
+        "👇 پلن مورد نظرتیرا انتخاب کن:"
     )
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=kb_plans())
     await callback.answer()
@@ -104,9 +112,9 @@ async def cb_future_services(callback: CallbackQuery):
     text = (
         "🔮 **سرویس‌های آینده:**\n\n"
         "به‌زودی و تا چند روز آینده سرویس‌های زیر نیز راه‌اندازی و در دسترس شما عزیزان قرار خواهد گرفت:\n\n"
-        "🌐 **L2TP / IPsec**\n"
-        "🌐 **OpenVPN**\n"
-        "🌐 **WireGuard**\n"
+        "🌐 **L2TP / IPsec** — پرسرعت و پایدار\n"
+        "🌐 **OpenVPN** — امن و انعطاف‌پذیر\n"
+        "🌐 **WireGuard** — مدرن و سبک\n"
         "🌐 **و سایر پروتکل‌های محبوب**\n\n"
         "⚡ برای اطلاع از زمان دقیق فعال‌سازی، با پشتیبانی در ارتباط باشید."
     )
@@ -120,15 +128,15 @@ async def cb_plan(callback: CallbackQuery):
         await callback.answer("پلن یافت نشد!", show_alert=True)
         return
     text = (
-        f"📋 **جزئیات سفارش (V2Ray):**\n"
-        f"🔹 عنوان: **{plan['title']}**\n"
+        f"🎯 **جزئیات سفارش (V2Ray):**\n\n"
+        f"{plan['color']} **{plan['title']}**\n"
         f"📦 حجم: **{plan['volume']}**\n"
         f"⏳ مدت اعتبار: **{plan['days']}**\n"
         f"💰 مبلغ قابل پرداخت: **{plan['price']}**\n\n"
-        f"💳 **اطلاعات حساب و واریز:**\n"
-        f"شماره کارت: `{PAYMENT_CARD}` (لمس برای کپی)\n"
+        "💳 **اطلاعات حساب و واریز:**\n"
+        f"شماره کارت: `{PAYMENT_CARD}`\n"
         f"به نام: **{PAYMENT_NAME}**\n\n"
-        "⚠️ لطفاً پس از انتقال وجه، تصویر رسید را با زدن دکمه‌ی زیر برای پشتیبانی ارسال کنید."
+        "⚠️ لطفاً پس از انتقال وجه، تصویر رسید را با زدن دکمه، برای پشتیبانی ارسال کنید."
     )
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=kb_pay())
     await callback.answer()
@@ -141,7 +149,7 @@ async def cb_account(callback: CallbackQuery):
         f"🆔 شناسه کاربری: `{callback.from_user.id}`\n"
         f"👤 نام کاربری: {username}\n"
         f"📊 سرویس فعال: **ندارید**\n\n"
-        "جهت خرید سرویس از منوی خرید اشتراک اقدام فرمایید."
+        "به‌زودی قابلیت اتصال اکانت به سرویس هم اضافه خواهد شد. جهت خرید از منوی خرید اشتراک اقدام فرمایید."
     )
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=kb_back())
     await callback.answer()
@@ -166,19 +174,19 @@ async def start_web_server():
     app.router.add_get("/health", handle_ping)
     runner = web.AppRunner(app)
     await runner.setup()
+    site = Port Binding) ---
+async def handle_ping(request):
+    return web.Response(text="Bot is running happily!", status=200)
+
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get("/", handle_ping)
+    app.router.add_get("/health", handle_ping)
+    runner = web.AppRunner(app)
+    await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
-    logger.info(f"Health-check web server started on port {PORT}")
-
-# --- Bot Startup ---
-async def main():
-    await start_web_server()
-    logger.info("Deleting webhook and dropping pending updates...")
-    await bot.delete_webhook(drop_pending_updates=True)
-    await asyncio.sleep(2)
-    logger.info("Starting Polling loop...")
-    try:
-        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+    logger.info(f"Health-check web server started on port_polling(bot, allowed_updates=dp.resolve_used_update_types())
     except TelegramConflictError:
         logger.error("Conflict detected! Another instance might still be running. Waiting...")
     except Exception as e:
