@@ -1,109 +1,154 @@
 import os
 import asyncio
 import logging
+from aiohttp import web
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import InlineKeyboardButton, CallbackQuery, Message
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
-# ۱. تنظیمات لاگینگ برای دیدن جزئیات در Render Logs
+# تنظیمات لاگ
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
-# ۲. دریافت متغیرهای محیطی (Environment Variables) از Render
-# اگر متغیری در رندر تعریف نشده باشد، مقدار پیش‌فرض (بعد از علامت =) قرار می‌گیرد
+# دریافت تنظیمات از رندر
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-SUPPORT_ID = os.getenv("SUPPORT_ID", "@Support_User")
-CARD_NUMBER = os.getenv("PAYMENT_CARD", "0000-0000-0000-0000")
-HOLDER_NAME = os.getenv("PAYMENT_NAME", "نام صاحب کارت")
-PLAN_PRICE = os.getenv("PLAN_PRICE", "350,000")
-PLAN_DURATION = os.getenv("PLAN_DURATION", "30")
-PLAN_DATA = os.getenv("PLAN_DATA", "30")
+ADMIN_ID = os.getenv("ADMIN_ID")
+SUPPORT_ID = os.getenv("SUPPORT_ID", "al2tpiSupport")
+PAYMENT_CARD = os.getenv("PAYMENT_CARD", "")
+PAYMENT_NAME = os.getenv("PAYMENT_NAME", "")
+PORT = int(os.getenv("PORT", 10000))
 
-# بررسی وجود توکن (بسیار حیاتی برای جلوگیری از کرش)
+# تنظیم نام کاربری پشتیبانی با علامت @
+if SUPPORT_ID and not SUPPORT_ID.startswith("@"):
+    SUPPORT_USERNAME = f"@{SUPPORT_ID}"
+else:
+    SUPPORT_USERNAME = SUPPORT_ID
+
 if not BOT_TOKEN:
-    logger.error("خطا: BOT_TOKEN در متغیرهای محیطی یافت نشد!")
-    raise SystemExit("BOT_TOKEN is missing!")
+    logger.error("BOT_TOKEN یافت نشد!")
+    raise SystemExit("BOT_TOKEN is not set in environment variables.")
 
-# ۳. مقداردهی اولیه بات و دیسپچر
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# ۴. توابع کمکی برای ساخت کیبورد (Inline Menu)
-def get_main_menu() -> types.InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="🛒 خرید اشتراک", callback_data="buy_sub"))
-    builder.row(InlineKeyboardButton(text="👤 حساب کاربری", callback_data="my_account"))
-    builder.row(InlineKeyboardButton(text="🛠 پشتیبانی", callback_data="support"))
-    return builder.as_markup()
+# کیبورد اصلی
+def get_main_keyboard():
+    keyboard = [
+        [
+            InlineKeyboardButton(text="🛒 خرید اشتراک", callback_data="buy_sub"),
+            InlineKeyboardButton(text="👤 حساب کاربری", callback_data="my_account")
+        ],
+        [
+            InlineKeyboardButton(text="🛠 پشتیبانی", callback_data="support"),
+            InlineKeyboardButton(text="📋 تعرفه‌ها", callback_data="tariffs")
+        ]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
-# ۵. هندلر دستور /start
+# کیبورد بازگشت
+def get_back_keyboard():
+    keyboard = [
+        [InlineKeyboardButton(text="🔙 بازگشت به منوی اصلی", callback_data="main_menu")]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+# شروع ربات
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     welcome_text = (
-        "👋 سلام! به پنل مدیریت Mikrotik-Bot خوش آمدید.\n\n"
-        "لطفاً از منوی زیر برای مدیریت خدمات خود استفاده کنید:"
+        f"👋 سلام {message.from_user.first_name} عزیز!\n\n"
+        "به ربات مدیریت و خرید سرویس خوش آمدید.\n"
+        "از دکمه‌های زیر جهت ثبت سفارش یا مدیریت اکانت استفاده کنید:"
     )
-    await message.answer(welcome_text, reply_markup=get_main_menu())
+    await message.answer(welcome_text, reply_markup=get_main_keyboard())
 
-# ۶. هندلر خرید اشتراک (نمایش اطلاعات از ENV)
+# مدیریت کلیک روی دکمه‌ها
+@dp.callback_query(F.data == "main_menu")
+async def process_main_menu(callback: CallbackQuery):
+    await callback.message.edit_text(
+        "منوی اصلی ربات:",
+        reply_markup=get_main_keyboard()
+    )
+    await callback.answer()
+
+@dp.callback_query(F.data == "tariffs")
+async def process_tariffs(callback: CallbackQuery):
+    tariffs_text = (
+        "📋 **لیست پلن‌ها و تعرفه‌ها:**\n\n"
+        "🔹 **پلن ۱ ماهه:** ۳۰ روزه - ۳۰ گیگابایت\n"
+        "🔹 **پلن ۲ ماهه:** ۶۰ روزه - ۶۰ گیگابایت\n"
+        "🔹 **پلن ۳ ماهه:** ۹۰ روزه - ۱۰۰ گیگابایت\n\n"
+        "جهت سفارش و پرداخت، گزینه «خرید اشتراک» را انتخاب کنید."
+    )
+    await callback.message.edit_text(tariffs_text, parse_mode="Markdown", reply_markup=get_back_keyboard())
+    await callback.answer()
+
 @dp.callback_query(F.data == "buy_sub")
-async def process_buy_sub(callback: CallbackQuery):
-    text = (
-        "💎 **پلن پیشنهادی ما:**\n\n"
-        f"🔹 مدت اعتبار: {PLAN_DURATION} روز\n"
-        f"🔹 حجم داده: {PLAN_DATA} گیگابایت\n"
-        f"🔹 قیمت: {PLAN_PRICE} تومان\n\n"
-        f"💳 **اطلاعات پرداخت:**\n"
-        f"شماره کارت: `{CARD_NUMBER}`\n"
-        f"به نام: `{HOLDER_NAME}`\n\n"
-        "⚠️ پس از واریز، رسید خود را برای پشتیبانی ارسال کنید."
+async def process_buy(callback: CallbackQuery):
+    payment_info = (
+        "💳 **اطلاعات پرداخت و خرید اشتراک:**\n\n"
+        f"🔹 **شماره کارت:**\n`{PAYMENT_CARD}`\n\n"
+        f"🔹 **به نام:** {PAYMENT_NAME}\n\n"
+        "⚠️ **مراحل پس از واریز:**\n"
+        f"۱. تصویر رسید تراکنش را ذخیره کنید.\n"
+        f"۲. رسید را به پشتیبانی ارسال نمایید: {SUPPORT_USERNAME}\n"
+        "۳. کانفیگ سرویس پس از بررسی برای شما صادر خواهد شد."
     )
-    # استفاده از Markdown برای نمایش بهتر شماره کارت
-    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_main_menu())
+    await callback.message.edit_text(payment_info, parse_mode="Markdown", reply_markup=get_back_keyboard())
     await callback.answer()
 
-# ۷. هندلر حساب کاربری (نمونه)
 @dp.callback_query(F.data == "my_account")
-async def process_my_account(callback: CallbackQuery):
-    text = (
-        "👤 **اطلاعات حساب کاربری شما:**\n\n"
-        "وضعیت: فعال ✅\n"
-        "تاریخ انقضا: مشخص نیست (لطفاً با پشتیبانی تماس بگیرید)\n"
-        "حجم باقی‌مانده: - GB"
+async def process_account(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    username = f"@{callback.from_user.username}" if callback.from_user.username else "ثبت نشده"
+    
+    account_text = (
+        "👤 **مشخصات کاربری شما:**\n\n"
+        f"🆔 شناسه عددی: `{user_id}`\n"
+        f"👤 نام کاربری: {username}\n"
+        "📊 وضعیت اشتراک: بدون سرویس فعال\n\n"
+        "برای خرید اشتراک جدید از منوی خرید اقدام فرمایید."
     )
-    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_main_menu())
+    await callback.message.edit_text(account_text, parse_mode="Markdown", reply_markup=get_back_keyboard())
     await callback.answer()
 
-# ۸. هندلر پشتیبانی
 @dp.callback_query(F.data == "support")
 async def process_support(callback: CallbackQuery):
-    text = (
-        "🛠 **بخش پشتیبانی فنی**\n\n"
-        f"برای دریافت راهنمایی و رفع مشکلات، با آیدی زیر در ارتباط باشید:\n\n"
-        f"🆔 `{SUPPORT_ID}`\n\n"
-        "ما در خدمت شما هستیم."
+    support_text = (
+        "🛠 **واحد پشتیبانی و ارتباط با ما:**\n\n"
+        "برای پیگیری سفارشات، ارسال فیش واریزی و پاسخ به سوالات فنی:\n\n"
+        f"🔗 آیدی تلگرام: {SUPPORT_USERNAME}"
     )
-    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_main_menu())
+    await callback.message.edit_text(support_text, reply_markup=get_back_keyboard())
     await callback.answer()
 
-# ۹. تابع اصلی برای اجرای بات (با مدیریت خطا)
+# وب‌سرور داخلی برای Render (Health Check)
+async def handle_ping(request):
+    return web.Response(text="Bot is running smoothly!", status=200)
+
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get("/", handle_ping)
+    app.router.add_get("/health", handle_ping)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
+    await site.start()
+    logger.info(f"Web server started on port {PORT}")
+
+# تابع اصلی اجرای ربات
 async def main():
-    logger.info("--- Mikrotik-Bot is starting ---")
-    try:
-        # شروع به کار بات
-        await dp.start_polling(bot)
-    except Exception as e:
-        logger.error(f"Critical Error: {e}")
-    finally:
-        await bot.session.close()
+    logger.info("Initializing Mikrotik-Bot...")
+    await start_web_server()
+    await bot.delete_webhook(drop_pending_updates=True)
+    logger.info("Starting Polling...")
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    # استفاده از asyncio برای اجرای ایزنکرونوس
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        logger.info("Bot stopped.")
+        logger.info("Bot execution terminated.")
