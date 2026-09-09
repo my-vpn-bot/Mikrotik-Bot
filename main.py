@@ -64,6 +64,13 @@ class PaymentStates(StatesGroup):
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
+# --- تبدیل ارقام به فارسی ---
+def to_persian_digits(text: str) -> str:
+    persian_digits = {'0': '۰', '1': '۱', '2': '۲', '3': '۳', '4': '۴', '5': '۵', '6': '۶', '7': '۷', '8': '۸', '9': '۹'}
+    for en, fa in persian_digits.items():
+        text = str(text).replace(en, fa)
+    return text
+
 # --- کیبورد اصلی (۴ ردیف ثابت) ---
 def get_main_keyboard():
     return ReplyKeyboardMarkup(
@@ -76,23 +83,36 @@ def get_main_keyboard():
         resize_keyboard=True
     )
 
-def to_persian_digits(text: str) -> str:
-    persian_digits = {'0': '۰', '1': '۱', '2': '۲', '3': '۳', '4': '۴', '5': '۵', '6': '۶', '7': '۷', '8': '۸', '9': '۹'}
-    for en, fa in persian_digits.items():
-        text = str(text).replace(en, fa)
-    return text
+# --- دکمه مشترک بستن پیام جهت تمیز ماندن چت ---
+def get_close_keyboard():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 بستن پیام / بازگشت", callback_data="close_message")]
+        ]
+    )
 
+# --- کیبورد لیست پلن‌ها ---
 def get_plans_inline_markup():
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text=f"پلن ۱: ۳۰ گیگ ۱ ماهه ({PLAN1_PRICE} تومان)", callback_data="buy_plan_1")],
             [InlineKeyboardButton(text=f"پلن ۲: ۶۰ گیگ ۲ ماهه ({PLAN2_PRICE} تومان)", callback_data="buy_plan_2")],
             [InlineKeyboardButton(text=f"پلن ۳: ۳ ماهه نامحدود ({PLAN3_PRICE} تومان)", callback_data="buy_plan_3")],
-            [InlineKeyboardButton(text="🔙 انصراف و بستن منو", callback_data="cancel_plan_selection")]
+            [InlineKeyboardButton(text="🔙 انصراف و بستن منو", callback_data="close_message")]
         ]
     )
 
-# --- هندلر /start (متن کامل، اصیل، همراه با کانال و تاریخ/ساعت شمسی) ---
+# --- هندلر بستن عمومی پیام‌ها (Back & Clean) ---
+@dp.callback_query(F.data == "close_message")
+async def process_close_message(callback: types.CallbackQuery, state: FSMContext):
+    await state.clear()
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await callback.answer("بسته شد.")
+
+# --- هندلر /start ---
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message, state: FSMContext):
     await state.clear()
@@ -119,23 +139,12 @@ async def cmd_start(message: types.Message, state: FSMContext):
     )
     await message.answer(welcome_text, reply_markup=get_main_keyboard(), parse_mode="Markdown")
 
-# --- منوی خرید اشتراک ---
+# --- ۱. منوی خرید اشتراک و ارسال فیش ---
 @dp.message(F.text == "🛒 خرید اشتراک")
 async def buy_plan_menu(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer("📦 لطفاً پلن V2Ray مورد نظر خود را انتخاب کنید:", reply_markup=get_plans_inline_markup())
 
-# انصراف از انتخاب پلن (پاک کردن پیام برای تمیز ماندن چت)
-@dp.callback_query(F.data == "cancel_plan_selection")
-async def cancel_plan_selection(callback: types.CallbackQuery, state: FSMContext):
-    await state.clear()
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
-    await callback.answer("عملیات لغو شد.")
-
-# بازگشت از مرحله فاکتور به منوی پلن‌ها
 @dp.callback_query(F.data == "back_to_plans")
 async def back_to_plans(callback: types.CallbackQuery, state: FSMContext):
     await state.clear()
@@ -157,7 +166,6 @@ async def process_plan_choice(callback: types.CallbackQuery, state: FSMContext):
     name, price = plans[plan_id]
     await state.update_data(selected_plan=name, plan_price=price)
     
-    # حذف پیام قبلی لیست پلن‌ها برای تمیز ماندن چت
     try:
         await callback.message.delete()
     except Exception:
@@ -165,23 +173,26 @@ async def process_plan_choice(callback: types.CallbackQuery, state: FSMContext):
 
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🔙 بازگشت به لیست پلن‌ها", callback_data="back_to_plans")]
+            [InlineKeyboardButton(text="🔙 بازگشت به لیست پلن‌ها", callback_data="back_to_plans")],
+            [InlineKeyboardButton(text="❌ انصراف", callback_data="close_message")]
         ]
     )
     
     text = (
-        f"💳 خرید: **{name}**\n"
-        f"مبلغ قابل پرداخت: **{price} تومان**\n\n"
-        f"شماره کارت:\n`{PAYMENT_CARD}`\n"
-        f"به نام: **{CARD_HOLDER}**\n\n"
-        f"⚠️ پس از واریز، تصویر فیش پرداخت خود را ارسال فرمایید:\n"
-        f"(یا در صورت تمایل برای تغییر پلن، روی دکمه بازگشت کلیک کنید)"
+        f"💳 **اطلاعات پرداخت پلن انتخابی:**\n\n"
+        f"📦 **سرویس:** {name}\n"
+        f"💰 **مبلغ قابل پرداخت:** {price} تومان\n\n"
+        f"💳 **شماره کارت واریز:**\n`{PAYMENT_CARD}`\n"
+        f"👤 **به نام:** {CARD_HOLDER}\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"📸 **مرحله بعدی (ارسال عکس فیش):**\n"
+        f"لطفاً پس از کارت‌به‌کارت کردن، **عکس واضح فیش واریزی** خود را همین حالا در چت ارسال نمایید تا بلافاصله بررسی و اشتراک شما صادر شود."
     )
     await callback.message.answer(text, reply_markup=kb, parse_mode="Markdown")
     await state.set_state(PaymentStates.waiting_for_receipt)
     await callback.answer()
 
-# --- دریافت و ارسال فیش به ادمین ---
+# --- دریافت تصویر فیش ---
 @dp.message(PaymentStates.waiting_for_receipt, F.content_type == ContentType.PHOTO)
 async def process_receipt(message: types.Message, state: FSMContext):
     data = await state.get_data()
@@ -207,91 +218,121 @@ async def process_receipt(message: types.Message, state: FSMContext):
     )
     
     await bot.send_photo(chat_id=ADMIN_ID, photo=photo_id, caption=admin_caption, reply_markup=admin_kb, parse_mode="Markdown")
-    await message.answer("✅ فیش شما با موفقیت برای مدیریت ارسال شد. پس از بررسی و تایید، اشتراک شما ارسال می‌گردد.", reply_markup=get_main_keyboard())
+    await message.answer("✅ فیش شما با موفقیت برای مدیریت ارسال شد. پس از تایید، کانفیگ شما تحویل داده می‌شود.", reply_markup=get_main_keyboard())
     await state.clear()
 
-# --- مدیریت تایید/رد فیش ---
+# --- تایید/رد ادمین ---
 @dp.callback_query(F.data.startswith("adm_ok_"))
 async def admin_approve(callback: types.CallbackQuery):
     user_id = int(callback.data.split("_")[2])
-    await bot.send_message(user_id, "✅ پرداخت شما تایید شد.\nکانفیگ اختصاصی شما به‌زودی از سمت پشتیبانی ارسال می‌گردد.")
+    await bot.send_message(user_id, "✅ پرداخت شما تایید شد.\nکانفیگ اختصاصی شما به‌زودی ارسال می‌گردد.")
     await callback.message.edit_caption(caption=callback.message.caption + "\n\n🟢 **تایید شد.**")
     await callback.answer()
 
 @dp.callback_query(F.data.startswith("adm_no_"))
 async def admin_reject(callback: types.CallbackQuery):
     user_id = int(callback.data.split("_")[2])
-    await bot.send_message(user_id, "❌ فیش واریزی شما تایید نشد. لطفاً در صورت مغایرت با پشتیبانی در تماس باشید.")
+    await bot.send_message(user_id, "❌ فیش واریزی شما تایید نشد. لطفاً با پشتیبانی در تماس باشید.")
     await callback.message.edit_caption(caption=callback.message.caption + "\n\n🔴 **رد شد.**")
     await callback.answer()
 
-# --- اطلاعات حساب و اشتراک‌ها ---
+# --- ۲. اطلاعات حساب (با دکمه برگشت) ---
 @dp.message(F.text == "📊 اطلاعات حساب")
 async def user_info(message: types.Message):
     cursor.execute("SELECT balance FROM users WHERE user_id = ?", (message.from_user.id,))
     row = cursor.fetchone()
     balance = to_persian_digits(row[0]) if row else "۰"
-    await message.answer(
-        f"👤 شناسه کاربری: `{message.from_user.id}`\n"
-        f"نام: {message.from_user.full_name}\n"
-        f"💰 موجودی حساب: {balance} تومان",
-        parse_mode="Markdown"
+    text = (
+        f"👤 **اطلاعات کاربری شما:**\n\n"
+        f"🆔 شناسه کاربری: `{message.from_user.id}`\n"
+        f"👤 نام: {message.from_user.full_name}\n"
+        f"💰 موجودی کیف پول: {balance} تومان"
     )
+    await message.answer(text, reply_markup=get_close_keyboard(), parse_mode="Markdown")
 
+# --- ۳. اشتراک‌های من (با دکمه برگشت) ---
 @dp.message(F.text == "💎 اشتراک‌های من")
 async def user_subs(message: types.Message):
     cursor.execute("SELECT plan_name, config, created_at FROM subscriptions WHERE user_id = ?", (message.from_user.id,))
     subs = cursor.fetchall()
     if not subs:
-        await message.answer("شما در حال حاضر هیچ اشتراک فعالی ندارید.")
+        await message.answer("شما در حال حاضر هیچ اشتراک فعالی ندارید.", reply_markup=get_close_keyboard())
         return
     text = "💎 **اشتراک‌های فعال شما:**\n\n"
     for s in subs:
         text += f"📦 پلن: {s[0]}\n🔑 کانفیگ: `{s[1]}`\n📅 تاریخ: {s[2]}\n-------------------\n"
-    await message.answer(text, parse_mode="Markdown")
+    await message.answer(text, reply_markup=get_close_keyboard(), parse_mode="Markdown")
 
-# --- شارژ حساب ---
+# --- ۴. شارژ حساب (با دکمه برگشت) ---
 @dp.message(F.text == "💰 شارژ حساب")
 async def charge_account(message: types.Message):
     kb = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="💬 ارتباط با پشتیبانی جهت ارسال فیش", url=f"https://t.me/{SUPPORT_ID}")]]
+        inline_keyboard=[
+            [InlineKeyboardButton(text="💬 ارسال فیش به پشتیبانی مالی", url=f"https://t.me/{SUPPORT_ID}")],
+            [InlineKeyboardButton(text="🔙 بستن پیام / بازگشت", callback_data="close_message")]
+        ]
     )
     await message.answer(
         f"💳 **افزایش موجودی و شارژ کیف پول**\n\n"
-        f"جهت شارژ حساب کاربری، مبلغ مورد نظر را به شماره کارت زیر واریز نمایید:\n\n"
+        f"جهت شارژ حساب کاربری، مبلغ مورد نظر را به شماره کارت زیر واریز فرمایید:\n\n"
         f"`{PAYMENT_CARD}`\n"
         f"به نام: **{CARD_HOLDER}**\n\n"
-        f"سپس تصویر فیش و شناسه عددی خود را از طریق دکمه زیر برای بخش مالی ارسال فرمایید 👇",
+        f"سپس تصویر فیش و شناسه عددی (`{message.from_user.id}`) خود را از طریق دکمه زیر برای پشتیبانی ارسال فرمایید 👇",
         reply_markup=kb,
         parse_mode="Markdown"
     )
 
-# --- پشتیبانی ---
+# --- ۵. پشتیبانی (با دکمه برگشت) ---
 @dp.message(F.text == "👥 پشتیبانی")
 async def support(message: types.Message):
     kb = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="💬 ارتباط با پشتیبانی", url=f"https://t.me/{SUPPORT_ID}")]]
+        inline_keyboard=[
+            [InlineKeyboardButton(text="💬 ارتباط با پشتیبانی فنی", url=f"https://t.me/{SUPPORT_ID}")],
+            [InlineKeyboardButton(text="🔙 بستن پیام / بازگشت", callback_data="close_message")]
+        ]
     )
-    await message.answer("👨‍💻 برای ارتباط مستقیم با کارشناسان فنی و پاسخگویی سریع، روی دکمه زیر کلیک فرمایید:", reply_markup=kb)
+    await message.answer("👨‍💻 برای ارتباط مستقیم با کارشناسان فنی و پشتیبانی، روی دکمه زیر کلیک فرمایید:", reply_markup=kb)
 
-# --- کانفیگ‌ها و آموزش اتصال ---
+# --- ۶. کانفیگ‌ها و آموزش اتصال (با دکمه برگشت) ---
 @dp.message(F.text == "⚙️ کانفیگ‌ها و آموزش اتصال")
 async def configs_tutorial(message: types.Message):
     kb = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="📢 عضویت در کانال آموزش و کانفیگ", url=CHANNEL_LINK)]]
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📢 عضویت در کانال آموزش و کانفیگ", url=CHANNEL_LINK)],
+            [InlineKeyboardButton(text="🔙 بستن پیام / بازگشت", callback_data="close_message")]
+        ]
     )
-    await message.answer("جهت مشاهده آموزش‌های اتصال (اندروید، آیفون، ویندوز) و دریافت نرم‌افزارهای مورد نیاز، روی دکمه زیر کلیک کنید:", reply_markup=kb)
+    await message.answer("جهت مشاهده آموزش‌های اتصال (اندروید، iOS، ویندوز) و دریافت آخرین برنامه‌ها، وارد کانال زیر شوید:", reply_markup=kb)
 
-# --- سوالات متداول ---
+# --- ۷. سوالات متداول (با دکمه برگشت) ---
 @dp.message(F.text == "❓ سوالات متداول")
 async def faq(message: types.Message):
     faq_text = (
-        "❓ **سوالات متداول کاربران:**\n\n"
-        "🔹 **پروتکل اتصال چیست؟**\nکانفیگ‌ها همگی V2Ray اختصاصی و بهینه‌سازی‌شده برای تمامی اپراتورها هستند.\n\n"
-        "🔹 **آیا بدون قطعی است؟**\nبله، سرورها دارای آی‌پی تمیز و سوییچ خودکار در زمان اختلال هستند.\n\n"
-        "🔹 **چگونه فعال می‌شود؟**\nپس از واریز و ارسال فیش، کانفیگ اختصاصی در کمتر از چند دقیقه تحویل داده می‌شود."
+        "❓ **سوالات متداول کاربران (FAQ):**\n\n"
+        "۱️⃣ **پروتکل اتصال سرورها چیست؟**\n"
+        "سرویس‌ها مبتنی بر جدیدترین پروتکل‌های رمزنگاری‌شده V2Ray (شامل VMess ،VLESS و Trojan) با قابلیت ضد فیلتر و دور زدن اختلالات شبکه هستند.\n\n"
+        "۲️⃣ **اشتراک‌ها چند کاربره هستند؟**\n"
+        "تمام پلن‌ها به صورت استاندارد دوکاربره (همزمان) تعریف شده‌اند، مگر اینکه در توضیحات پلن قید دیگری شده باشد.\n\n"
+        "۳️⃣ **آیا این سرویس برای گیمینگ مناسب است؟**\n"
+        "بله، به دلیل بهره‌گیری از سرورهای اختصاصی و تانل مستقیم، پینگ سرورها بسیار پایین و پایدار بوده و مناسب بازی‌های آنلاین است.\n\n"
+        "۴️⃣ **نحوه محاسبه حجم و زمان چگونه است؟**\n"
+        "اعتبار زمانی و حجمی اشتراک از اولین اتصال موفقیت‌آمیز شما به سرور محاسبه و آغاز می‌شود.\n\n"
+        "۵️⃣ **روی چه سیستم‌عامل‌هایی قابل استفاده است؟**\n"
+        "این سرویس روی کلیه سیستم‌عامل‌ها اعم از اندروید (v2rayNG)، آیفون/iOS (V2Box, Streisand)، ویندوز (v2rayN, Nekoray) و مک پشتیبانی می‌شود.\n\n"
+        "۶️⃣ **در صورت بروز قطعی یا اختلال چه اتفاقی می‌افتد؟**\n"
+        "سیستم دارای سوییچ هوشمند و مانیتورینگ ۲۴ ساعته است. در صورت اختلال اینترنت، سرورها سریعاً جایگزین می‌شوند.\n\n"
+        "۷️⃣ **تحویل سرویس پس از خرید چقدر طول می‌کشد؟**\n"
+        "پس از ارسال فیش واریزی در ربات، ظرف چند دقیقه تایید شده و لینک اشتراک/کانفیگ اختصاصی برای شما ارسال می‌گردد.\n\n"
+        "۸️⃣ **آیا امکان تمدید همان کانفیگ قبلی وجود دارد؟**\n"
+        "بله، پس از پایان دوره می‌توانید بدون نیاز به تغییر لینک و کانفیگ، همان سرویس قبلی را تمدید فرمایید.\n\n"
+        "۹️⃣ **آیا آی‌پی سرورها ثابت و مناسب ترید و صرافی است؟**\n"
+        "بله، آی‌پی‌های ارائه‌شده تمیز، اختصاصی و بدون ریسک بلاک بوده و برای صرافی‌های خارجی امن است.\n\n"
+        "🔟 **چگونه نرم‌افزارها و آموزش اتصال را دریافت کنم؟**\n"
+        "با انتخاب دکمه «⚙️ کانفیگ‌ها و آموزش اتصال» در منوی اصلی یا ورود به کانال تلگرام، به کلیه فایل‌ها دسترسی خواهید داشت.\n\n"
+        "۱️⃣۱️⃣ **پشتیبانی در چه ساعاتی پاسخگو است؟**\n"
+        "تیم پشتیبانی در تمام روزهای هفته از ساعت ۹ صبح تا ۱۲ شب آماده پاسخگویی و راهنمایی شما عزیزان می‌باشد."
     )
-    await message.answer(faq_text, parse_mode="Markdown")
+    await message.answer(faq_text, reply_markup=get_close_keyboard(), parse_mode="Markdown")
 
 # --- وب‌سرور داخلی aiohttp برای Render ---
 async def handle_health_check(request):
