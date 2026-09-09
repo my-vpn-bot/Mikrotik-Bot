@@ -1,6 +1,8 @@
 import os
+import sys
 import logging
 import asyncio
+import sqlite3
 import jdatetime
 from aiohttp import web
 from aiogram import Bot, Dispatcher, F, types
@@ -8,25 +10,61 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
     KeyboardButton,
     InlineKeyboardMarkup,
-    InlineKeyboardButton
+    InlineKeyboardButton,
+    ContentType
 )
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 
-# --- لاگ‌ها و پیکربندی متغیرهای محیطی ---
+# --- تنظیمات لاگینگ ---
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
+# --- متغیرهای محیطی Render ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = os.getenv("ADMIN_ID", "6278059256")
+ADMIN_ID = int(os.getenv("ADMIN_ID", "6278059256"))
 PAYMENT_CARD = os.getenv("PAYMENT_CARD", "6104338904607443")
-SUPPORT_ID = os.getenv("SUPPORT_ID", "aL2tp1Support")
+CARD_HOLDER = os.getenv("CARD_HOLDER", "رحیمی")
+SUPPORT_ID = os.getenv("SUPPORT_ID", "aL2tp1Support").lstrip("@")
 CHANNEL_LINK = os.getenv("CHANNEL_LINK", "https://t.me/L2tp_vpn402")
 PORT = int(os.getenv("PORT", 10000))
+
+PLAN1_PRICE = os.getenv("PLAN1_PRICE", "۲۵۰,۰۰۰")
+PLAN2_PRICE = os.getenv("PLAN2_PRICE", "۴۰۰,۰۰۰")
+PLAN3_PRICE = os.getenv("PLAN3_PRICE", "۶۰۰,۰۰۰")
+
+# --- دیتابیس SQLite ---
+conn = sqlite3.connect("bot_database.db", check_same_thread=False)
+cursor = conn.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS users (
+    user_id INTEGER PRIMARY KEY,
+    full_name TEXT,
+    username TEXT,
+    balance INTEGER DEFAULT 0
+)
+""")
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    plan_name TEXT,
+    config TEXT,
+    created_at TEXT
+)
+""")
+conn.commit()
+
+# --- ماشین وضعیت (FSM) ---
+class PaymentStates(StatesGroup):
+    waiting_for_receipt = State()
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
-# --- کیبورد اصلی (۴ ردیف ثابت و دقیق طبق دستور مهندس آرشاوین) ---
+# --- کیبورد اصلی (۴ ردیف ثابت) ---
 def get_main_keyboard():
     return ReplyKeyboardMarkup(
         keyboard=[
@@ -38,113 +76,194 @@ def get_main_keyboard():
         resize_keyboard=True
     )
 
-# --- تبدیل ارقام به فارسی ---
 def to_persian_digits(text: str) -> str:
     persian_digits = {'0': '۰', '1': '۱', '2': '۲', '3': '۳', '4': '۴', '5': '۵', '6': '۶', '7': '۷', '8': '۸', '9': '۹'}
-    for en_d, fa_d in persian_digits.items():
-        text = text.replace(en_d, fa_d)
+    for en, fa in persian_digits.items():
+        text = str(text).replace(en, fa)
     return text
 
-# --- هندلر استارت و خوش‌آمدگویی کامل و سنتی ---
+# --- هندلر /start ---
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
-    user_full_name = message.from_user.full_name or "کاربر گرامی"
-    
-    # دریافت زمان و تاریخ دقیق شمسی
+    user = message.from_user
+    cursor.execute("INSERT OR IGNORE INTO users (user_id, full_name, username) VALUES (?, ?, ?)",
+                   (user.id, user.full_name, user.username or ""))
+    conn.commit()
+
     now = jdatetime.datetime.now()
     day_name = now.strftime("%A")
     date_formatted = to_persian_digits(now.strftime("%d %B %Y"))
     time_formatted = to_persian_digits(now.strftime("%H:%M:%S"))
-    
+
     welcome_text = (
-        f"سلام {user_full_name} عزیز، به ربات هوشمند فروش و مدیریت سرویس خوش آمدید 🌹\n\n"
+        f"سلام {user.full_name} عزیز، به ربات هوشمند سرویس V2Ray خوش آمدید 🌹\n\n"
         f"📅 امروز: {day_name}، {date_formatted}\n"
-        f"⏰ ساعت دقیق: {time_formatted}\n\n"
-        f"🛡 **سرویس اینترنت آزاد و ضد فیلتر با پروتکل پرسرعت V2Ray**\n"
-        f"⚡ پایداری بی‌نظیر، پینگ فوق‌العاده پایین، مناسب وب‌گردی، ترید و گیمینگ حرفه‌ای.\n"
-        f"🌐 قابلیت اتصال بر روی تمامی سیستم‌عامل‌ها (اندروید، iOS، ویندوز، لینوکس و مک).\n\n"
-        f"از منوی زیر جهت خرید اشتراک، دریافت کانفیگ‌ها، مشاهده وضعیت حساب و پشتیبانی استفاده نمایید 👇"
+        f"⏰ ساعت: {time_formatted}\n\n"
+        f"🛡 ارائه قدرتمندترین کانفیگ‌های اختصاصی V2Ray با پینگ مناسب و سرعت نامحدود.\n"
+        f"از منوی زیر جهت خرید یا مدیریت اشتراک‌های خود استفاده فرمایید 👇"
     )
     await message.answer(welcome_text, reply_markup=get_main_keyboard(), parse_mode="Markdown")
 
-# --- هندلر سوالات متداول (FAQ کامل بر اساس موارد توافق‌شده) ---
-@dp.message(F.text == "❓ سوالات متداول")
-async def faq_handler(message: types.Message):
-    faq_text = (
-        "📌 **سوالات متداول کاربران (FAQ):**\n\n"
-        "۱️⃣ **پروتکل مورد استفاده چیست؟**\n"
-        "🔹 تمامی کانفیگ‌ها بر بستر پروتکل امن و پرسرعت **V2Ray** (با متدهای Vless / Vmess / Trojan) ارائه می‌شوند که بالاترین مقاومت را در برابر اختلالات دارند.\n\n"
-        "۲️⃣ **تعداد کاربر همزمان چند نفر است؟**\n"
-        "🔹 اشتراک‌های اختصاصی به صورت تک‌کاربره و چندکاربره (طبق پلن خریداری‌شده) بدون افت سرعت قابل استفاده هستند.\n\n"
-        "۳️⃣ **آیا برای گیمینگ و ترید مناسب است؟**\n"
-        "🔹 بله، سرورها دارای پینگ بسیار پایین (Low Ping) و بدون نوسان (Jitter) هستند و برای بازی‌های آنلاین و ترید کاملاً بهینه‌سازی شده‌اند.\n\n"
-        "۴️⃣ **حجم مصرفی به چه صورت محاسبه می‌شود؟**\n"
-        "🔹 حجم دانلود و آپلود کاملاً واقعی و شفاف در بخش «اطلاعات حساب» قابل پیگیری و بررسی لحظه‌ای است.\n\n"
-        "۵️⃣ **روی چه سیستم‌عامل‌هایی کار می‌کند؟**\n"
-        "🔹 تمامی سیستم‌عامل‌ها اعم از Android (با نرم‌افزارهای v2rayNG/NekoBox)، iOS (با v2box/Streisand)، ویندوز (v2rayN/NekoRay) و macOS.\n\n"
-        "۶️⃣ **در صورت قطعی یا مسدودی چه اتفاقی می‌افتد؟**\n"
-        "🔹 سرورها مجهز به سیستم سوییچ خودکار و بک‌آپ هستند و در صورت هرگونه اختلال زیرساختی، کانفیگ‌های جایگزین بلافاصله در کانال و ربات آپدیت می‌شوند.\n\n"
-        "۷️⃣ **چگونه با پشتیبانی در ارتباط باشم؟**\n"
-        f"🔹 پشتیبانی ۲۴ ساعته از طریق دکمه اختصاصی در ربات یا پیام به آیدی @{SUPPORT_ID.lstrip('@')} فعال است."
-    )
-    await message.answer(faq_text, parse_mode="Markdown")
-
-# --- هندلر کانفیگ‌ها و آموزش اتصال (همراه با لینک شیشه‌ای کانال) ---
-@dp.message(F.text == "⚙️ کانفیگ‌ها و آموزش اتصال")
-async def config_handler(message: types.Message):
-    inline_kb = InlineKeyboardMarkup(
+# --- منوی خرید اشتراک ---
+@dp.message(F.text == "🛒 خرید اشتراک")
+async def buy_plan_menu(message: types.Message):
+    kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="📢 ورود به کانال کانفیگ و آموزش‌ها", url=CHANNEL_LINK)]
+            [InlineKeyboardButton(text=f"پلن ۱: ۳۰ گیگ ۱ ماهه ({PLAN1_PRICE} تومان)", callback_data="buy_plan_1")],
+            [InlineKeyboardButton(text=f"پلن ۲: ۶۰ گیگ ۲ ماهه ({PLAN2_PRICE} تومان)", callback_data="buy_plan_2")],
+            [InlineKeyboardButton(text=f"پلن ۳: ۳ ماهه نامحدود ({PLAN3_PRICE} تومان)", callback_data="buy_plan_3")]
         ]
     )
-    caption = (
-        "⚙️ **راهنمای اتصال و کانفیگ‌های اختصاصی V2Ray**\n\n"
-        "برای دریافت جدیدترین نرم‌افزارهای اتصال، فیلم‌های آموزشی گام‌به‌گام (برای آیفون، اندروید و کامپیوتر) و آخرین اطلاعیه‌های سرور، روی دکمه شیشه‌ای زیر کلیک کرده و وارد کانال رسمی ما شوید 👇"
-    )
-    await message.answer(caption, reply_markup=inline_kb, parse_mode="Markdown")
+    await message.answer("📦 لطفاً پلن V2Ray مورد نظر خود را انتخاب کنید:", reply_markup=kb)
 
-# --- هندلر پشتیبانی ---
-@dp.message(F.text == "👥 پشتیبانی")
-async def support_handler(message: types.Message):
-    clean_id = SUPPORT_ID.lstrip('@')
-    inline_kb = InlineKeyboardMarkup(
+@dp.callback_query(F.data.startswith("buy_plan_"))
+async def process_plan_choice(callback: types.CallbackQuery, state: FSMContext):
+    plan_id = callback.data.split("_")[2]
+    plans = {
+        "1": ("پلن ۱ (۳۰ گیگ یک‌ماهه)", PLAN1_PRICE),
+        "2": ("پلن ۲ (۶۰ گیگ دوماهه)", PLAN2_PRICE),
+        "3": ("پلن ۳ (سه‌ماهه نامحدود)", PLAN3_PRICE)
+    }
+    name, price = plans[plan_id]
+    await state.update_data(selected_plan=name, plan_price=price)
+    
+    text = (
+        f"💳 خرید: **{name}**\n"
+        f"مبلغ قابل پرداخت: **{price} تومان**\n\n"
+        f"شماره کارت:\n`{PAYMENT_CARD}`\n"
+        f"به نام: **{CARD_HOLDER}**\n\n"
+        f"⚠️ پس از واریز، تصویر فیش پرداخت خود را در همین بخش ارسال نمایید:"
+    )
+    await callback.message.answer(text, parse_mode="Markdown")
+    await state.set_state(PaymentStates.waiting_for_receipt)
+    await callback.answer()
+
+# --- دریافت و ارسال فیش به ادمین ---
+@dp.message(PaymentStates.waiting_for_receipt, F.content_type == ContentType.PHOTO)
+async def process_receipt(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    plan_name = data.get("selected_plan", "اشتراک")
+    price = data.get("plan_price", "نامشخص")
+    photo_id = message.photo[-1].file_id
+
+    admin_kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💬 ارسال پیام به پشتیبانی", url=f"https://t.me/{clean_id}")]
+            [
+                InlineKeyboardButton(text="✅ تایید و تحویل", callback_data=f"adm_ok_{message.from_user.id}"),
+                InlineKeyboardButton(text="❌ رد درخواست", callback_data=f"adm_no_{message.from_user.id}")
+            ]
         ]
     )
+    
+    admin_caption = (
+        f"🧾 **فیش واریزی جدید**\n\n"
+        f"👤 کاربر: {message.from_user.full_name} (`{message.from_user.id}`)\n"
+        f"آیدی: @{message.from_user.username or 'ندارد'}\n"
+        f"📦 پلن انتخابی: {plan_name}\n"
+        f"💰 مبلغ: {price} تومان"
+    )
+    
+    await bot.send_photo(chat_id=ADMIN_ID, photo=photo_id, caption=admin_caption, reply_markup=admin_kb, parse_mode="Markdown")
+    await message.answer("✅ فیش شما با موفقیت برای مدیریت ارسال شد. پس از بررسی و تایید، اشتراک شما ارسال می‌گردد.", reply_markup=get_main_keyboard())
+    await state.clear()
+
+# --- مدیریت تایید/رد فیش ---
+@dp.callback_query(F.data.startswith("adm_ok_"))
+async def admin_approve(callback: types.CallbackQuery):
+    user_id = int(callback.data.split("_")[2])
+    await bot.send_message(user_id, "✅ پرداخت شما تایید شد.\nکانفیگ اختصاصی شما به‌زودی از سمت پشتیبانی ارسال می‌گردد.")
+    await callback.message.edit_caption(caption=callback.message.caption + "\n\n🟢 **تایید شد.**")
+    await callback.answer()
+
+@dp.callback_query(F.data.startswith("adm_no_"))
+async def admin_reject(callback: types.CallbackQuery):
+    user_id = int(callback.data.split("_")[2])
+    await bot.send_message(user_id, "❌ فیش واریزی شما تایید نشد. لطفاً در صورت مغایرت با پشتیبانی در تماس باشید.")
+    await callback.message.edit_caption(caption=callback.message.caption + "\n\n🔴 **رد شد.**")
+    await callback.answer()
+
+# --- اطلاعات حساب و اشتراک‌ها ---
+@dp.message(F.text == "📊 اطلاعات حساب")
+async def user_info(message: types.Message):
+    cursor.execute("SELECT balance FROM users WHERE user_id = ?", (message.from_user.id,))
+    row = cursor.fetchone()
+    balance = to_persian_digits(row[0]) if row else "۰"
     await message.answer(
-        f"👨‍💻 **واحد پشتیبانی و پاسخگویی فنی**\n\n"
-        f"در صورت بروز هرگونه سوال، مشکل در اتصال یا نیاز به راهنمایی با پشتیبانی ما در ارتباط باشید:\n"
-        f"شناسه پشتیبانی: @{clean_id}",
-        reply_markup=inline_kb,
+        f"👤 شناسه کاربری: `{message.from_user.id}`\n"
+        f"نام: {message.from_user.full_name}\n"
+        f"💰 موجودی حساب: {balance} تومان",
         parse_mode="Markdown"
     )
 
-# --- وب‌سرور داخلی aiohttp برای Render (جلوگیری قطعی از Port Scan Timeout و خطای ۵۰۳) ---
+@dp.message(F.text == "💎 اشتراک‌های من")
+async def user_subs(message: types.Message):
+    cursor.execute("SELECT plan_name, config, created_at FROM subscriptions WHERE user_id = ?", (message.from_user.id,))
+    subs = cursor.fetchall()
+    if not subs:
+        await message.answer("شما در حال حاضر هیچ اشتراک فعالی ندارید.")
+        return
+    text = "💎 **اشتراک‌های فعال شما:**\n\n"
+    for s in subs:
+        text += f"📦 پلن: {s[0]}\n🔑 کانفیگ: `{s[1]}`\n📅 تاریخ: {s[2]}\n-------------------\n"
+    await message.answer(text, parse_mode="Markdown")
+
+# --- شارژ حساب ---
+@dp.message(F.text == "💰 شارژ حساب")
+async def charge_account(message: types.Message):
+    await message.answer(
+        f"💳 جهت شارژ کیف پول خود، مبلغ را به کارت زیر واریز نمایید:\n\n"
+        f"`{PAYMENT_CARD}`\n"
+        f"به نام: **{CARD_HOLDER}**\n\n"
+        f"سپس تصویر فیش و مبلغ را برای پشتیبانی (@{SUPPORT_ID}) ارسال کنید.",
+        parse_mode="Markdown"
+    )
+
+# --- پشتیبانی ---
+@dp.message(F.text == "👥 پشتیبانی")
+async def support(message: types.Message):
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="💬 ارتباط با پشتیبانی", url=f"https://t.me/{SUPPORT_ID}")]]
+    )
+    await message.answer(f"جهت پاسخگویی به سوالات و مشکلات به شناسه @{SUPPORT_ID} پیام دهید:", reply_markup=kb)
+
+# --- کانفیگ‌ها و آموزش اتصال ---
+@dp.message(F.text == "⚙️ کانفیگ‌ها و آموزش اتصال")
+async def configs_tutorial(message: types.Message):
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="📢 عضویت در کانال آموزش و کانفیگ", url=CHANNEL_LINK)]]
+    )
+    await message.answer("جهت مشاهده آموزش‌های اتصال (اندروید، آیفون، ویندوز) و دریافت نرم‌افزارها روی دکمه زیر کلیک کنید:", reply_markup=kb)
+
+# --- سوالات متداول ---
+@dp.message(F.text == "❓ سوالات متداول")
+async def faq(message: types.Message):
+    faq_text = (
+        "❓ **سوالات متداول کاربران:**\n\n"
+        "🔹 **پروتکل اتصال چیست؟**\nکانفیگ‌ها همگی V2Ray اختصاصی و بهینه‌سازی‌شده برای تمامی اپراتورها هستند.\n\n"
+        "🔹 **آیا بدون قطعی است؟**\nبله، سرورها دارای آی‌پی تمیز و سوییچ خودکار در زمان اختلال هستند.\n\n"
+        "🔹 **چگونه فعال می‌شود؟**\nپس از واریز و ارسال فیش، کانفیگ اختصاصی در کمتر از چند دقیقه تحویل داده می‌شود."
+    )
+    await message.answer(faq_text, parse_mode="Markdown")
+
+# --- وب‌سرور داخلی aiohttp برای Render ---
 async def handle_health_check(request):
-    return web.Response(text="Bot is healthy and running on Render Web Service.", status=200)
+    return web.Response(text="Bot is healthy.", status=200)
 
 async def run_web_server():
     app = web.Application()
     app.router.add_get('/', handle_health_check)
     app.router.add_get('/health', handle_health_check)
-    
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', PORT)
     await site.start()
-    logging.info(f"🚀 Internal Web Server listening on port {PORT}")
+    logging.info(f"🚀 Render health server running on port {PORT}")
 
 # --- نقطه اجرای اصلی ---
 async def main():
-    # ۱. اجرای وب‌سرور داخلی همگام با چرخه aiogram
     await run_web_server()
-    
-    # ۲. حذف وب‌هوک‌های قبلی در صورت وجود جهت جلوگیری از TelegramConflictError
     await bot.delete_webhook(drop_pending_updates=True)
-    
-    # ۳. شروع دریافت پیام‌ها
-    logging.info("🤖 Bot polling started successfully.")
+    logging.info("🤖 Bot polling started.")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
