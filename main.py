@@ -2,18 +2,14 @@ import os
 import asyncio
 import logging
 from aiohttp import web
-from aiogram import Bot, Dispatcher, types, F
+from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
-# تنظیمات لاگ
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-# دریافت تنظیمات از رندر
+# متغیرهای محیطی رندر
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = os.getenv("ADMIN_ID")
 SUPPORT_ID = os.getenv("SUPPORT_ID", "al2tpiSupport")
@@ -21,113 +17,149 @@ PAYMENT_CARD = os.getenv("PAYMENT_CARD", "")
 PAYMENT_NAME = os.getenv("PAYMENT_NAME", "")
 PORT = int(os.getenv("PORT", 10000))
 
-# تنظیم نام کاربری پشتیبانی با علامت @
 if SUPPORT_ID and not SUPPORT_ID.startswith("@"):
     SUPPORT_USERNAME = f"@{SUPPORT_ID}"
 else:
     SUPPORT_USERNAME = SUPPORT_ID
 
 if not BOT_TOKEN:
-    logger.error("BOT_TOKEN یافت نشد!")
-    raise SystemExit("BOT_TOKEN is not set in environment variables.")
+    raise SystemExit("BOT_TOKEN is not set.")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# کیبورد اصلی
-def get_main_keyboard():
-    keyboard = [
-        [
-            InlineKeyboardButton(text="🛒 خرید اشتراک", callback_data="buy_sub"),
-            InlineKeyboardButton(text="👤 حساب کاربری", callback_data="my_account")
-        ],
-        [
-            InlineKeyboardButton(text="🛠 پشتیبانی", callback_data="support"),
-            InlineKeyboardButton(text="📋 تعرفه‌ها", callback_data="tariffs")
-        ]
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+# ─── پلن‌ها ───
+PLANS = {
+    "plan_1m": {"title": "🥉 پلن ۱ ماهه", "volume": "۳۰ گیگابایت", "days": "۳۰ روز", "price": "۳۵۰,۰۰۰ تومان"},
+    "plan_2m": {"title": "🥈 پلن ۲ ماهه", "volume": "۶۰ گیگابایت", "days": "۶۰ روز", "price": "۶۵۰,۰۰۰ تومان"},
+    "plan_3m": {"title": "🥇 پلن ۳ ماهه", "volume": "۹۰ گیگابایت", "days": "۹۰ روز", "price": "۹۰۰,۰۰۰ تومان"},
+}
 
-# کیبورد بازگشت
-def get_back_keyboard():
-    keyboard = [
+# ─── کیبوردها ───
+def kb_main():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🛒 خرید اشتراک", callback_data="buy_sub"),
+         InlineKeyboardButton(text="💎 تعرفه‌ها", callback_data="tariffs")],
+        [InlineKeyboardButton(text="👤 حساب کاربری", callback_data="my_account"),
+         InlineKeyboardButton(text="🎁 تست رایگان", callback_data="free_test")],
+        [InlineKeyboardButton(text="🛠 پشتیبانی", callback_data="support")],
+    ])
+
+def kb_back():
+    return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔙 بازگشت به منوی اصلی", callback_data="main_menu")]
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+    ])
 
-# شروع ربات
+def kb_plans():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🥉 ۱ ماهه | ۳۰ گیگ | ۳۵۰ هزار", callback_data="plan_1m")],
+        [InlineKeyboardButton(text="🥈 ۲ ماهه | ۶۰ گیگ | ۶۵۰ هزار", callback_data="plan_2m")],
+        [InlineKeyboardButton(text="🥇 ۳ ماهه | ۹۰ گیگ | ۹۰۰ هزار", callback_data="plan_3m")],
+        [InlineKeyboardButton(text="🔙 بازگشت", callback_data="main_menu")],
+    ])
+
+def kb_pay(plan_key):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📩 ارسال رسید به پشتیبانی", url=f"https://t.me/{SUPPORT_USERNAME.lstrip('@')}")],
+        [InlineKeyboardButton(text="🔙 بازگشت به پلن‌ها", callback_data="buy_sub")],
+    ])
+
+# ─── هندلرها ───
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
-    welcome_text = (
+    await message.answer(
         f"👋 سلام {message.from_user.first_name} عزیز!\n\n"
-        "به ربات مدیریت و خرید سرویس خوش آمدید.\n"
-        "از دکمه‌های زیر جهت ثبت سفارش یا مدیریت اکانت استفاده کنید:"
+        "⚡ به فروشگاه سرویس **L2TP VPN** خوش اومدی.\n\n"
+        "🚀 اینترنت آزاد، پرسرعت و پایدار با پشتیبانی ۲۴/۷\n"
+        "برای شروع یکی از گزینه‌های زیر رو انتخاب کن:",
+        parse_mode="Markdown",
+        reply_markup=kb_main()
     )
-    await message.answer(welcome_text, reply_markup=get_main_keyboard())
 
-# مدیریت کلیک روی دکمه‌ها
 @dp.callback_query(F.data == "main_menu")
-async def process_main_menu(callback: CallbackQuery):
+async def cb_main(callback: CallbackQuery):
     await callback.message.edit_text(
-        "منوی اصلی ربات:",
-        reply_markup=get_main_keyboard()
-    )
+        "🏠 **منوی اصلی**\n\nیکی از گزینه‌ها رو انتخاب کن:",
+        parse_mode="Markdown", reply_markup=kb_main())
     await callback.answer()
 
 @dp.callback_query(F.data == "tariffs")
-async def process_tariffs(callback: CallbackQuery):
-    tariffs_text = (
-        "📋 **لیست پلن‌ها و تعرفه‌ها:**\n\n"
-        "🔹 **پلن ۱ ماهه:** ۳۰ روزه - ۳۰ گیگابایت\n"
-        "🔹 **پلن ۲ ماهه:** ۶۰ روزه - ۶۰ گیگابایت\n"
-        "🔹 **پلن ۳ ماهه:** ۹۰ روزه - ۱۰۰ گیگابایت\n\n"
-        "جهت سفارش و پرداخت، گزینه «خرید اشتراک» را انتخاب کنید."
+async def cb_tariffs(callback: CallbackQuery):
+    text = (
+        "💎 **تعرفه‌های سرویس:**\n\n"
+        "🥉 **پلن ۱ ماهه** — ۳۰ روز | ۳۰ گیگابایت\n"
+        "💰 قیمت: `۳۵۰,۰۰۰ تومان`\n\n"
+        "🥈 **پلن ۲ ماهه** — ۶۰ روز | ۶۰ گیگابایت\n"
+        "💰 قیمت: `۶۵۰,۰۰۰ تومان` (۱۵٪ مقرون‌به‌صرفه‌تر)\n\n"
+        "🥇 **پلن ۳ ماهه** — ۹۰ روز | ۹۰ گیگابایت\n"
+        "💰 قیمت: `۹۰۰,۰۰۰ تومان` ⭐ پرفروش‌ترین\n\n"
+        "✅ کیفیت خط ۱ گیگابیت | ✅ پشتیبانی ۲۴/۷ | ✅ تحویل آنی"
     )
-    await callback.message.edit_text(tariffs_text, parse_mode="Markdown", reply_markup=get_back_keyboard())
+    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=kb_plans())
     await callback.answer()
 
 @dp.callback_query(F.data == "buy_sub")
-async def process_buy(callback: CallbackQuery):
-    payment_info = (
-        "💳 **اطلاعات پرداخت و خرید اشتراک:**\n\n"
-        f"🔹 **شماره کارت:**\n`{PAYMENT_CARD}`\n\n"
-        f"🔹 **به نام:** {PAYMENT_NAME}\n\n"
-        "⚠️ **مراحل پس از واریز:**\n"
-        f"۱. تصویر رسید تراکنش را ذخیره کنید.\n"
-        f"۲. رسید را به پشتیبانی ارسال نمایید: {SUPPORT_USERNAME}\n"
-        "۳. کانفیگ سرویس پس از بررسی برای شما صادر خواهد شد."
+async def cb_buy(callback: CallbackQuery):
+    await callback.message.edit_text(
+        "🛒 **خرید اشتراک**\n\nپلن موردنظرت رو انتخاب کن:",
+        parse_mode="Markdown", reply_markup=kb_plans())
+    await callback.answer()
+
+@dp.callback_query(F.data.startswith("plan_"))
+async def cb_plan(callback: CallbackQuery):
+    plan = PLANS.get(callback.data)
+    if not plan:
+        await callback.answer("پلن یافت نشد!", show_alert=True)
+        return
+    text = (
+        f"{plan['title']}\n\n"
+        f"📦 حجم: **{plan['volume']}**\n"
+        f"⏳ مدت: **{plan['days']}**\n"
+        f"💰 قیمت: **{plan['price']}**\n\n"
+        f"💳 **پرداخت به کارت زیر:**\n"
+        f"➖➖➖➖➖➖➖➖➖\n"
+        f"`{PAYMENT_CARD}`\n"
+        f"👤 به نام: **{PAYMENT_NAME}**\n"
+        f"➖➖➖➖➖➖➖➖➖\n\n"
+        "📝 پس از واریز، رسید رو برای پشتیبانی بفرست تا کانفیگ ظرف چند دقیقه تحویل داده بشه."
     )
-    await callback.message.edit_text(payment_info, parse_mode="Markdown", reply_markup=get_back_keyboard())
+    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=kb_pay(callback.data))
     await callback.answer()
 
 @dp.callback_query(F.data == "my_account")
-async def process_account(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    username = f"@{callback.from_user.username}" if callback.from_user.username else "ثبت نشده"
-    
-    account_text = (
-        "👤 **مشخصات کاربری شما:**\n\n"
-        f"🆔 شناسه عددی: `{user_id}`\n"
-        f"👤 نام کاربری: {username}\n"
-        "📊 وضعیت اشتراک: بدون سرویس فعال\n\n"
-        "برای خرید اشتراک جدید از منوی خرید اقدام فرمایید."
-    )
-    await callback.message.edit_text(account_text, parse_mode="Markdown", reply_markup=get_back_keyboard())
+async def cb_account(callback: CallbackQuery):
+    username = f"@{callback.from_user.username}" if callback.from_user.username else "ندارد"
+    await callback.message.edit_text(
+        "👤 **حساب کاربری شما:**\n\n"
+        f"🆔 شناسه: `{callback.from_user.id}`\n"
+        f"👤 یوزرنیم: {username}\n"
+        f"📊 اشتراک فعال: ندارد\n\n"
+        "برای خرید، از دکمه‌ی «🛒 خرید اشتراک» استفاده کن.",
+        parse_mode="Markdown", reply_markup=kb_back())
+    await callback.answer()
+
+@dp.callback_query(F.data == "free_test")
+async def cb_free(callback: CallbackQuery):
+    await callback.message.edit_text(
+        "🎁 **تست رایگان ۱ گیگابایت**\n\n"
+        "برای دریافت کانفیگ تست، به پشتیبانی پیام بده:\n"
+        f"🔗 {SUPPORT_USERNAME}",
+        parse_mode="Markdown", reply_markup=kb_back())
     await callback.answer()
 
 @dp.callback_query(F.data == "support")
-async def process_support(callback: CallbackQuery):
-    support_text = (
-        "🛠 **واحد پشتیبانی و ارتباط با ما:**\n\n"
-        "برای پیگیری سفارشات، ارسال فیش واریزی و پاسخ به سوالات فنی:\n\n"
-        f"🔗 آیدی تلگرام: {SUPPORT_USERNAME}"
-    )
-    await callback.message.edit_text(support_text, reply_markup=get_back_keyboard())
+async def cb_support(callback: CallbackQuery):
+    await callback.message.edit_text(
+        "🛠 **پشتیبانی ۲۴/۷**\n\n"
+        "برای پیگیری سفارش، ارسال رسید یا رفع مشکل فنی:\n"
+        f"🔗 آیدی پشتیبانی: {SUPPORT_USERNAME}\n\n"
+        "⏱ میانگین پاسخ‌گویی: کمتر از ۱۰ دقیقه",
+        parse_mode="Markdown", reply_markup=kb_back())
     await callback.answer()
 
-# وب‌سرور داخلی برای Render (Health Check)
+# ─── وب‌سرور Health Check ───
 async def handle_ping(request):
-    return web.Response(text="Bot is running smoothly!", status=200)
+    return web.Response(text="Bot is alive!", status=200)
 
 async def start_web_server():
     app = web.Application()
@@ -135,13 +167,10 @@ async def start_web_server():
     app.router.add_get("/health", handle_ping)
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", PORT)
-    await site.start()
-    logger.info(f"Web server started on port {PORT}")
+    await web.TCPSite(runner, "0.0.0.0", PORT).start()
+    logger.info(f"Web server on port {PORT}")
 
-# تابع اصلی اجرای ربات
 async def main():
-    logger.info("Initializing Mikrotik-Bot...")
     await start_web_server()
     await bot.delete_webhook(drop_pending_updates=True)
     logger.info("Starting Polling...")
@@ -151,4 +180,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        logger.info("Bot execution terminated.")
+        pass
