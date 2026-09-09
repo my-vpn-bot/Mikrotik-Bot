@@ -23,7 +23,7 @@ CARD_NUMBER = os.environ.get("CARD_NUMBER", "6104-XXXX-XXXX-XXXX")
 CARD_HOLDER = os.environ.get("CARD_HOLDER", "نام صاحب کارت")
 SUPPORT_USERNAME = os.environ.get("SUPPORT_USERNAME", "admin")
 
-# ---------------- تعرفه‌ها (بر اساس درخواست شما) ----------------
+# ---------------- تعرفه‌ها ----------------
 PLANS = {
     "plan_1m": {"title": "پلن ۱ ماهه", "gb": 30, "days": 30, "price": 250000},
     "plan_2m": {"title": "پلن ۲ ماهه", "gb": 60, "days": 60, "price": 400000},
@@ -32,55 +32,35 @@ PLANS = {
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 
-
 class BuyState(StatesGroup):
     waiting_receipt = State()
 
-
-def fa_date():
-    """تاریخ شمسی تهران را برمی‌گرداند."""
-    try:
-        import jdatetime
-        return jdatetime.datetime.now().strftime("%Y/%m/%d")
-    except ImportError:
-        return ""
-
-
 def header():
-    """هدر پیام‌ها شامل تاریخ شمسی را ایجاد می‌کند."""
-    d = fa_date()
-    if d:
-        return f"📅 {d}\n━━━━━━━━━━━━━━━\n"
-    return ""
-
+    return "📅 وضعیت فعلی ربات\n━━━━━━━━━━━━━━━\n"
 
 # ---------------- کیبوردها ----------------
 def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🛒 خرید اشتراک\n✨ لینک اختصاصی بگیرید", callback_data="buy")],
-        [InlineKeyboardButton(text="🎁 تست رایگان\n⚡ ۱ گیگ برای ۲۴ ساعت", callback_data="trial")],
-        [InlineKeyboardButton(text="👤 پروفایل من\n📊 وضعیت اشتراک", callback_data="profile")],
-        [InlineKeyboardButton(text="🎧 پشتیبانی\n💬 ارتباط با ادمین", callback_data="support")],
+        [InlineKeyboardButton(text="🛒 خرید اشتراک", callback_data="buy")],
+        [InlineKeyboardButton(text="🎁 تست رایگان", callback_data="trial")],
+        [InlineKeyboardButton(text="👤 پروفایل من", callback_data="profile")],
+        [InlineKeyboardButton(text="🎧 پشتیبانی", callback_data="support")],
     ])
-
 
 def plans_menu():
     rows = []
     for key, p in PLANS.items():
         rows.append([InlineKeyboardButton(
-            text=f"🏷 {p['title']}\n💾 {p['gb']} گیگ | 💰 {p['price']:,} تومان",
+            text=f"{p['title']} | {p['gb']} گیگ | {p['price']:,} تومان",
             callback_data=f"plan:{key}",
         )])
-    rows.append([InlineKeyboardButton(text="🔙 بازگشت\n🏠 منوی اصلی", callback_data="menu")])
+    rows.append([InlineKeyboardButton(text="🔙 بازگشت", callback_data="menu")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
-
 def back_menu():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔙 بازگشت\n🏠 منوی اصلی", callback_data="menu")],
-    ])
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 بازگشت", callback_data="menu")]])
 
-
+# ---------------- هندلرها ----------------
 async def safe_edit(call: CallbackQuery, text: str, kb: InlineKeyboardMarkup):
     try:
         await call.message.edit_text(text, reply_markup=kb)
@@ -88,82 +68,81 @@ async def safe_edit(call: CallbackQuery, text: str, kb: InlineKeyboardMarkup):
         await call.message.answer(text, reply_markup=kb)
     await call.answer()
 
-
-# ---------------- هندلرها ----------------
 async def cmd_start(message: Message, state: FSMContext):
     await state.clear()
-    text = (
-        header()
-        + "👋 <b{سلام، خوش آمدید!</b>\n\n"
-        "🔒 <i>ربات فروش اشتراک اختصاصی VPN</i>\n"
-        "⚡ سرعت بالا | 🛡 امنیت کامل | 🌍 IP ثابت\n\n"
-        "👇 از منوی زیر انتخاب کنید:"
-    )
-    await message.answer(text, reply_markup=main_menu())
-
+    await message.answer(header() + "سلام! خوش آمدید.\nیکی از موارد زیر را انتخاب کنید:", reply_markup=main_menu())
 
 async def cb_menu(call: CallbackQuery, state: FSMContext):
     await state.clear()
-    await safe_edit(call, header() + "🏠 <b>منوی اصلی</b>\n\n👇 انتخاب کنید:", main_menu())
-
+    await safe_edit(call, header() + "منوی اصلی:", main_menu())
 
 async def cb_buy(call: CallbackQuery, state: FSMContext):
     await state.clear()
-    lines = "\n".join(
-        f"• {p['title']} — {p['gb']} گیگ — <b>{p['price']:,} تومان</b>"
-        for p in PLANS.values()
-    )
-    await safe_edit(
-        call,
-        header() + "🛒 <b>تعرفه‌های اشتراک</b>\n\n" + lines + "\n\n👇 پلن مورد نظر را انتخاب کنید:",
-        plans_menu(),
-    )
-
+    await safe_edit(call, header() + "تعرفه‌های ما:", plans_menu())
 
 async def cb_plan(call: CallbackQuery, state: FSMContext):
     key = call.data.split(":", 1)[1]
     plan = PLANS.get(key)
-    if not plan:
-        await call.answer("⚠️ پلن نامعتبر است!", show_alert=True)
-        return
-
     await state.update_data(plan_key=key)
     await state.set_state(BuyState.waiting_receipt)
-
-    text = (
-        header()
-        + f"🛒 <b>{plan['title']}</b>\n\n"
-        f"💾 حجم: <b>{plan['gb']} گیگابایت</b>\n"
-        f"⏳ مدت: <b>{plan['days']} روز</b>\n"
-        f"💰 قیمت: <b>{plan['price']:,} تومان</b>\n\n"
-        "💳 کارت به کارت:\n"
-        f"<code>{CARD_NUMBER}</code>\n"
-        f"👤 به نام: <b>{CARD_HOLDER}</b>\n\n"
-        "📸 پس از پرداخت، <b>عکس رسید</b> را در همین چت ارسال کنید."
-    )
+    text = (f"خرید {plan['title']}\n"
+            f"مبلغ: {plan['price']:,} تومان\n"
+            f"شماره کارت: {CARD_NUMBER}\n"
+            f"به نام: {CARD_HOLDER}\n\n"
+            "لطفاً عکس فیش پرداختی را ارسال کنید.")
     await safe_edit(call, text, back_menu())
 
-
 async def on_receipt(message: Message, state: FSMContext):
-    data = await state.get_data()
-    plan_key = data.get("plan_key")
-    plan = PLANS.get(plan_key)
-
-    if not plan:
-        await state.clear()
-        await message.answer(
-            header() + "⚠️ خطا در پلن. لطفاً دوباره از منوی اصلی شروع کنید.",
-            reply_markup=main_menu(),
-        )
-        return
-
     if not message.photo:
-        await message.answer(header() + "📸 لطفاً فقط <b>عکس رسید پرداخت</b> را ارسال کنید.")
+        await message.answer("لطفاً فقط عکس رسید را بفرستید.")
         return
-
     await state.clear()
-    await message.answer_photo(
-        photo=message.photo[-1].file_id,
-        caption=(
-            header()
-            + "✅ <b>رسید شما دریافت شد!
+    await message.answer("رسید شما دریافت شد و در انتظار تایید ادمین است.")
+
+async def cb_trial(call: CallbackQuery, state: FSMContext):
+    await safe_edit(call, "سرویس تست رایگان فعلاً در دسترس نیست.", back_menu())
+
+async def cb_profile(call: CallbackQuery, state: FSMContext):
+    await safe_edit(call, "شما اشتراک فعالی ندارید.", back_menu())
+
+async def cb_support(call: CallbackQuery, state: FSMContext):
+    await safe_edit(call, f"پشتیبانی: {SUPPORT_USERNAME}", back_menu())
+
+# ---------------- اجرا ----------------
+def build_dp():
+    dp = Dispatcher(storage=MemoryStorage())
+    dp.message.register(cmd_start, CommandStart())
+    dp.message.register(on_receipt, BuyState.waiting_receipt)
+    dp.callback_query.register(cb_menu, F.data == "menu")
+    dp.callback_query.register(cb_buy, F.data == "buy")
+    dp.callback_query.register(cb_plan, F.data.startswith("plan:"))
+    dp.callback_query.register(cb_trial, F.data == "trial")
+    dp.callback_query.register(cb_profile, F.data == "profile")
+    dp.callback_query.register(cb_support, F.data == "support")
+    return dp
+
+async def run_webhook(dp, bot):
+    from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+    from aiohttp import web
+    base_url = os.environ.get("RENDER_EXTERNAL_URL")
+    webhook_path = "/webhook"
+    await bot.set_webhook(f"{base_url.rstrip('/')}{webhook_path}")
+    app = web.Application()
+    SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=webhook_path)
+    setup_application(app, dp, bot=bot)
+    port = int(os.environ.get("PORT", 8000))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    await web.TCPSite(runner, host="0.0.0.0", port=port).start()
+    await asyncio.Event().wait()
+
+async def main():
+    bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    dp = build_dp()
+    if os.environ.get("RENDER_EXTERNAL_URL"):
+        await run_webhook(dp, bot)
+    else:
+        await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
