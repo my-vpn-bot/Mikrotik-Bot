@@ -124,7 +124,7 @@ async def send_welcome(message: types.Message):
         f"📢 کانال اطلاع‌رسانی و آموزش: {CHANNEL_URL}\n\n"
         "👇 برای شروع، از منوی زیر گزینه مورد نظر خود را انتخاب کنید:"
     )
-    await message.answer(welcome_text, reply_markup=main_keyboard, parse_mode="Markdown")
+    
 
 @dp.message(F.text == "🛒 خرید اشتراک")
 async def show_plans(message: types.Message):
