@@ -46,7 +46,38 @@ PLANS = {
     "p3": {"name": "اشتراک ۳ ماهه (سه کاربره)", "price": "۶۰۰,۰۰۰ تومان"},
 }
 
-# ==================== توابع کمکی ====================
+# ==================== تبدیل تاریخ میلادی به هجری شمسی (جلالی) ====================
+def gregorian_to_jalali(gy, gm, gd):
+    g_d_m = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
+    if gm > 2:
+        gy2 = gy
+    else:
+        gy2 = gy - 1
+    days = 355666 + (365 * gy) + ((gy2 + 3) // 4) - ((gy2 + 99) // 100) + ((gy2 + 399) // 400) + gd + g_d_m[gm - 1]
+    jy = -1595 + (33 * (days // 12053))
+    days %= 12053
+    jy += 4 * (days // 1461)
+    days %= 1461
+    if days > 365:
+        jy += (days - 1) // 365
+        days = (days - 1) % 365
+    if days < 186:
+        jm = 1 + (days // 31)
+        jd = 1 + (days % 31)
+    else:
+        jm = 7 + ((days - 186) // 30)
+        jd = 1 + ((days - 186) % 30)
+    return jy, jm, jd
+
+def get_persian_datetime():
+    tehran_tz = pytz.timezone("Asia/Tehran")
+    now = datetime.now(tehran_tz)
+    time_str = now.strftime("%H:%M:%S")
+    jy, jm, jd = gregorian_to_jalali(now.year, now.month, now.day)
+    date_str = f"{jy:04d}/{jm:02d}/{jd:02d}"
+    return date_str, time_str
+
+# ==================== کیبورد اصلی ۴ ردیفه ====================
 def get_main_keyboard():
     kb = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     kb.add(KeyboardButton("🛒 خرید اشتراک"))
@@ -55,24 +86,18 @@ def get_main_keyboard():
     kb.add(KeyboardButton("❓ سوالات متداول"), KeyboardButton("⚙️ کانفیگ‌ها و آموزش اتصال"))
     return kb
 
-def get_persian_datetime():
-    tehran_tz = pytz.timezone("Asia/Tehran")
-    now = datetime.now(tehran_tz)
-    time_str = now.strftime("%H:%M:%S")
-    date_str = now.strftime("%Y/%m/%d")
-    return date_str, time_str
-
 def get_welcome_text(user):
     date_str, time_str = get_persian_datetime()
     return (
         f"سلام <b>{user.first_name}</b> عزیز، به ربات هوشمند شانلی خوش آمدید! 🌸\n\n"
-        f"📅 تاریخ: <code>{date_str}</code>\n"
+        f"📅 تاریخ امروز (شمسی): <code>{date_str}</code>\n"
         f"⏰ ساعت رسمی تهران: <code>{time_str}</code>\n"
-        f"🆔 شناسه کاربری: <code>{user.id}</code>\n\n"
-        f"⚠️ <b>وضعیت پروتکل‌ها:</b>\n"
-        f"در حال حاضر کلیه سرویس‌های ما بر پایه پروتکل‌های پرسرعت <b>V2Ray</b> (VMess/VLESS) ارائه می‌شوند.\n"
-        f"در بروزرسانی‌های بعدی، پشتیبانی از پروتکل‌های <b>L2TP</b>، <b>PPTP</b> و <b>OpenVPN</b> نیز به لیست سرویس‌ها اضافه خواهد شد.\n\n"
-        "⚡️ برای استفاده از خدمات و مدیریت سرویس، لطفاً از منوی زیر گزینه‌ای را انتخاب کنید:"
+        f"🆔 شناسه کاربری شما: <code>{user.id}</code>\n\n"
+        f"⚠️ <b>وضعیت پروتکل‌های فعال:</b>\n"
+        f"در حال حاضر کلیه سرویس‌های ما بر پایه پروتکل‌های پرسرعت <b>V2Ray</b> (VMess/VLESS) ارائه می‌شوند.\n\n"
+        f"🛠 <b>برنامه بروزرسانی:</b>\n"
+        f"در بروزرسانی‌های بعدی، پشتیبانی از پروتکل‌های قدرتمند <b>L2TP</b>، <b>PPTP</b> و <b>OpenVPN</b> نیز به لیست سرویس‌ها اضافه خواهد شد.\n\n"
+        "⚡️ برای شروع استفاده از خدمات و مدیریت سرویس خود، لطفاً از منوی زیر گزینه‌ای را انتخاب کنید:"
     )
 
 # ==================== هندلرهای اصلی ====================
@@ -140,14 +165,14 @@ async def handle_faq(message: types.Message, state: FSMContext):
         "۱. <b>سرویس‌های فعلی بر چه اساسی هستند؟</b>\nدر حال حاضر کلیه سرویس‌ها V2Ray هستند.\n\n"
         "۲. <b>پروتکل‌های دیگر مثل L2TP اضافه می‌شوند؟</b>\nبله، به زودی L2TP, PPTP و OpenVPN اضافه خواهد شد.\n\n"
         "۳. <b>چگونه متصل شوم؟</b>\nاز بخش کانفیگ‌ها برنامه متناسب را دانلود کنید.\n\n"
-        "۴. <b>محدودیت کاربر در پلن‌ها؟</b>\nپلن‌ها بر اساس تعداد کاربر مجاز مشخص شده‌اند.\n\n"
+        "۴. <b>محدودیت کاربر در پلن‌ها چقدر است؟</b>\nپلن‌ها بر اساس تعداد کاربر مجاز مشخص شده‌اند.\n\n"
         "۵. <b>تایید فیش چقدر زمان می‌برد؟</b>\nدر اسرع وقت توسط پشتیبانی تایید می‌شود.\n\n"
-        "۶. <b>اشتراک‌ها قابل انتقال هستند؟</b>\nاشتراک‌ها مختص یک شناسه کاربری هستند.\n\n"
-        "۷. <b>چرا سرعت نوسان دارد؟</b>\nبستگی به نوع اینترنت و اپراتور شما دارد.\n\n"
+        "۶. <b>آیا اشتراک‌ها قابل انتقال هستند؟</b>\nخیر، اشتراک‌ها مختص یک شناسه کاربری هستند.\n\n"
+        "۷. <b>چرا سرعت گاهی نوسان دارد؟</b>\nبستگی به نوع اینترنت و اپراتور شما دارد.\n\n"
         "۸. <b>آیا سرورها اختصاصی هستند؟</b>\nتمامی سرورها با پهنای باند اختصاصی می‌باشند.\n\n"
         "۹. <b>چطور گزارش خطا بدهم؟</b>\nاز بخش پشتیبانی گزینه گزارش خطا را انتخاب کنید.\n\n"
         "۱۰. <b>آیا پشتیبانی ۲۴ ساعته است؟</b>\nبله، در سریع‌ترین زمان پاسخگو هستیم.\n\n"
-        "۱۱. <b>امنیت اتصالات چطور است؟</b>\nتمامی اتصالات رمزنگاری شده هستند.\n\n"
+        "۱۱. <b>امنیت اتصالات چطور است؟</b>\nتمامی اتصالات با پروتکل‌های امن رمزنگاری شده هستند.\n\n"
         "۱۲. <b>اگر شارژ کنم چه زمانی فعال می‌شود؟</b>\nپس از ارسال فیش و تایید، آنی فعال می‌شود."
     )
     await message.answer(text, reply_markup=get_main_keyboard())
@@ -156,12 +181,13 @@ async def handle_faq(message: types.Message, state: FSMContext):
 async def handle_configs(message: types.Message, state: FSMContext):
     await state.finish()
     kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(InlineKeyboardButton("📢 ورود به کانال آموزش و اتصالات", url=CHANNEL_URL))
+    kb.add(InlineKeyboardButton("🔗 ورود به کانال آموزش و دانلود نرم‌افزارها", url=CHANNEL_URL))
     text = (
-        "⚙️ <b>آموزش اتصال و فایل‌های کانفیگ:</b>\n\n"
-        "تمامی نرم‌افزارهای مورد نیاز و راهنماهای قدم‌به‌قدم در کانال اطلاع‌رسانی قرار دارند."
+        "⚙️ <b>آموزش اتصال و دریافت کانفیگ‌ها:</b>\n\n"
+        "تمامی نرم‌افزارهای مورد نیاز، آموزش‌های تصویری و فایل‌های اتصال در کانال رسمی ما قرار دارند.\n\n"
+        f"🔗 <a href=\"{CHANNEL_URL}\">جهت ورود و مشاهده آموزش‌ها اینجا کلیک کنید</a>"
     )
-    await message.answer(text, reply_markup=get_main_keyboard())
+    await message.answer(text, reply_markup=kb)
 
 # ==================== جریان‌های کال‌بک ====================
 @dp.callback_query_handler(lambda c: c.data.startswith("buy_"), state="*")
