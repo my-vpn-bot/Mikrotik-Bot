@@ -84,19 +84,15 @@ def get_tehran_datetime_info():
 # ==========================================
 def main_menu():
     kb = InlineKeyboardMarkup(row_width=2)
-    # ردیف ۱: خرید اشتراک
     kb.add(InlineKeyboardButton("🛒 خرید اشتراک", callback_data="buy_menu"))
-    # ردیف ۲: اطلاعات حساب | اشتراک‌های من
     kb.add(
         InlineKeyboardButton("📊 اطلاعات حساب", callback_data="acc_info"),
         InlineKeyboardButton("💎 اشتراک‌های من", callback_data="my_subs")
     )
-    # ردیف ۳: شارژ حساب | پشتیبانی
     kb.add(
         InlineKeyboardButton("💰 شارژ حساب", callback_data="charge"),
         InlineKeyboardButton("👥 پشتیبانی", callback_data="support")
     )
-    # ردیف ۴: سوالات متداول | کانفیگ‌ها و آموزش اتصال
     kb.add(
         InlineKeyboardButton("❓ سوالات متداول", callback_data="faq"),
         InlineKeyboardButton("⚙️ کانفیگ‌ها و آموزش", callback_data="configs")
@@ -251,4 +247,37 @@ async def menu_faq(c: types.CallbackQuery, state: FSMContext):
         "1️⃣2️⃣ <b>امنیت و حریم خصوصی:</b> رمزنگاری چندلایه سرتاسری و عدم ذخیره‌سازی هیچ‌گونه لاگ مصرفی.\n"
         "1️⃣3️⃣ <b>تمدید اشتراک:</b> امکان تمدید سرویس قبل از اتمام زمان با حفظ همان کانفیگ و اطلاعات."
     )
-    kb = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 بازگشت به 
+    kb = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main"))
+    await bot.edit_message_text(faq_text, chat_id=c.message.chat.id, message_id=c.message.message_id, reply_markup=kb)
+
+@dp.callback_query_handler(lambda c: c.data == "configs", state="*")
+async def menu_configs(c: types.CallbackQuery, state: FSMContext):
+    text = (
+        "⚙️ <b>کانفیگ‌ها، نرم‌افزارها و آموزش اتصال:</b>\n\n"
+        "برای دانلود آخرین نسخه نرم‌افزارهای V2RayNG، v2rayN، Streisand، Clash و مشاهده آموزش‌های ویدیویی، وارد کانال رسمی ما شوید:"
+    )
+    kb = InlineKeyboardMarkup(row_width=1)
+    kb.add(InlineKeyboardButton("📢 ورود به کانال آموزش و نرم‌افزارها", url=CHANNEL_LINK))
+    kb.add(InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main"))
+    await bot.edit_message_text(text, chat_id=c.message.chat.id, message_id=c.message.message_id, reply_markup=kb)
+
+# ==========================================
+# ۹. وب‌سرور داخلی هلث‌چک برای Render
+# ==========================================
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get("/", lambda r: web.Response(text="Shanli Bot is Healthy & Live!"))
+    app.router.add_get("/health", lambda r: web.Response(text="OK"))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', PORT)
+    await site.start()
+
+# ==========================================
+# ۱۰. نقطه ورود و اجرای اصلی ربات
+# ==========================================
+if __name__ == '__main__':
+    loop = asyncio.get_event_loop()
+    loop.create_task(start_web_server())
+    from aiogram import executor
+    executor.start_polling(dp, skip_updates=True)
