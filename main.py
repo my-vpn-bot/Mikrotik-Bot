@@ -1,51 +1,29 @@
 import os
 import asyncio
-import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
+import pytz
 from aiohttp import web
-from aiogram import Bot, Dispatcher, types
-from aiogram.contrib.fsm_storage.memory import MemoryStorage
-from aiogram.dispatcher import FSMContext
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram import Bot, Dispatcher, F
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from aiogram.filters import CommandStart
 
-# ==========================================
-# ۱. تنظیمات مرجع و متغیرهای محیطی
-# ==========================================
-BOT_TOKEN = os.getenv("BOT_TOKEN", "")
-SUPPORT_USERNAME = "L2tp1support"
-CHANNEL_LINK = "https://t.me/L2tp_vpn402"
-PORT = int(os.getenv("PORT", 10000))
+# ----------------- تنظیمات محیطی -----------------
+BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN")
+SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "L2tp1support").replace("@", "")
+CHANNEL_LINK = os.getenv("CHANNEL_LINK", "https://t.me/your_channel")
 
-# تعرفه‌های استاندارد مصوب
-PLANS = {
-    "p1": {"name": "اشتراک ۱ ماهه (تک کاربره)", "price": "۲۵۰,۰۰۰ تومان"},
-    "p2": {"name": "اشتراک ۲ ماهه (دو کاربره)", "price": "۴۰۰,۰۰۰ تومان"},
-    "p3": {"name": "اشتراک ۳ ماهه (سه کاربره)", "price": "۶۰۰,۰۰۰ تومان"}
-}
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher()
 
-# لاگ و ساخت کلاینت ربات
-logging.basicConfig(level=logging.INFO)
-bot = Bot(token=BOT_TOKEN, parse_mode=types.ParseMode.HTML)
-storage = MemoryStorage()
-dp = Dispatcher(bot, storage=storage)
-
-# شمارنده بازدیدکنندگان یکتا
-UNIQUE_VISITORS = set()
-
-# ==========================================
-# ۲. توابع تبدیل تاریخ شمسی و ساعت تهران
-# ==========================================
+# ----------------- تبدیل تاریخ میلادی به شمسی -----------------
 def gregorian_to_jalali(gy, gm, gd):
     g_d_m = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
-    if gy > 1600:
-        jy = 979
-        gy -= 1600
+    if gm > 2:
+        gy2 = gy + 1
     else:
-        jy = 0
-        gy -= 621
-    gy2 = (gy + 1) if (gm > 2) else gy
-    days = (365 * gy) + ((gy2 + 3) // 4) - ((gy2 + 99) // 100) + ((gy2 + 399) // 400) - 80 + gd + g_d_m[gm - 1]
-    jy += 33 * (days // 12053)
+        gy2 = gy
+    days = 355666 + (365 * gy) + ((gy2 + 3) // 4) - ((gy2 + 99) // 100) + ((gy2 + 399) // 400) + gd + g_d_m[gm - 1]
+    jy = -1595 + (33 * (days // 12053))
     days %= 12053
     jy += 4 * (days // 1461)
     days %= 1461
@@ -60,224 +38,191 @@ def gregorian_to_jalali(gy, gm, gd):
         jd = 1 + ((days - 186) % 30)
     return jy, jm, jd
 
-WEEKDAYS_FA = {
-    0: "دوشنبه",
-    1: "سه‌شنبه",
-    2: "چهارشنبه",
-    3: "پنج‌شنبه",
-    4: "جمعه",
-    5: "شنبه",
-    6: "یکشنبه"
-}
-
-def get_tehran_datetime_info():
-    tz = timezone(timedelta(hours=3, minutes=30))
-    now = datetime.now(tz)
+def get_current_tehran_datetime():
+    tehran_tz = pytz.timezone("Asia/Tehran")
+    now = datetime.now(tehran_tz)
+    weekdays = ["دوشنبه", "سه‌شنبه", "چهارشنبه", "پنج‌شنبه", "جمعه", "شنبه", "یک‌شنبه"]
+    day_name = weekdays[now.weekday()]
     jy, jm, jd = gregorian_to_jalali(now.year, now.month, now.day)
-    weekday = WEEKDAYS_FA[now.weekday()]
-    date_str = f"{jy:04d}/{jm:02d}/{jd:02d}"
     time_str = now.strftime("%H:%M:%S")
-    return date_str, weekday, time_str
+    date_str = f"{jy:04d}/{jm:02d}/{jd:02d}"
+    return day_name, date_str, time_str
 
-# ==========================================
-# ۳. کیبوردهای منوی اصلی (۴ ردیف اختصاصی)
-# ==========================================
-def main_menu():
-    kb = InlineKeyboardMarkup(row_width=2)
-    kb.add(InlineKeyboardButton("🛒 خرید اشتراک", callback_data="buy_menu"))
-    kb.add(
-        InlineKeyboardButton("📊 اطلاعات حساب", callback_data="acc_info"),
-        InlineKeyboardButton("💎 اشتراک‌های من", callback_data="my_subs")
-    )
-    kb.add(
-        InlineKeyboardButton("💰 شارژ حساب", callback_data="charge"),
-        InlineKeyboardButton("👥 پشتیبانی", callback_data="support")
-    )
-    kb.add(
-        InlineKeyboardButton("❓ سوالات متداول", callback_data="faq"),
-        InlineKeyboardButton("⚙️ کانفیگ‌ها و آموزش", callback_data="configs")
-    )
-    return kb
+# ----------------- کیبوردهای پایین صفحه (Reply Keyboard) -----------------
+# ۱. منوی اصلی ۴ ردیفه
+main_keyboard = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="🛒 خرید اشتراک")],
+        [KeyboardButton(text="📊 اطلاعات حساب"), KeyboardButton(text="💎 اشتراک‌های من")],
+        [KeyboardButton(text="💰 شارژ حساب"), KeyboardButton(text="👥 پشتیبانی")],
+        [KeyboardButton(text="❓ سوالات متداول"), KeyboardButton(text="⚙️ کانفیگ‌ها و آموزش اتصال")]
+    ],
+    resize_keyboard=True
+)
 
-def get_welcome_text(user_id, name):
-    date_str, weekday, time_str = get_tehran_datetime_info()
-    return (
-        f"🌟 <b>به ربات شانلی خوش آمدید، {name} عزیز!</b>\n\n"
-        f"ارائه دهنده قدرتمندترین سرویس‌های عبور از محدودیت با پروتکل‌های V2Ray, L2TP, OpenVPN, PPTP.\n\n"
-        f"📅 <b>تاریخ امروز:</b> {date_str} ({weekday})\n"
-        f"⏰ <b>ساعت رسمی تهران:</b> {time_str}\n"
-        f"🆔 <b>شناسه عددی شما:</b> <code>{user_id}</code>\n"
-        f"👤 <b>تعداد کل بازدیدکنندگان یکتا:</b> {len(UNIQUE_VISITORS)}\n\n"
-        f"لطفاً از منوی زیر گزینه مورد نظرتان را انتخاب کنید:"
-    )
+# ۲. کیبورد انتخاب پلن خرید (همگی پایین صفحه)
+plans_keyboard = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="🔹 پلن ۱ ماهه - ۲۵۰,۰۰۰ تومان")],
+        [KeyboardButton(text="🔹 پلن ۳ ماهه - ۴۰۰,۰۰۰ تومان")],
+        [KeyboardButton(text="🔹 پلن ۶ ماهه - ۶۰۰,۰۰۰ تومان")],
+        [KeyboardButton(text="🔙 بازگشت به منوی اصلی")]
+    ],
+    resize_keyboard=True
+)
 
-# ==========================================
-# ۴. هندلرهای دستور /start و منوی اصلی
-# ==========================================
-@dp.message_handler(commands=['start'], state="*")
-async def cmd_start(message: types.Message, state: FSMContext):
-    await state.finish()
-    UNIQUE_VISITORS.add(message.from_user.id)
-    await message.answer(
-        get_welcome_text(message.from_user.id, message.from_user.first_name or "کاربر"),
-        reply_markup=main_menu()
-    )
+# ۳. کیبورد بخش کانفیگ‌ها
+configs_keyboard = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="📱 آموزش اتصال اندروید"), KeyboardButton(text="🍏 آموزش اتصال آیفون (iOS)")],
+        [KeyboardButton(text="💻 آموزش اتصال ویندوز"), KeyboardButton(text="🌐 دریافت کانفیگ L2TP / V2Ray")],
+        [KeyboardButton(text="🔙 بازگشت به منوی اصلی")]
+    ],
+    resize_keyboard=True
+)
 
-@dp.callback_query_handler(lambda c: c.data == "back_to_main", state="*")
-async def back_to_main(c: types.CallbackQuery, state: FSMContext):
-    await state.finish()
-    UNIQUE_VISITORS.add(c.from_user.id)
-    text = get_welcome_text(c.from_user.id, c.from_user.first_name or "کاربر")
-    await bot.edit_message_text(
-        text,
-        chat_id=c.message.chat.id,
-        message_id=c.message.message_id,
-        reply_markup=main_menu()
+# ----------------- هندلرهای دستورات -----------------
+@dp.message(CommandStart())
+@dp.message(F.text == "🔙 بازگشت به منوی اصلی")
+async def start_handler(message: Message):
+    day_name, date_str, time_str = get_current_tehran_datetime()
+    welcome_text = (
+        f"سلام {message.from_user.first_name} عزیز، به ربات شانلی خوش آمدید! 🌸\n\n"
+        f"📅 امروز: {day_name} {date_str}\n"
+        f"⏰ ساعت رسمی تهران: {time_str}\n"
+        f"🆔 شناسه کاربری: `{message.from_user.id}`\n\n"
+        f"از منوی پایین صفحه، گزینه مورد نظر خود را انتخاب نمایید:"
     )
+    await message.answer(welcome_text, parse_mode="Markdown", reply_markup=main_keyboard)
 
-# ==========================================
-# ۵. ردیف اول: منوی خرید و ارسال مستقیم فیش
-# ==========================================
-@dp.callback_query_handler(lambda c: c.data == "buy_menu", state="*")
-async def menu_buy(c: types.CallbackQuery, state: FSMContext):
-    kb = InlineKeyboardMarkup(row_width=1)
-    for k, v in PLANS.items():
-        kb.add(InlineKeyboardButton(f"{v['name']} — {v['price']}", callback_data=f"plan_{k}"))
-    kb.add(InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main"))
-    
-    await bot.edit_message_text(
-        "🛒 <b>لطفاً پلن اشتراک مورد نظر خود را انتخاب کنید:</b>",
-        chat_id=c.message.chat.id,
-        message_id=c.message.message_id,
-        reply_markup=kb
-    )
-
-@dp.callback_query_handler(lambda c: c.data.startswith("plan_"), state="*")
-async def process_plan(c: types.CallbackQuery, state: FSMContext):
-    plan_key = c.data.split("_")[1]
-    plan = PLANS.get(plan_key, {"name": "اشتراک ویژه", "price": "تعرفه مصوب"})
+@dp.message(F.text == "🛒 خرید اشتراک")
+async def buy_subscription_menu(message: Message):
     text = (
-        f"🛒 <b>پلن انتخابی:</b> {plan['name']}\n"
-        f"💰 <b>مبلغ قابل پرداخت:</b> {plan['price']}\n\n"
-        f"💳 برای تکمیل سفارش و دریافت سرویس، مبلغ را به شماره کارت پشتیبانی واریز کرده و تصویر فیش واریزی را مستقیماً به پی‌وی پشتیبانی ارسال فرمایید.\n\n"
-        f"👇 جهت ارسال مستقیم فیش، روی دکمه زیر کلیک کنید:"
+        "🛍 **انتخاب پلن اشتراک**\n\n"
+        "لطفاً یکی از پلن‌های زیر را از کیبورد پایین انتخاب کنید:\n\n"
+        "۱️⃣ **پلن ۱ ماهه:** ۲۵۰,۰۰۰ تومان\n"
+        "۲️⃣ **پلن ۳ ماهه:** ۴۰۰,۰۰۰ تومان\n"
+        "۳️⃣ **پلن ۶ ماهه:** ۶۰۰,۰۰۰ تومان\n\n"
+        "⚡️ تمام پلن‌ها دارای اتصال با کیفیت بالا و کاربر نامحدود می‌باشند."
     )
-    kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(InlineKeyboardButton("ارسال فیش به پشتیبانی 👤", url=f"https://t.me/{SUPPORT_USERNAME}"))
-    kb.add(InlineKeyboardButton("🔙 بازگشت به منوی خرید", callback_data="buy_menu"))
-    kb.add(InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="back_to_main"))
-    
-    await bot.edit_message_text(
-        text,
-        chat_id=c.message.chat.id,
-        message_id=c.message.message_id,
-        reply_markup=kb
-    )
+    await message.answer(text, parse_mode="Markdown", reply_markup=plans_keyboard)
 
-# ==========================================
-# ۶. ردیف دوم: اطلاعات حساب و اشتراک‌ها
-# ==========================================
-@dp.callback_query_handler(lambda c: c.data == "acc_info", state="*")
-async def menu_acc_info(c: types.CallbackQuery, state: FSMContext):
+@dp.message(F.text.startswith("🔹 پلن"))
+async def plan_selected_handler(message: Message):
+    selected_plan = message.text
     text = (
-        f"📊 <b>اطلاعات حساب کاربری شما:</b>\n\n"
-        f"👤 <b>نام:</b> {c.from_user.first_name}\n"
-        f"🆔 <b>شناسه عددی:</b> <code>{c.from_user.id}</code>\n"
-        f"💰 <b>موجودی کیف پول:</b> ۰ تومان\n"
-        f"💎 <b>تعداد سرویس‌های فعال:</b> ۰\n"
+        f"📌 **سفارش شما:** {selected_plan}\n\n"
+        f"💳 شماره کارت جهت واریز:\n"
+        f"`۶۰۳۷-۹۹۷۵-۱۲۳۴-۵۶۷۸`\n"
+        f"به نام: مدیریت شانلی\n\n"
+        f"⚠️ **مرحله نهایی:**\n"
+        f"پس از واریز مبلغ، تصویر فیش واریزی را مستقیماً به آیدی پشتیبانی زیر ارسال فرمایید تا اشتراک شما فعال شود:\n\n"
+        f"👤 پشتیبانی: @{SUPPORT_USERNAME}"
     )
-    kb = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main"))
-    await bot.edit_message_text(text, chat_id=c.message.chat.id, message_id=c.message.message_id, reply_markup=kb)
+    await message.answer(text, parse_mode="Markdown", reply_markup=plans_keyboard)
 
-@dp.callback_query_handler(lambda c: c.data == "my_subs", state="*")
-async def menu_my_subs(c: types.CallbackQuery, state: FSMContext):
+@dp.message(F.text == "📊 اطلاعات حساب")
+async def account_info_handler(message: Message):
+    day_name, date_str, time_str = get_current_tehran_datetime()
     text = (
-        "💎 <b>اشتراک‌های فعال شما:</b>\n\n"
+        f"📊 **اطلاعات حساب کاربری شما**\n\n"
+        f"👤 نام: {message.from_user.full_name}\n"
+        f"🆔 شناسه کاربری: `{message.from_user.id}`\n"
+        f"💰 موجودی کیف پول: ۰ تومان\n"
+        f"💎 تعداد سرویس فعال: ۰\n\n"
+        f"📅 تاریخ استعلام: {date_str} - {time_str}"
+    )
+    await message.answer(text, parse_mode="Markdown", reply_markup=main_keyboard)
+
+@dp.message(F.text == "💎 اشتراک‌های من")
+async def my_subs_handler(message: Message):
+    text = (
+        "💎 **اشتراک‌های فعال شما:**\n\n"
         "در حال حاضر هیچ اشتراک فعالی برای حساب شما ثبت نشده است.\n"
-        "جهت خرید یا فعال‌سازی سرویس از بخش «خرید اشتراک» اقدام کنید."
+        "برای خرید اشتراک جدید از دکمه «🛒 خرید اشتراک» استفاده کنید."
     )
-    kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(InlineKeyboardButton("🛒 خرید اشتراک", callback_data="buy_menu"))
-    kb.add(InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main"))
-    await bot.edit_message_text(text, chat_id=c.message.chat.id, message_id=c.message.message_id, reply_markup=kb)
+    await message.answer(text, parse_mode="Markdown", reply_markup=main_keyboard)
 
-# ==========================================
-# ۷. ردیف سوم: شارژ حساب و پشتیبانی
-# ==========================================
-@dp.callback_query_handler(lambda c: c.data == "charge", state="*")
-async def menu_charge(c: types.CallbackQuery, state: FSMContext):
+@dp.message(F.text == "💰 شارژ حساب")
+async def charge_wallet_handler(message: Message):
     text = (
-        "💰 <b>شارژ حساب کاربری:</b>\n\n"
-        "جهت افزایش موجودی کیف پول و شارژ حساب، لطفاً مبلغ مورد نظر خود را به شماره کارت اعلامی توسط پشتیبانی واریز کرده و فیش را برای ادمین ارسال کنید."
+        "💰 **افزایش موجودی و شارژ کیف پول**\n\n"
+        "جهت شارژ حساب، مبلغ مورد نظر را به شماره کارت زیر واریز کرده و فیش را به پشتیبانی بفرستید:\n\n"
+        "`۶۰۳۷-۹۹۷۵-۱۲۳۴-۵۶۷۸`\n\n"
+        f"👤 پشتیبانی: @{SUPPORT_USERNAME}"
     )
-    kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(InlineKeyboardButton("ارسال فیش به پشتیبانی 👤", url=f"https://t.me/{SUPPORT_USERNAME}"))
-    kb.add(InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main"))
-    await bot.edit_message_text(text, chat_id=c.message.chat.id, message_id=c.message.message_id, reply_markup=kb)
+    await message.answer(text, parse_mode="Markdown", reply_markup=main_keyboard)
 
-@dp.callback_query_handler(lambda c: c.data == "support", state="*")
-async def menu_support(c: types.CallbackQuery, state: FSMContext):
+@dp.message(F.text == "👥 پشتیبانی")
+async def support_handler(message: Message):
     text = (
-        "👥 <b>مرکز پشتیبانی ۲۴/۷ شانلی:</b>\n\n"
-        "برای پاسخ به سوالات، دریافت راهنمایی، پیگیری اشتراک و ارسال فیش واریزی، روی دکمه زیر کلیک کرده و با کارشناسان ما گفتگو کنید."
+        "👥 **واحد پشتیبانی شانلی**\n\n"
+        "برای پاسخگویی به سوالات، پیگیری سفارش‌ها و فعال‌سازی سرویس با آیدی پشتیبانی در ارتباط باشید:\n\n"
+        f"🆔 @{SUPPORT_USERNAME}\n"
+        f"📢 کانال اطلاع‌رسانی: {CHANNEL_LINK}"
     )
-    kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(InlineKeyboardButton("💬 ارتباط مستقیم با پشتیبانی", url=f"https://t.me/{SUPPORT_USERNAME}"))
-    kb.add(InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main"))
-    await bot.edit_message_text(text, chat_id=c.message.chat.id, message_id=c.message.message_id, reply_markup=kb)
+    await message.answer(text, reply_markup=main_keyboard)
 
-# ==========================================
-# ۸. ردیف چهارم: سوالات متداول و کانفیگ‌ها
-# ==========================================
-@dp.callback_query_handler(lambda c: c.data == "faq", state="*")
-async def menu_faq(c: types.CallbackQuery, state: FSMContext):
+@dp.message(F.text == "❓ سوالات متداول")
+async def faq_handler(message: Message):
     faq_text = (
-        "<b>❓ سوالات متداول کاربران شانلی (FAQ):</b>\n\n"
-        "1️⃣ <b>پروتکل‌ها:</b> پشتیبانی کامل از پروتکل‌های V2Ray (Vless/Vmess/Trojan)، L2TP، OpenVPN و PPTP.\n"
-        "2️⃣ <b>زمان تحویل:</b> بلافاصله و آنی پس از ارسال و تایید فیش توسط پشتیبانی.\n"
-        "3️⃣ <b>سازگاری دستگاه‌ها:</b> قابل استفاده در اندروید، iOS (آیفون/آیپد)، ویندوز و مک‌بوک.\n"
-        "4️⃣ <b>سازگاری اپراتورها:</b> بهینه‌شده برای همراه اول، ایرانسل، رایتل و اینترنت‌های ثابت (شاتل، مخابرات و...).\n"
-        "5️⃣ <b>محدودیت حجم:</b> تمامی پلن‌ها دارای ترافیک نامحدود و بدون افت کیفیت هستند.\n"
-        "6️⃣ <b>تعداد کاربر:</b> اتصال همزمان ۱ تا ۳ کاربر/دستگاه متناسب با پلن خریداری‌شده.\n"
-        "7️⃣ <b>گارانتی سرویس:</b> تضمین اتصال پایدار و بدون قطعی در تمامی ساعات شبانه‌روز.\n"
-        "8️⃣ <b>عودت وجه:</b> در صورت بروز هرگونه مشکل فنی لاینحل، بازگشت کامل وجه انجام می‌شود.\n"
-        "9️⃣ <b>ساعات پشتیبانی:</b> پشتیبانی به صورت ۲۴ ساعته در ۷ روز هفته فعال و پاسخگو است.\n"
-        "🔟 <b>شرایط استفاده:</b> استفاده صرفاً قانونی و شخصی بر روی دستگاه‌های تعریف‌شده.\n"
-        "1️⃣1️⃣ <b>آموزش اتصال:</b> برنامه‌ها و ویدیوهای آموزشی گام‌به‌گام در کانال ربات قرار دارد.\n"
-        "1️⃣2️⃣ <b>امنیت و حریم خصوصی:</b> رمزنگاری چندلایه سرتاسری و عدم ذخیره‌سازی هیچ‌گونه لاگ مصرفی.\n"
-        "1️⃣3️⃣ <b>تمدید اشتراک:</b> امکان تمدید سرویس قبل از اتمام زمان با حفظ همان کانفیگ و اطلاعات."
+        "❓ **سوالات متداول (FAQ)**\n\n"
+        "۱. **تعداد کاربر مجاز چقدر است؟**\n"
+        "تمامی سرویس‌ها به صورت **نامحدود کاربر** ارائه می‌شوند.\n\n"
+        "۲. **حجم مصرفی سرویس‌ها چقدر است؟**\n"
+        "حجم سرویس کاملاً **وابسته به انتخاب پلن** و تعرفه انتخابی شماست.\n\n"
+        "۳. **سرویس‌ها روی چه دستگاه‌هایی کار می‌کنند؟**\n"
+        "روی اندروید، آیفون (iOS)، ویندوز، مک و لینوکس.\n\n"
+        "۴. **آیا سرعت و پایداری تضمین شده است؟**\n"
+        "بله، تمامی سرورها با پهنای باند اختصاصی و آپتایم بالا ارائه می‌گردند.\n\n"
+        "۵. **تحویل سرویس چقدر زمان می‌برد؟**\n"
+        "پس از ارسال فیش به پشتیبانی، اشتراک در کمتر از ۵ الی ۱۵ دقیقه تحویل داده می‌شود.\n\n"
+        "۶. **آیا امکان تمدید سرویس قبلی وجود دارد؟**\n"
+        "بله، با هماهنگی پشتیبانی قبل از اتمام زمان سرویس می‌توانید آن را تمدید کنید.\n\n"
+        "۷. **پروتکل‌های ارائه‌شده کدامند؟**\n"
+        "پروتکل‌های پرسرعت L2TP، Cisco، V2Ray و WireGuard بر اساس نیاز شما.\n\n"
+        "۸. **در صورت قطع شدن سرور چه اقدامی صورت می‌گیرد؟**\n"
+        "سرورهای پشتیبان به صورت خودکار جایگزین خواهند شد.\n\n"
+        "۹. **چگونه کانفیگ‌ها را دریافت کنم؟**\n"
+        "از طریق بخش «⚙️ کانفیگ‌ها و آموزش اتصال» در منوی ربات.\n\n"
+        "۱۰. **پلن‌های قابل سفارش کدامند؟**\n"
+        "پلن‌های ۱ ماهه (۲۵۰ هزار)، ۳ ماهه (۴۰۰ هزار) و ۶ ماهه (۶۰۰ هزار تومان)."
     )
-    kb = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main"))
-    await bot.edit_message_text(faq_text, chat_id=c.message.chat.id, message_id=c.message.message_id, reply_markup=kb)
+    await message.answer(faq_text, parse_mode="Markdown", reply_markup=main_keyboard)
 
-@dp.callback_query_handler(lambda c: c.data == "configs", state="*")
-async def menu_configs(c: types.CallbackQuery, state: FSMContext):
+@dp.message(F.text == "⚙️ کانفیگ‌ها و آموزش اتصال")
+async def configs_menu_handler(message: Message):
+    text = "⚙️ **بخش تنظیمات و آموزش‌های اتصال**\n\nلطفاً سیستم‌عامل خود را از دکمه‌های پایین انتخاب نمایید:"
+    await message.answer(text, reply_markup=configs_keyboard)
+
+@dp.message(F.text.in_(["📱 آموزش اتصال اندروید", "🍏 آموزش اتصال آیفون (iOS)", "💻 آموزش اتصال ویندوز", "🌐 دریافت کانفیگ L2TP / V2Ray"]))
+async def guides_handler(message: Message):
     text = (
-        "⚙️ <b>کانفیگ‌ها، نرم‌افزارها و آموزش اتصال:</b>\n\n"
-        "برای دانلود آخرین نسخه نرم‌افزارهای V2RayNG، v2rayN، Streisand، Clash و مشاهده آموزش‌های ویدیویی، وارد کانال رسمی ما شوید:"
+        f"📖 راهنمای مربوط به: **{message.text}**\n\n"
+        "جهت دریافت کانفیگ‌های اختصاصی یا راهنمایی گام‌به‌گام اتصال، به پشتیبانی پیام دهید:\n\n"
+        f"👤 @{SUPPORT_USERNAME}"
     )
-    kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(InlineKeyboardButton("📢 ورود به کانال آموزش و نرم‌افزارها", url=CHANNEL_LINK))
-    kb.add(InlineKeyboardButton("🔙 بازگشت به منو", callback_data="back_to_main"))
-    await bot.edit_message_text(text, chat_id=c.message.chat.id, message_id=c.message.message_id, reply_markup=kb)
+    await message.answer(text, parse_mode="Markdown", reply_markup=configs_keyboard)
 
-# ==========================================
-# ۹. وب‌سرور داخلی هلث‌چک برای Render
-# ==========================================
+# ----------------- سرور هلث‌چک برای رندر (Port 10000) -----------------
+async def health_check(request):
+    return web.Response(text="Shanli-Bot is Live & Healthy!", status=200)
+
 async def start_web_server():
     app = web.Application()
-    app.router.add_get("/", lambda r: web.Response(text="Shanli Bot is Healthy & Live!"))
-    app.router.add_get("/health", lambda r: web.Response(text="OK"))
+    app.router.add_get("/", health_check)
+    app.router.add_get("/health", health_check)
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', PORT)
+    port = int(os.getenv("PORT", 10000))
+    site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
 
-# ==========================================
-# ۱۰. نقطه ورود و اجرای اصلی ربات
-# ==========================================
-if __name__ == '__main__':
-    loop = asyncio.get_event_loop()
-    loop.create_task(start_web_server())
-    from aiogram import executor
-    executor.start_polling(dp, skip_updates=True)
+# ----------------- نقطه ورود برنامه -----------------
+async def main():
+    await start_web_server()
+    await bot.delete_webhook(drop_pending_updates=True)
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
