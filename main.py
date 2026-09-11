@@ -20,18 +20,16 @@ from aiohttp import web
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ShanliBot")
 
-# ==================== دریافت اطلاعات از متغیرهای محیطی Render ====================
+# ==================== متغیرهای محیطی ====================
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "0").strip()
 ADMIN_ID = int(ADMIN_ID_RAW) if ADMIN_ID_RAW.isdigit() else 0
 
-# متغیرهای دقیق پنل رندر - اصلاح شده به L2tp1support
 RAW_SUPPORT = os.getenv("SUPPORT_ID", "L2tp1support").strip().replace("@", "")
 RAW_CHANNEL = os.getenv("CHANNEL_URL", "https://t.me/L2tp_vpn402").strip()
 CARD_NUMBER = os.getenv("PAYMENT_CARD", "6104338904607443").strip()
 CARD_HOLDER = os.getenv("PAYMENT_NAME", "رحیمی").strip()
 
-# نرمال‌سازی لینک‌ها
 SUPPORT_USERNAME = f"@{RAW_SUPPORT}"
 SUPPORT_URL = f"https://t.me/{RAW_SUPPORT}"
 
@@ -45,7 +43,6 @@ else:
     CHANNEL_URL = f"https://t.me/{ch_clean}"
     CHANNEL_DISPLAY = f"@{ch_clean}"
 
-# قیمت پلن‌های تثبیت‌شده
 PLANS = {
     "plan_1": {"name": "اشتراک ۱ ماهه (تک کاربره)", "price": "۲۵۰,۰۰۰ تومان"},
     "plan_2": {"name": "اشتراک ۲ ماهه (دو کاربره)", "price": "۴۰۰,۰۰۰ تومان"},
@@ -55,7 +52,7 @@ PLANS = {
 bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
 
-# ==================== توابع تقویم جلالی و ساعت ====================
+# ==================== توابع تقویم جلالی ====================
 PERSIAN_WEEKDAYS = {
     "Saturday": "شنبه", "Sunday": "یک‌شنبه", "Monday": "دوشنبه",
     "Tuesday": "سه‌شنبه", "Wednesday": "چهارشنبه", "Thursday": "پنج‌شنبه", "Friday": "جمعه"
@@ -81,7 +78,7 @@ def get_tehran_datetime_details():
     weekday_fa = PERSIAN_WEEKDAYS.get(now.strftime("%A"), now.strftime("%A"))
     return weekday_fa, f"{jy:04d}/{jm:02d}/{jd:02d}", now.strftime("%H:%M:%S")
 
-# ==================== منوی اصلی (۴ ردیف) ====================
+# ==================== کیبوردهای اصلی ====================
 def get_main_reply_keyboard():
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
     keyboard.row(KeyboardButton("🛒 خرید اشتراک"))
@@ -93,54 +90,95 @@ def get_main_reply_keyboard():
 class ReceiptState(StatesGroup):
     waiting_for_photo = State()
 
-@dp.message_handler(commands=['start'], state="*")
-async def cmd_start(message: types.Message, state: FSMContext):
-    await state.finish()
+def get_welcome_text(user):
     weekday_fa, date_str, time_str = get_tehran_datetime_details()
-    welcome_text = (
-        f"سلام <b>{message.from_user.first_name or 'کاربر گرامی'}</b> عزیز، به ربات هوشمند شانلی خوش آمدید! 🌸\n\n"
-        f"🆔 شناسه کاربری: <code>{message.from_user.id}</code>\n"
+    return (
+        f"سلام <b>{user.first_name or 'کاربر گرامی'}</b> عزیز، به ربات هوشمند شانلی خوش آمدید! 🌸\n\n"
+        f"🆔 شناسه کاربری: <code>{user.id}</code>\n"
         f"📅 امروز: <b>{weekday_fa} {date_str}</b>\n"
         f"⏰ ساعت رسمی تهران: <b>{time_str}</b>\n\n"
         f"📢 کانال رسمی: <a href='{CHANNEL_URL}'>{CHANNEL_DISPLAY}</a>\n"
         f"💬 واحد پشتیبانی: <a href='{SUPPORT_URL}'>{SUPPORT_USERNAME}</a>\n\n"
         "⚡️ برای دسترسی به خدمات از منوی زیر استفاده فرمایید:"
     )
-    await message.answer(welcome_text, reply_markup=get_main_reply_keyboard(), disable_web_page_preview=True)
 
-# ==================== خرید اشتراک ====================
+# ==================== هندلرهای اصلی ====================
+@dp.message_handler(commands=['start'], state="*")
+async def cmd_start(message: types.Message, state: FSMContext):
+    await state.finish()
+    await message.answer(get_welcome_text(message.from_user), reply_markup=get_main_reply_keyboard(), disable_web_page_preview=True)
+
 @dp.message_handler(lambda msg: msg.text == "🛒 خرید اشتراک", state="*")
 async def handle_buy(message: types.Message, state: FSMContext):
     await state.finish()
     kb = InlineKeyboardMarkup(row_width=1)
     for p_id, p_info in PLANS.items():
         kb.add(InlineKeyboardButton(f"{p_info['name']} — {p_info['price']}", callback_data=f"select_{p_id}"))
+    kb.add(InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="cancel_payment"))
     await message.answer("🛍 <b>لطفاً پلن اشتراک مورد نظر خود را انتخاب فرمایید:</b>", reply_markup=kb)
 
+@dp.message_handler(lambda msg: msg.text == "📊 اطلاعات حساب", state="*")
+async def handle_account_info(message: types.Message, state: FSMContext):
+    await state.finish()
+    text = (f"📊 <b>اطلاعات حساب کاربری شما:</b>\n\n👤 نام: {message.from_user.full_name}\n🆔 شناسه: <code>{message.from_user.id}</code>\n💎 وضعیت: فعال نیست")
+    await message.answer(text, reply_markup=get_main_reply_keyboard())
+
+@dp.message_handler(lambda msg: msg.text == "💎 اشتراک‌های من", state="*")
+async def handle_my_subscriptions(message: types.Message, state: FSMContext):
+    await state.finish()
+    await message.answer("💎 <b>اشتراک‌های فعال شما:</b>\n\nدر حال حاضر اشتراک فعالی ندارید.", reply_markup=get_main_reply_keyboard())
+
+@dp.message_handler(lambda msg: msg.text == "💰 شارژ حساب", state="*")
+async def handle_wallet_charge(message: types.Message, state: FSMContext):
+    await state.finish()
+    text = (f"💰 <b>شارژ حساب:</b>\n\nبه کارت <code>{CARD_NUMBER}</code> به نام {CARD_HOLDER} واریز کنید.")
+    await message.answer(text, reply_markup=get_main_reply_keyboard())
+
+@dp.message_handler(lambda msg: msg.text == "👥 پشتیبانی", state="*")
+async def handle_support(message: types.Message, state: FSMContext):
+    await state.finish()
+    await message.answer(f"👥 <b>واحد پشتیبانی:</b>\n{SUPPORT_USERNAME}", reply_markup=get_main_reply_keyboard())
+
+@dp.message_handler(lambda msg: msg.text == "❓ سوالات متداول", state="*")
+async def handle_faq(message: types.Message, state: FSMContext):
+    await state.finish()
+    await message.answer("❓ <b>سوالات متداول:</b>\nبه زودی تکمیل می‌شود.", reply_markup=get_main_reply_keyboard())
+
+@dp.message_handler(lambda msg: msg.text == "⚙️ کانفیگ‌ها و آموزش اتصال", state="*")
+async def handle_configs_help(message: types.Message, state: FSMContext):
+    await state.finish()
+    await message.answer("⚙️ <b>راهنما:</b>\nبه کانال مراجعه کنید.", reply_markup=get_main_reply_keyboard())
+
+# ==================== هندلرهای کال‌بک ====================
 @dp.callback_query_handler(lambda c: c.data.startswith("select_"), state="*")
 async def callback_select_plan(query: types.CallbackQuery, state: FSMContext):
     plan_id = query.data.replace("select_", "")
-    plan = PLANS.get(plan_id)
     await state.update_data(selected_plan=plan_id)
     await ReceiptState.waiting_for_photo.set()
-    invoice_text = (
-        f"🧾 <b>پیش‌فاکتور:</b>\n\n🔹 پلن: {plan['name']}\n💰 مبلغ: {plan['price']}\n\n"
-        f"💳 شماره کارت: <code>{CARD_NUMBER}</code>\n👤 به نام: {CARD_HOLDER}\n\n"
-        "⚠️ پس از واریز، عکس فیش را ارسال کنید."
-    )
-    await query.message.edit_text(invoice_text, reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 بازگشت", callback_data="cancel_payment")))
-    await query.answer()
+    kb = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 بازگشت به لیست پلن‌ها", callback_data="back_to_plans"))
+    await query.message.edit_text("🧾 <b>فیش را ارسال کنید:</b>", reply_markup=kb)
+
+@dp.callback_query_handler(lambda c: c.data == "back_to_plans", state="*")
+async def callback_back_to_plans(query: types.CallbackQuery, state: FSMContext):
+    await state.finish()
+    kb = InlineKeyboardMarkup(row_width=1)
+    for p_id, p_info in PLANS.items():
+        kb.add(InlineKeyboardButton(f"{p_info['name']} — {p_info['price']}", callback_data=f"select_{p_id}"))
+    kb.add(InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="cancel_payment"))
+    await query.message.edit_text("🛍 <b>پلن را انتخاب کنید:</b>", reply_markup=kb)
+
+@dp.callback_query_handler(lambda c: c.data == "cancel_payment", state="*")
+async def callback_cancel_payment(query: types.CallbackQuery, state: FSMContext):
+    await state.finish()
+    await query.message.delete()
+    await query.message.answer("عملیات لغو شد.", reply_markup=get_main_reply_keyboard())
 
 @dp.message_handler(content_types=['photo'], state=ReceiptState.waiting_for_photo)
 async def process_receipt(message: types.Message, state: FSMContext):
-    data = await state.get_data()
-    plan = PLANS.get(data.get("selected_plan"), PLANS["plan_1"])
-    await message.answer("✅ فیش شما دریافت شد و در صف بررسی قرار گرفت.", reply_markup=get_main_reply_keyboard())
+    await message.answer("✅ فیش شما دریافت شد.", reply_markup=get_main_reply_keyboard())
     await state.finish()
-    if ADMIN_ID != 0:
-        await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=f"فیش جدید:\nکاربر: {message.from_user.full_name}\nپلن: {plan['name']}")
 
-# ==================== وب‌سرور هلث‌چک (Port 10000) ====================
+# ==================== وب‌سرور و رانر ====================
 async def start_health_server():
     app = web.Application()
     app.router.add_get("/", lambda r: web.Response(text="Shanli Bot is alive!"))
@@ -149,16 +187,10 @@ async def start_health_server():
     port = int(os.getenv("PORT", 10000))
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
-    logger.info(f"Health check server running on port {port}")
 
-# ==================== اجرای اصلی (Async Main) ====================
 async def main():
-    # شروع وب‌سرور هلث‌چک
     await start_health_server()
-    # حذف وب‌هوک‌های احتمالی قبلی برای جلوگیری از conflict
     await bot.delete_webhook(drop_pending_updates=True)
-    logger.info("Starting Shanli Bot polling...")
-    # اجرای polling ربات تلگرام
     await dp.start_polling()
 
 if __name__ == "__main__":
