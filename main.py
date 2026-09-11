@@ -29,21 +29,40 @@ CHANNEL_URL = os.getenv("CHANNEL_URL", "https://t.me/L2tp_vpn402").strip()
 CARD_NUMBER = os.getenv("PAYMENT_CARD", "6104338904607443").strip()
 CARD_HOLDER = os.getenv("PAYMENT_NAME", "رحیمی").strip()
 
+# فایل ذخیره آمار کاربران
+USERS_FILE = "users.txt"
+
 bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
 
-# ==================== وضعیت‌های FSM ====================
-class OrderState(StatesGroup):
-    waiting_for_receipt = State()
+# ==================== توابع مدیریت آمار کاربران ====================
+def register_user(user_id: int):
+    """ثبت شناسه کاربر در فایل متنی در صورت عدم وجود"""
+    try:
+        user_id_str = str(user_id)
+        if not os.path.exists(USERS_FILE):
+            with open(USERS_FILE, "w", encoding="utf-8") as f:
+                f.write(f"{user_id_str}\n")
+            return
+        
+        with open(USERS_FILE, "r", encoding="utf-8") as f:
+            users = [line.strip() for line in f.readlines() if line.strip()]
+        
+        if user_id_str not in users:
+            with open(USERS_FILE, "a", encoding="utf-8") as f:
+                f.write(f"{user_id_str}\n")
+    except Exception as e:
+        logging.error(f"خطا در ثبت کاربر: {e}")
 
+# ==================== وضعیت‌های FSM ====================
 class ReportState(StatesGroup):
     waiting_for_error = State()
 
 # ==================== تعرفه‌ها و پلن‌ها ====================
 PLANS = {
-    "p1": {"name": "اشتراک ۱ ماهه (تک کاربره)", "price": "۲۵۰,۰۰۰ تومان"},
-    "p2": {"name": "اشتراک ۲ ماهه (دو کاربره)", "price": "۴۰۰,۰۰۰ تومان"},
-    "p3": {"name": "اشتراک ۳ ماهه (سه کاربره)", "price": "۶۰۰,۰۰۰ تومان"},
+    "p1": {"name": "اشتراک ۱ ماهه", "price": "۲۵۰,۰۰۰ تومان"},
+    "p2": {"name": "اشتراک ۲ ماهه", "price": "۴۰۰,۰۰۰ تومان"},
+    "p3": {"name": "اشتراک ۳ ماهه", "price": "۶۰۰,۰۰۰ تومان"},
 }
 
 # ==================== تبدیل تاریخ میلادی به هجری شمسی (جلالی) ====================
@@ -89,7 +108,7 @@ def get_main_keyboard():
 def get_welcome_text(user):
     date_str, time_str = get_persian_datetime()
     return (
-        f"سلام <b>{user.first_name}</b> عزیز، به ربات هوشمند vpn خوش آمدید! 🌸\n\n"
+        f"سلام <b>{user.first_name}</b> عزیز، به ربات هوشمند شانلی خوش آمدید! 🌸\n\n"
         f"📅 تاریخ امروز (شمسی): <code>{date_str}</code>\n"
         f"⏰ ساعت رسمی تهران: <code>{time_str}</code>\n"
         f"🆔 شناسه کاربری شما: <code>{user.id}</code>\n\n"
@@ -104,7 +123,30 @@ def get_welcome_text(user):
 @dp.message_handler(commands=['start'], state="*")
 async def cmd_start(message: types.Message, state: FSMContext):
     await state.finish()
+    # ثبت آیدی کاربر برای آمارگیر
+    register_user(message.from_user.id)
     await message.answer(get_welcome_text(message.from_user), reply_markup=get_main_keyboard())
+
+@dp.message_handler(commands=['stats'], state="*")
+async def cmd_stats(message: types.Message, state: FSMContext):
+    """دستور اختصاصی ادمین برای دیدن تعداد کاربران"""
+    await state.finish()
+    if ADMIN_ID != 0 and message.from_user.id != ADMIN_ID:
+        return
+    
+    total_users = 0
+    if os.path.exists(USERS_FILE):
+        try:
+            with open(USERS_FILE, "r", encoding="utf-8") as f:
+                users = [line.strip() for line in f.readlines() if line.strip()]
+                total_users = len(users)
+        except Exception as e:
+            logging.error(f"خطا در خواندن آمار: {e}")
+
+    await message.answer(
+        f"📊 <b>آمار ربات شانلی:</b>\n\n"
+        f"👥 تعداد کل کاربران ثبت‌شده: <b>{total_users} نفر</b>"
+    )
 
 @dp.message_handler(lambda m: m.text == "🛒 خرید اشتراک", state="*")
 async def handle_buy(message: types.Message, state: FSMContext):
@@ -135,12 +177,12 @@ async def handle_my_subs(message: types.Message, state: FSMContext):
 async def handle_charge(message: types.Message, state: FSMContext):
     await state.finish()
     kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(InlineKeyboardButton("🧾 ارسال فیش واریزی", callback_data="send_receipt_charge"))
+    kb.add(InlineKeyboardButton("👤 ارسال فیش به پشتیبانی", url=SUPPORT_URL))
     text = (
         f"💰 <b>اطلاعات حساب بانکی جهت واریز:</b>\n\n"
         f"💳 شماره کارت:\n<code>{CARD_NUMBER}</code>\n"
         f"👤 بنام: <b>{CARD_HOLDER}</b>\n\n"
-        "پس از انتقال وجه، دکمه زیر را لمس کرده و تصویر فیش واریزی را ارسال کنید."
+        f"پس از واریز مبلغ، با لمس دکمه زیر تصویر فیش را مستقیماً به پشتیبانی ({SUPPORT_USERNAME}) ارسال فرمایید."
     )
     await message.answer(text, reply_markup=kb)
 
@@ -165,15 +207,14 @@ async def handle_faq(message: types.Message, state: FSMContext):
         "۱. <b>سرویس‌های فعلی بر چه اساسی هستند؟</b>\nدر حال حاضر کلیه سرویس‌ها V2Ray هستند.\n\n"
         "۲. <b>پروتکل‌های دیگر مثل L2TP اضافه می‌شوند؟</b>\nبله، به زودی L2TP, PPTP و OpenVPN اضافه خواهد شد.\n\n"
         "۳. <b>چگونه متصل شوم؟</b>\nاز بخش کانفیگ‌ها برنامه متناسب را دانلود کنید.\n\n"
-        "۴. <b>محدودیت کاربر در پلن‌ها چقدر است؟</b>\nپلن‌ها بر اساس تعداد کاربر مجاز مشخص شده‌اند.\n\n"
-        "۵. <b>تایید فیش چقدر زمان می‌برد؟</b>\nدر اسرع وقت توسط پشتیبانی تایید می‌شود.\n\n"
-        "۶. <b>آیا اشتراک‌ها قابل انتقال هستند؟</b>\nخیر، اشتراک‌ها مختص یک شناسه کاربری هستند.\n\n"
-        "۷. <b>چرا سرعت گاهی نوسان دارد؟</b>\nبستگی به نوع اینترنت و اپراتور شما دارد.\n\n"
-        "۸. <b>آیا سرورها اختصاصی هستند؟</b>\nتمامی سرورها با پهنای باند اختصاصی می‌باشند.\n\n"
-        "۹. <b>چطور گزارش خطا بدهم؟</b>\nاز بخش پشتیبانی گزینه گزارش خطا را انتخاب کنید.\n\n"
-        "۱۰. <b>آیا پشتیبانی ۲۴ ساعته است؟</b>\nبله، در سریع‌ترین زمان پاسخگو هستیم.\n\n"
-        "۱۱. <b>امنیت اتصالات چطور است؟</b>\nتمامی اتصالات با پروتکل‌های امن رمزنگاری شده هستند.\n\n"
-        "۱۲. <b>اگر شارژ کنم چه زمانی فعال می‌شود؟</b>\nپس از ارسال فیش و تایید، آنی فعال می‌شود."
+        "۴. <b>تایید فیش چقدر زمان می‌برد؟</b>\nدر اسرع وقت توسط پشتیبانی تایید می‌شود.\n\n"
+        "۵. <b>آیا اشتراک‌ها قابل انتقال هستند؟</b>\nخیر، اشتراک‌ها مختص یک شناسه کاربری هستند.\n\n"
+        "۶. <b>چرا سرعت گاهی نوسان دارد؟</b>\nبستگی به نوع اینترنت و اپراتور شما دارد.\n\n"
+        "۷. <b>آیا سرورها اختصاصی هستند؟</b>\nتمامی سرورها با پهنای باند اختصاصی می‌باشند.\n\n"
+        "۸. <b>چگونه گزارش قطعی یا خطا بدهم؟</b>\nاز بخش پشتیبانی گزینه گزارش خطا را انتخاب کنید.\n\n"
+        "۹. <b>آیا پشتیبانی ۲۴ ساعته است؟</b>\nبله، در سریع‌ترین زمان پاسخگو هستیم.\n\n"
+        "۱۰. <b>امنیت اتصالات چطور است؟</b>\nتمامی اتصالات با پروتکل‌های امن رمزنگاری شده هستند.\n\n"
+        "۱۱. <b>اگر شارژ کنم چه زمانی فعال می‌شود؟</b>\nپس از ارسال فیش به پشتیبانی و تایید، آنی فعال می‌شود."
     )
     await message.answer(text, reply_markup=get_main_keyboard())
 
@@ -197,27 +238,20 @@ async def callback_buy_plan(query: types.CallbackQuery, state: FSMContext):
     if not plan:
         await query.answer("پلن یافت نشد.", show_alert=True)
         return
-    await state.update_data(plan_key=plan_key, plan_name=plan["name"], plan_price=plan["price"])
-    await OrderState.waiting_for_receipt.set()
+    
     kb = InlineKeyboardMarkup(row_width=1)
+    kb.add(InlineKeyboardButton("👤 ارسال فیش به پشتیبانی", url=SUPPORT_URL))
     kb.add(InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu"))
+    
     text = (
         f"🧾 <b>پیش‌فاکتور خرید اشتراک</b>\n\n"
         f"📦 پلن انتخابی: <b>{plan['name']}</b>\n"
         f"💵 مبلغ قابل پرداخت: <b>{plan['price']}</b>\n\n"
         f"💳 شماره کارت:\n<code>{CARD_NUMBER}</code>\n"
         f"👤 بنام: <b>{CARD_HOLDER}</b>\n\n"
-        "لطفاً پس از واریز مبلغ، تصویر فیش واریزی خود را در همین صفحه ارسال کنید:"
+        f"لطفاً مبلغ را واریز کرده و سپس تصویر فیش واریزی را از طریق دکمه زیر به آیدی پشتیبانی ({SUPPORT_USERNAME}) ارسال فرمایید."
     )
     await query.message.edit_text(text, reply_markup=kb)
-    await query.answer()
-
-@dp.callback_query_handler(lambda c: c.data == "send_receipt_charge", state="*")
-async def callback_charge_receipt(query: types.CallbackQuery, state: FSMContext):
-    await OrderState.waiting_for_receipt.set()
-    kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu"))
-    await query.message.edit_text("لطفاً تصویر فیش واریزی خود را ارسال کنید:", reply_markup=kb)
     await query.answer()
 
 @dp.callback_query_handler(lambda c: c.data == "report_error", state="*")
@@ -235,31 +269,29 @@ async def callback_report_issue(query: types.CallbackQuery, state: FSMContext):
 @dp.callback_query_handler(lambda c: c.data == "main_menu", state="*")
 async def callback_back_menu(query: types.CallbackQuery, state: FSMContext):
     await state.finish()
-    await query.message.edit_text(get_welcome_text(query.from_user), reply_markup=None)
-    await query.message.answer("منوی اصلی در دسترس است:", reply_markup=get_main_keyboard())
+    await query.message.delete()
+    await query.message.answer(get_welcome_text(query.from_user), reply_markup=get_main_keyboard())
     await query.answer()
 
 # ==================== دریافت ورودی‌های FSM ====================
-@dp.message_handler(content_types=['photo'], state=OrderState.waiting_for_receipt)
-async def handle_incoming_receipt(message: types.Message, state: FSMContext):
-    user_data = await state.get_data()
-    plan_name = user_data.get("plan_name", "شارژ حساب")
-    plan_price = user_data.get("plan_price", "نامشخص")
-    caption = f"🔔 <b>فیش واریزی جدید!</b>\n\n👤 کاربر: {message.from_user.full_name}\n🆔 شناسه: <code>{message.from_user.id}</code>\n📦 مورد: {plan_name}\n💰 مبلغ: {plan_price}"
-    if ADMIN_ID != 0:
-        await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=caption)
-    await message.answer("✅ فیش شما با موفقیت ثبت شد و جهت تایید برای مدیریت ارسال گردید.", reply_markup=get_main_keyboard())
-    await state.finish()
-
 @dp.message_handler(state=ReportState.waiting_for_error)
 async def handle_incoming_report(message: types.Message, state: FSMContext):
-    report_text = f"⚠️ <b>گزارش خطای جدید</b>\n\n👤 فرستنده: {message.from_user.full_name}\n🆔 شناسه: <code>{message.from_user.id}</code>\n\n📝 متن:\n{message.text}"
+    report_text = (
+        f"⚠️ <b>گزارش خطای جدید</b>\n\n"
+        f"👤 فرستنده: {message.from_user.full_name}\n"
+        f"🆔 شناسه: <code>{message.from_user.id}</code>\n\n"
+        f"📝 متن:\n{message.text}"
+    )
     if ADMIN_ID != 0:
-        await bot.send_message(ADMIN_ID, report_text)
+        try:
+            await bot.send_message(ADMIN_ID, report_text)
+        except Exception as e:
+            logging.error(f"خطا در ارسال گزارش به ادمین: {e}")
+            
     await message.answer("✅ گزارش خطای شما برای تیم پشتیبانی ارسال شد و بررسی خواهد شد.", reply_markup=get_main_keyboard())
     await state.finish()
 
-# ==================== سرور هلث‌چک ====================
+# ==================== سرور هلث‌چک برای رندر ====================
 async def run_server():
     app = web.Application()
     app.router.add_get("/", lambda r: web.Response(text="Shanli Bot is active"))
