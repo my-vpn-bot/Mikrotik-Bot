@@ -46,7 +46,7 @@ PLANS = {
     "p3": {"name": "اشتراک ۳ ماهه (سه کاربره)", "price": "۶۰۰,۰۰۰ تومان"},
 }
 
-# ==================== توابع کمکی رابط کاربری ====================
+# ==================== توابع کمکی ====================
 def get_main_keyboard():
     kb = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     kb.add(KeyboardButton("🛒 خرید اشتراک"))
@@ -69,16 +69,18 @@ def get_welcome_text(user):
         f"📅 تاریخ: <code>{date_str}</code>\n"
         f"⏰ ساعت رسمی تهران: <code>{time_str}</code>\n"
         f"🆔 شناسه کاربری: <code>{user.id}</code>\n\n"
+        f"⚠️ <b>وضعیت پروتکل‌ها:</b>\n"
+        f"در حال حاضر کلیه سرویس‌های ما بر پایه پروتکل‌های پرسرعت <b>V2Ray</b> (VMess/VLESS) ارائه می‌شوند.\n"
+        f"در بروزرسانی‌های بعدی، پشتیبانی از پروتکل‌های <b>L2TP</b>، <b>PPTP</b> و <b>OpenVPN</b> نیز به لیست سرویس‌ها اضافه خواهد شد.\n\n"
         "⚡️ برای استفاده از خدمات و مدیریت سرویس، لطفاً از منوی زیر گزینه‌ای را انتخاب کنید:"
     )
 
-# ==================== هندلرهای اصلی منو ====================
+# ==================== هندلرهای اصلی ====================
 @dp.message_handler(commands=['start'], state="*")
 async def cmd_start(message: types.Message, state: FSMContext):
     await state.finish()
     await message.answer(get_welcome_text(message.from_user), reply_markup=get_main_keyboard())
 
-# ۱. خرید اشتراک و نمایش تعرفه‌ها
 @dp.message_handler(lambda m: m.text == "🛒 خرید اشتراک", state="*")
 async def handle_buy(message: types.Message, state: FSMContext):
     await state.finish()
@@ -87,7 +89,6 @@ async def handle_buy(message: types.Message, state: FSMContext):
         kb.add(InlineKeyboardButton(f"🔹 {info['name']} — {info['price']}", callback_data=f"buy_{p_id}"))
     await message.answer("🛍 <b>لیست پلن‌های اشتراک:</b>\n\nلطفاً یکی از پلن‌های زیر را جهت خرید انتخاب کنید:", reply_markup=kb)
 
-# ۲. اطلاعات حساب
 @dp.message_handler(lambda m: m.text == "📊 اطلاعات حساب", state="*")
 async def handle_account(message: types.Message, state: FSMContext):
     await state.finish()
@@ -100,13 +101,11 @@ async def handle_account(message: types.Message, state: FSMContext):
     )
     await message.answer(text, reply_markup=get_main_keyboard())
 
-# ۳. اشتراک‌های من
 @dp.message_handler(lambda m: m.text == "💎 اشتراک‌های من", state="*")
 async def handle_my_subs(message: types.Message, state: FSMContext):
     await state.finish()
     await message.answer("💎 <b>اشتراک‌های فعال شما:</b>\n\nدر حال حاضر اشتراک فعالی برای شما ثبت نشده است.", reply_markup=get_main_keyboard())
 
-# ۴. شارژ حساب
 @dp.message_handler(lambda m: m.text == "💰 شارژ حساب", state="*")
 async def handle_charge(message: types.Message, state: FSMContext):
     await state.finish()
@@ -120,7 +119,6 @@ async def handle_charge(message: types.Message, state: FSMContext):
     )
     await message.answer(text, reply_markup=kb)
 
-# ۵. پشتیبانی
 @dp.message_handler(lambda m: m.text == "👥 پشتیبانی", state="*")
 async def handle_support(message: types.Message, state: FSMContext):
     await state.finish()
@@ -134,22 +132,26 @@ async def handle_support(message: types.Message, state: FSMContext):
     )
     await message.answer(text, reply_markup=kb)
 
-# ۶. سوالات متداول
 @dp.message_handler(lambda m: m.text == "❓ سوالات متداول", state="*")
 async def handle_faq(message: types.Message, state: FSMContext):
     await state.finish()
     text = (
-        "❓ <b>سوالات متداول کاربران:</b>\n\n"
-        "۱. <b>چگونه متصل شوم؟</b>\n"
-        "از بخش کانفیگ‌ها برنامه متناسب با سیستم‌عامل خود را دانلود و اطلاعات سرویس را وارد کنید.\n\n"
-        "۲. <b>آیا اشتراک‌ها محدودیت دارند؟</b>\n"
-        "پلن‌ها بر اساس تعداد کاربر مجاز مشخص شده‌اند و کیفیت اتصال به طور دائم پایش می‌شود.\n\n"
-        "۳. <b>تایید فیش چه مدت طول می‌کشد؟</b>\n"
-        "فیش‌های ارسالی توسط پشتیبانی در اسرع وقت بررسی و حساب فعال می‌شود."
+        "❓ <b>سوالات متداول (FAQ):</b>\n\n"
+        "۱. <b>سرویس‌های فعلی بر چه اساسی هستند؟</b>\nدر حال حاضر کلیه سرویس‌ها V2Ray هستند.\n\n"
+        "۲. <b>پروتکل‌های دیگر مثل L2TP اضافه می‌شوند؟</b>\nبله، به زودی L2TP, PPTP و OpenVPN اضافه خواهد شد.\n\n"
+        "۳. <b>چگونه متصل شوم؟</b>\nاز بخش کانفیگ‌ها برنامه متناسب را دانلود کنید.\n\n"
+        "۴. <b>محدودیت کاربر در پلن‌ها؟</b>\nپلن‌ها بر اساس تعداد کاربر مجاز مشخص شده‌اند.\n\n"
+        "۵. <b>تایید فیش چقدر زمان می‌برد؟</b>\nدر اسرع وقت توسط پشتیبانی تایید می‌شود.\n\n"
+        "۶. <b>اشتراک‌ها قابل انتقال هستند؟</b>\nاشتراک‌ها مختص یک شناسه کاربری هستند.\n\n"
+        "۷. <b>چرا سرعت نوسان دارد؟</b>\nبستگی به نوع اینترنت و اپراتور شما دارد.\n\n"
+        "۸. <b>آیا سرورها اختصاصی هستند؟</b>\nتمامی سرورها با پهنای باند اختصاصی می‌باشند.\n\n"
+        "۹. <b>چطور گزارش خطا بدهم؟</b>\nاز بخش پشتیبانی گزینه گزارش خطا را انتخاب کنید.\n\n"
+        "۱۰. <b>آیا پشتیبانی ۲۴ ساعته است؟</b>\nبله، در سریع‌ترین زمان پاسخگو هستیم.\n\n"
+        "۱۱. <b>امنیت اتصالات چطور است؟</b>\nتمامی اتصالات رمزنگاری شده هستند.\n\n"
+        "۱۲. <b>اگر شارژ کنم چه زمانی فعال می‌شود؟</b>\nپس از ارسال فیش و تایید، آنی فعال می‌شود."
     )
     await message.answer(text, reply_markup=get_main_keyboard())
 
-# ۷. کانفیگ‌ها و آموزش اتصال
 @dp.message_handler(lambda m: m.text == "⚙️ کانفیگ‌ها و آموزش اتصال", state="*")
 async def handle_configs(message: types.Message, state: FSMContext):
     await state.finish()
@@ -159,10 +161,9 @@ async def handle_configs(message: types.Message, state: FSMContext):
         "⚙️ <b>آموزش اتصال و فایل‌های کانفیگ:</b>\n\n"
         "تمامی نرم‌افزارهای مورد نیاز و راهنماهای قدم‌به‌قدم در کانال اطلاع‌رسانی قرار دارند."
     )
-    await message.answer(text, reply_markup=kb)
+    await message.answer(text, reply_markup=get_main_keyboard())
 
-# ==================== جریان‌های کال‌بک اینلاین ====================
-# انتخاب پلن خرید
+# ==================== جریان‌های کال‌بک ====================
 @dp.callback_query_handler(lambda c: c.data.startswith("buy_"), state="*")
 async def callback_buy_plan(query: types.CallbackQuery, state: FSMContext):
     plan_key = query.data.split("_")[1]
@@ -170,13 +171,10 @@ async def callback_buy_plan(query: types.CallbackQuery, state: FSMContext):
     if not plan:
         await query.answer("پلن یافت نشد.", show_alert=True)
         return
-    
     await state.update_data(plan_key=plan_key, plan_name=plan["name"], plan_price=plan["price"])
     await OrderState.waiting_for_receipt.set()
-
     kb = InlineKeyboardMarkup(row_width=1)
     kb.add(InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu"))
-
     text = (
         f"🧾 <b>پیش‌فاکتور خرید اشتراک</b>\n\n"
         f"📦 پلن انتخابی: <b>{plan['name']}</b>\n"
@@ -188,7 +186,6 @@ async def callback_buy_plan(query: types.CallbackQuery, state: FSMContext):
     await query.message.edit_text(text, reply_markup=kb)
     await query.answer()
 
-# ارسال فیش از بخش شارژ حساب
 @dp.callback_query_handler(lambda c: c.data == "send_receipt_charge", state="*")
 async def callback_charge_receipt(query: types.CallbackQuery, state: FSMContext):
     await OrderState.waiting_for_receipt.set()
@@ -197,7 +194,6 @@ async def callback_charge_receipt(query: types.CallbackQuery, state: FSMContext)
     await query.message.edit_text("لطفاً تصویر فیش واریزی خود را ارسال کنید:", reply_markup=kb)
     await query.answer()
 
-# ثبت گزارش خطا
 @dp.callback_query_handler(lambda c: c.data == "report_error", state="*")
 async def callback_report_issue(query: types.CallbackQuery, state: FSMContext):
     await ReportState.waiting_for_error.set()
@@ -210,7 +206,6 @@ async def callback_report_issue(query: types.CallbackQuery, state: FSMContext):
     )
     await query.answer()
 
-# دکمه بازگشت عمومی
 @dp.callback_query_handler(lambda c: c.data == "main_menu", state="*")
 async def callback_back_menu(query: types.CallbackQuery, state: FSMContext):
     await state.finish()
@@ -219,50 +214,26 @@ async def callback_back_menu(query: types.CallbackQuery, state: FSMContext):
     await query.answer()
 
 # ==================== دریافت ورودی‌های FSM ====================
-# دریافت عکس فیش
 @dp.message_handler(content_types=['photo'], state=OrderState.waiting_for_receipt)
 async def handle_incoming_receipt(message: types.Message, state: FSMContext):
     user_data = await state.get_data()
     plan_name = user_data.get("plan_name", "شارژ حساب")
     plan_price = user_data.get("plan_price", "نامشخص")
-    
-    caption = (
-        f"🔔 <b>فیش واریزی جدید!</b>\n\n"
-        f"👤 کاربر: {message.from_user.full_name} (@{message.from_user.username})\n"
-        f"🆔 شناسه: <code>{message.from_user.id}</code>\n"
-        f"📦 مورد: {plan_name}\n"
-        f"💰 مبلغ: {plan_price}"
-    )
-    
+    caption = f"🔔 <b>فیش واریزی جدید!</b>\n\n👤 کاربر: {message.from_user.full_name}\n🆔 شناسه: <code>{message.from_user.id}</code>\n📦 مورد: {plan_name}\n💰 مبلغ: {plan_price}"
     if ADMIN_ID != 0:
-        try:
-            await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=caption)
-        except Exception as e:
-            logging.error(f"Error forwarding receipt to admin: {e}")
-            
+        await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=caption)
     await message.answer("✅ فیش شما با موفقیت ثبت شد و جهت تایید برای مدیریت ارسال گردید.", reply_markup=get_main_keyboard())
     await state.finish()
 
-# دریافت متن گزارش خطا
 @dp.message_handler(state=ReportState.waiting_for_error)
 async def handle_incoming_report(message: types.Message, state: FSMContext):
-    report_text = (
-        f"⚠️ <b>گزارش خطای جدید از کاربر</b>\n\n"
-        f"👤 فرستنده: {message.from_user.full_name} (@{message.from_user.username})\n"
-        f"🆔 شناسه: <code>{message.from_user.id}</code>\n\n"
-        f"📝 متن گزارش:\n{message.text}"
-    )
-    
+    report_text = f"⚠️ <b>گزارش خطای جدید</b>\n\n👤 فرستنده: {message.from_user.full_name}\n🆔 شناسه: <code>{message.from_user.id}</code>\n\n📝 متن:\n{message.text}"
     if ADMIN_ID != 0:
-        try:
-            await bot.send_message(ADMIN_ID, report_text)
-        except Exception as e:
-            logging.error(f"Error forwarding report to admin: {e}")
-            
+        await bot.send_message(ADMIN_ID, report_text)
     await message.answer("✅ گزارش خطای شما برای تیم پشتیبانی ارسال شد و بررسی خواهد شد.", reply_markup=get_main_keyboard())
     await state.finish()
 
-# ==================== سرور هلث‌چک برای Render ====================
+# ==================== سرور هلث‌چک ====================
 async def run_server():
     app = web.Application()
     app.router.add_get("/", lambda r: web.Response(text="Shanli Bot is active"))
