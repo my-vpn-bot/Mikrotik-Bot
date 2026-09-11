@@ -1,4 +1,4 @@
-aiogram==2.25.1
-pytz
-jdatetime
-aiohttp
+aiogram==2.25.2
+jdatetime==5.0.0
+requests==2.31.0
+python-dotenv==1.0.0
