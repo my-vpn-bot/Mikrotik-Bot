@@ -146,9 +146,20 @@ async def start_health_server():
     app.router.add_get("/", lambda r: web.Response(text="Shanli Bot is alive!"))
     runner = web.AppRunner(app)
     await runner.setup()
-    await web.TCPSite(runner, "0.0.0.0", int(os.getenv("PORT", 10000))).start()
+    port = int(os.getenv("PORT", 10000))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    logger.info(f"Health check server running on port {port}")
+
+# ==================== اجرای اصلی (Async Main) ====================
+async def main():
+    # شروع وب‌سرور هلث‌چک
+    await start_health_server()
+    # حذف وب‌هوک‌های احتمالی قبلی برای جلوگیری از conflict
+    await bot.delete_webhook(drop_pending_updates=True)
+    logger.info("Starting Shanli Bot polling...")
+    # اجرای polling ربات تلگرام
+    await dp.start_polling()
 
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.create_task(start_health_server())
-    dp.loop.run_until_complete(dp.start_polling())
+    asyncio.run(main())
