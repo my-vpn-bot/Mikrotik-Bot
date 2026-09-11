@@ -1,96 +1,83 @@
 import os
-import logging
 import asyncio
-from datetime import datetime, timezone, timedelta
-from aiohttp import web
+import logging
+from datetime import datetime
+import pytz
 
-from aiogram import Bot, Dispatcher, F, types
-from aiogram.filters import CommandStart, Command
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram import Bot, Dispatcher, types
+from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.dispatcher import FSMContext
+from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.types import (
     ReplyKeyboardMarkup,
     KeyboardButton,
-    ReplyKeyboardRemove,
     InlineKeyboardMarkup,
-    InlineKeyboardButton
+    InlineKeyboardButton,
+    ReplyKeyboardRemove
 )
+from aiohttp import web
 
-# ==============================
-# تنظیمات لاگینگ
-# ==============================
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+# ==================== تنظیمات لاگ ====================
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("ShanliBot")
 
-# ==============================
-# متغیرهای محیطی از رندر (Environment Variables)
-# ==============================
+# ==================== دریافت اطلاعات از متغیرهای محیطی Render ====================
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "0").strip()
-try:
-    ADMIN_ID = int(ADMIN_ID_RAW) if ADMIN_ID_RAW else 0
-except ValueError:
-    ADMIN_ID = 0
+ADMIN_ID = int(ADMIN_ID_RAW) if ADMIN_ID_RAW.isdigit() else 0
 
-CARD_NUMBER = os.getenv("CARD_NUMBER", "تنظیم نشده در پنل رندر").strip()
-CARD_HOLDER = os.getenv("CARD_HOLDER", "پشتیبانی").strip()
+RAW_SUPPORT = os.getenv("SUPPORT_USERNAME", "").strip().replace("@", "")
+RAW_CHANNEL = os.getenv("CHANNEL_LINK", "").strip()
 
-RAW_SUPPORT = os.getenv("SUPPORT_USERNAME", "support").strip()
-RAW_CHANNEL = os.getenv("CHANNEL_LINK", "https://t.me").strip()
+# نرمال‌سازی لینک‌ها
+SUPPORT_USERNAME = f"@{RAW_SUPPORT}" if RAW_SUPPORT else "@Support"
+SUPPORT_URL = f"https://t.me/{RAW_SUPPORT}" if RAW_SUPPORT else "https://t.me"
 
-PORT = int(os.getenv("PORT", 10000))
+if RAW_CHANNEL.startswith("http://") or RAW_CHANNEL.startswith("https://"):
+    CHANNEL_URL = RAW_CHANNEL
+    CHANNEL_DISPLAY = RAW_CHANNEL.split("/")[-1]
+    if not CHANNEL_DISPLAY.startswith("@"):
+        CHANNEL_DISPLAY = f"@{CHANNEL_DISPLAY}"
+else:
+    ch_clean = RAW_CHANNEL.replace("@", "")
+    CHANNEL_URL = f"https://t.me/{ch_clean}" if ch_clean else "https://t.me"
+    CHANNEL_DISPLAY = f"@{ch_clean}" if ch_clean else "@Channel"
 
-# ==============================
-# نرمال‌سازی لینک‌ها و آیدی‌ها
-# ==============================
-def normalize_username(val: str) -> str:
-    clean = val.replace("https://t.me/", "").replace("http://t.me/", "").replace("@", "").strip().strip("/")
-    return f"@{clean}" if clean else "@support"
+CARD_NUMBER = os.getenv("CARD_NUMBER", "شماره کارت در پنل رندر تنظیم نشده است").strip()
+CARD_HOLDER = os.getenv("CARD_HOLDER", "پشتیبانی ربات").strip()
 
-def normalize_channel_url(val: str) -> str:
-    clean = val.strip()
-    if clean.startswith("http://") or clean.startswith("https://"):
-        return clean
-    clean = clean.replace("@", "").strip()
-    return f"https://t.me/{clean}" if clean else "https://t.me"
-
-SUPPORT_USERNAME = normalize_username(RAW_SUPPORT)
-SUPPORT_URL = f"https://t.me/{SUPPORT_USERNAME.replace('@', '')}"
-CHANNEL_LINK = normalize_channel_url(RAW_CHANNEL)
-
-# ==============================
-# پلن‌های قیمت (مصوب و بدون تغییر)
-# ==============================
+# قیمت پلن‌های تثبیت‌شده
 PLANS = {
-    "plan_1": {
-        "title": "یک‌ماهه اختصاصی (تک‌کاربره)",
-        "volume": "حجم نامحدود",
-        "price": "250,000",
-        "desc": "مناسب استفاده روزمره با سرعت عالی و آی‌پی ثابت"
-    },
-    "plan_2": {
-        "title": "سه‌ماهه اقتصادی (دوکاربره)",
-        "volume": "حجم نامحدود",
-        "price": "400,000",
-        "desc": "محبوب‌ترین اشتراک با پایداری حداکثری بدون قطعی"
-    },
-    "plan_3": {
-        "title": "شش‌ماهه ویژه (نامحدود)",
-        "volume": "حجم نامحدود",
-        "price": "600,000",
-        "desc": "بهترین کیفیت، پینگ پایین و پشتیبانی اولویت‌دار"
-    }
+    "plan_1": {"name": "اشتراک ۱ ماهه (تک کاربره)", "price": "۲۵۰,۰۰۰ تومان", "raw_price": 250000},
+    "plan_2": {"name": "اشتراک ۲ ماهه (دو کاربره)", "price": "۴۰۰,۰۰۰ تومان", "raw_price": 400000},
+    "plan_3": {"name": "اشتراک ۳ ماهه (سه کاربره)", "price": "۶۰۰,۰۰۰ تومان", "raw_price": 600000},
 }
 
-# ==============================
-# تابع تقویم جلالی (بدون نیاز به کتابخانه جانبی)
-# ==============================
+bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
+dp = Dispatcher(bot, storage=MemoryStorage())
+
+# ==================== توابع تقویم جلالی و ساعت ====================
+PERSIAN_WEEKDAYS = {
+    "Saturday": "شنبه",
+    "Sunday": "یک‌شنبه",
+    "Monday": "دوشنبه",
+    "Tuesday": "سه‌شنبه",
+    "Wednesday": "چهارشنبه",
+    "Thursday": "پنج‌شنبه",
+    "Friday": "جمعه"
+}
+
 def gregorian_to_jalali(gy, gm, gd):
     g_d_m = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
-    gy2 = gy + 1 if gm > 2 else gy
-    days = 355666 + (365 * gy) + ((gy2 + 3) // 4) - ((gy2 + 99) // 100) + ((gy2 + 399) // 400) + gd + g_d_m[gm - 1]
-    jy = -1595 + (33 * (days // 12053))
+    if gy > 1600:
+        jy = 979
+        gy -= 1600
+    else:
+        jy = 0
+        gy -= 621
+    gy2 = gy + 1 if (gm > 2) else gy
+    days = (365 * gy) + ((gy2 + 3) // 4) - ((gy2 + 99) // 100) + ((gy2 + 399) // 400) - 80 + gd + g_d_m[gm - 1]
+    jy += 33 * (days // 12053)
     days %= 12053
     jy += 4 * (days // 1461)
     days %= 1461
@@ -105,304 +92,246 @@ def gregorian_to_jalali(gy, gm, gd):
         jd = 1 + ((days - 186) % 30)
     return jy, jm, jd
 
-PERSIAN_WEEKDAYS = {
-    0: "دوشنبه",
-    1: "سه‌شنبه",
-    2: "چهارشنبه",
-    3: "پنج‌شنبه",
-    4: "جمعه",
-    5: "شنبه",
-    6: "یک‌شنبه"
-}
-
 def get_tehran_datetime_details():
-    tz_tehran = timezone(timedelta(hours=3, minutes=30))
-    now = datetime.now(tz_tehran)
+    tz = pytz.timezone("Asia/Tehran")
+    now = datetime.now(tz)
     jy, jm, jd = gregorian_to_jalali(now.year, now.month, now.day)
-    weekday_str = PERSIAN_WEEKDAYS[now.weekday()]
-    date_str = f"{jy}/{jm:02d}/{jd:02d}"
+    weekday_en = now.strftime("%A")
+    weekday_fa = PERSIAN_WEEKDAYS.get(weekday_en, weekday_en)
+    date_str = f"{jy:04d}/{jm:02d}/{jd:02d}"
     time_str = now.strftime("%H:%M:%S")
-    return date_str, time_str, weekday_str
+    return weekday_fa, date_str, time_str
 
-# ==============================
-# FSM وضعیت دریافت فیش
-# ==============================
+# ==================== منوی اصلی (۴ ردیف) ====================
+def get_main_reply_keyboard():
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.row(KeyboardButton("🛒 خرید اشتراک"))
+    keyboard.row(KeyboardButton("📊 اطلاعات حساب"), KeyboardButton("💎 اشتراک‌های من"))
+    keyboard.row(KeyboardButton("💰 شارژ حساب"), KeyboardButton("👥 پشتیبانی"))
+    keyboard.row(KeyboardButton("❓ سوالات متداول"), KeyboardButton("⚙️ کانفیگ‌ها و آموزش اتصال"))
+    return keyboard
+
 class ReceiptState(StatesGroup):
-    waiting_for_receipt = State()
+    waiting_for_plan = State()
+    waiting_for_photo = State()
 
-# ==============================
-# کیبورد اصلی (دقیقاً ۴ ردیف توافق‌شده)
-# ==============================
-def get_main_reply_keyboard() -> ReplyKeyboardMarkup:
-    keyboard = [
-        [KeyboardButton(text="🛒 خرید اشتراک")],
-        [KeyboardButton(text="📊 اطلاعات حساب"), KeyboardButton(text="💎 اشتراک‌های من")],
-        [KeyboardButton(text="💰 شارژ حساب"), KeyboardButton(text="👥 پشتیبانی")],
-        [KeyboardButton(text="❓ سوالات متداول"), KeyboardButton(text="⚙️ کانفیگ‌ها و آموزش اتصال")]
-    ]
-    return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-
-# ==============================
-# ربات و دیسپچر
-# ==============================
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(storage=MemoryStorage())
-
-# ==============================
-# هندلر دستور /start (متن خوش‌آمدگویی کامل و بلند)
-# ==============================
-@dp.message(CommandStart())
+# ==================== هندلر استارت (متن خوش‌آمدگویی بلند) ====================
+@dp.message_handler(commands=['start'], state="*")
 async def cmd_start(message: types.Message, state: FSMContext):
-    await state.clear()
+    await state.finish()
     
-    # پاکسازی کیبوردهای به‌جامانده قبلی
-    temp_msg = await message.answer("در حال بارگذاری منو...", reply_markup=ReplyKeyboardRemove())
-    await temp_msg.delete()
-
-    user_name = message.from_user.first_name or "کاربر گرامی"
+    weekday_fa, date_str, time_str = get_tehran_datetime_details()
+    first_name = message.from_user.first_name or "کاربر گرامی"
     user_id = message.from_user.id
-    username = f"@{message.from_user.username}" if message.from_user.username else "ندارد"
-    date_str, time_str, weekday_str = get_tehran_datetime_details()
 
     welcome_text = (
-        f"سلام {user_name} عزیز! 🌹\n"
-        f"به ربات هوشمند مدیریت اشتراک و خدمات اتصال پایدار خوش آمدید.\n\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n"
-        f"👤 مشخصات کاربری شما:\n"
-        f"▫️ شناسه عددی: `{user_id}`\n"
-        f"▫️ نام کاربری: {username}\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📅 تاریخ: {date_str} ({weekday_str})\n"
-        f"⏰ ساعت رسمی: {time_str}\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📢 کانال اطلاع‌رسانی: {CHANNEL_LINK}\n"
-        f"👨‍💻 آیدی پشتیبانی فنی: {SUPPORT_USERNAME}\n\n"
-        f"💡 لطفاً برای استفاده از خدمات، از کلیدهای زیر انتخاب فرمایید:"
+        f"سلام <b>{first_name}</b> عزیز، به ربات هوشمند شانلی خوش آمدید! 🌸\n\n"
+        f"🆔 شناسه کاربری: <code>{user_id}</code>\n"
+        f"📅 امروز: <b>{weekday_fa} {date_str}</b>\n"
+        f"⏰ ساعت رسمی تهران: <b>{time_str}</b>\n\n"
+        f"📢 کانال رسمی اطلاع‌رسانی:\n👉 <a href='{CHANNEL_URL}'>{CHANNEL_DISPLAY}</a>\n\n"
+        f"💬 واحد پشتیبانی و ارتباط مستقیم:\n👉 <a href='{SUPPORT_URL}'>{SUPPORT_USERNAME}</a>\n\n"
+        "⚡️ برای دسترسی به خدمات، خرید اشتراک، مشاهده حساب و راهنمای اتصال از منوی زیر استفاده فرمایید:"
     )
 
-    await message.answer(welcome_text, reply_markup=get_main_reply_keyboard(), parse_mode="Markdown")
+    await message.answer(welcome_text, reply_markup=get_main_reply_keyboard(), disable_web_page_preview=True)
 
-# ==============================
-# هندلر: 🛒 خرید اشتراک
-# ==============================
-@dp.message(F.text == "🛒 خرید اشتراک")
-async def handle_buy_subscription(message: types.Message, state: FSMContext):
-    await state.clear()
-    inline_kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=f"🥉 {PLANS['plan_1']['title']} - {PLANS['plan_1']['price']} تومان", callback_data="buy_plan_1")],
-            [InlineKeyboardButton(text=f"🥈 {PLANS['plan_2']['title']} - {PLANS['plan_2']['price']} تومان", callback_data="buy_plan_2")],
-            [InlineKeyboardButton(text=f"🥇 {PLANS['plan_3']['title']} - {PLANS['plan_3']['price']} تومان", callback_data="buy_plan_3")]
-        ]
-    )
-    text = (
-        "🛍 **پلن‌های فعال و پرسرعت:**\n\n"
-        "⚡️ تمام اشتراک‌ها بدون افت سرعت، دارای آی‌پی ثابت و تضمین اتصال روی تمام اپراتورها می‌باشند.\n"
-        "لطفاً اشتراک مورد نظر خود را انتخاب فرمایید:"
-    )
-    await message.answer(text, reply_markup=inline_kb, parse_mode="Markdown")
+# ==================== خرید اشتراک ====================
+@dp.message_handler(lambda msg: msg.text == "🛒 خرید اشتراک", state="*")
+async def handle_buy(message: types.Message, state: FSMContext):
+    await state.finish()
+    text = "🛍 <b>لطفاً پلن اشتراک مورد نظر خود را انتخاب فرمایید:</b>"
+    kb = InlineKeyboardMarkup(row_width=1)
+    for p_id, p_info in PLANS.items():
+        kb.add(InlineKeyboardButton(f"{p_info['name']} — {p_info['price']}", callback_data=f"select_{p_id}"))
+    await message.answer(text, reply_markup=kb)
 
-# ==============================
-# پردازش انتخاب پلن و نمایش اطلاعات کارت
-# ==============================
-@dp.callback_query(F.data.startswith("buy_"))
-async def process_plan_selection(callback: types.CallbackQuery, state: FSMContext):
-    plan_key = callback.data.replace("buy_", "")
-    plan = PLANS.get(plan_key)
+@dp.callback_query_handler(lambda c: c.data.startswith("select_"), state="*")
+async def callback_select_plan(query: types.CallbackQuery, state: FSMContext):
+    plan_id = query.data.replace("select_", "")
+    plan = PLANS.get(plan_id)
     if not plan:
-        await callback.answer("پلن مورد نظر یافت نشد.", show_alert=True)
+        await query.answer("پلن نامعتبر است.", show_alert=True)
         return
 
-    await state.update_data(selected_plan=plan["title"], price=plan["price"])
-    await state.set_state(ReceiptState.waiting_for_receipt)
+    await state.update_data(selected_plan=plan_id)
+    await ReceiptState.waiting_for_photo.set()
 
-    text = (
-        f"📋 **پیش‌فاکتور خرید:**\n"
-        f"▫️ سرویس: {plan['title']}\n"
-        f"▫️ مشخصات: {plan['desc']}\n"
-        f"▫️ مبلغ قابل پرداخت: **{plan['price']} تومان**\n\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n"
-        f"💳 **اطلاعات حساب جهت کارت به کارت:**\n"
-        f"▫️ شماره کارت:\n`{CARD_NUMBER}`\n"
-        f"▫️ به نام: **{CARD_HOLDER}**\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"📸 **مرحله نهایی:** لطفاً پس از واریز، **عکس فیش واریزی** خود را همین‌جا ارسال نمایید تا در اسرع وقت تأیید و کانفیگ شما تحویل داده شود."
+    invoice_text = (
+        f"🧾 <b>پیش‌فاکتور سفارش:</b>\n\n"
+        f"🔹 <b>پلن انتخابی:</b> {plan['name']}\n"
+        f"💰 <b>مبلغ قابل پرداخت:</b> {plan['price']}\n\n"
+        f"💳 <b>شماره کارت جهت واریز:</b>\n<code>{CARD_NUMBER}</code>\n"
+        f"👤 <b>به نام:</b> {CARD_HOLDER}\n\n"
+        f"⚠️ لطفاً پس از واریز، عکس فیش پرداخت خود را در همین صفحه ارسال کنید.\n"
+        f"📢 کانال رسمی: <a href='{CHANNEL_URL}'>{CHANNEL_DISPLAY}</a>"
     )
-    await callback.message.answer(text, parse_mode="Markdown")
-    await callback.answer()
 
-# ==============================
-# دریافت فیش واریزی و فوروارد به ادمین
-# ==============================
-@dp.message(ReceiptState.waiting_for_receipt, F.photo)
-async def handle_receipt_photo(message: types.Message, state: FSMContext):
+    kb = InlineKeyboardMarkup(row_width=1)
+    kb.add(InlineKeyboardButton("🔙 انصراف و بازگشت", callback_data="cancel_payment"))
+    await query.message.edit_text(invoice_text, reply_markup=kb, disable_web_page_preview=True)
+    await query.answer()
+
+@dp.callback_query_handler(lambda c: c.data == "cancel_payment", state="*")
+async def cancel_payment_handler(query: types.CallbackQuery, state: FSMContext):
+    await state.finish()
+    await query.message.edit_text("❌ عملیات خرید لغو شد.")
+    await query.message.answer("منوی اصلی در دسترس شماست:", reply_markup=get_main_reply_keyboard())
+    await query.answer()
+
+# ==================== دریافت فیش و ارسال به ادمین ====================
+@dp.message_handler(content_types=['photo'], state=ReceiptState.waiting_for_photo)
+async def process_receipt(message: types.Message, state: FSMContext):
     data = await state.get_data()
-    selected_plan = data.get("selected_plan", "مشخص نشده")
-    price = data.get("price", "مشخص نشده")
-    
-    photo_file_id = message.photo[-1].file_id
-    user = message.from_user
-    username = f"@{user.username}" if user.username else "ندارد"
-    date_str, time_str, _ = get_tehran_datetime_details()
+    plan_id = data.get("selected_plan", "plan_1")
+    plan = PLANS.get(plan_id, PLANS["plan_1"])
 
-    caption_for_admin = (
-        f"🔔 **فیش واریزی جدید دریافت شد!**\n\n"
-        f"👤 کاربر: {user.first_name} ({username})\n"
-        f"🆔 شناسه کاربر: `{user.id}`\n"
-        f"📦 پلن درخواستی: {selected_plan}\n"
-        f"💰 مبلغ: {price} تومان\n"
-        f"🕒 تاریخ و ساعت: {date_str} - {time_str}"
+    photo_id = message.photo[-1].file_id
+    user_id = message.from_user.id
+    username = f"@{message.from_user.username}" if message.from_user.username else "ندارد"
+    fullname = message.from_user.full_name or "بدون نام"
+
+    await message.answer(
+        "✅ <b>فیش واریزی شما با موفقیت دریافت شد!</b>\n\n"
+        "سفارش شما در صف بررسی توسط اپراتور قرار گرفت. پس از تأیید نهایی، مشخصات اشتراک برای شما ارسال خواهد شد.\n"
+        f"در صورت نیاز به پیگیری فوری: <a href='{SUPPORT_URL}'>{SUPPORT_USERNAME}</a>",
+        reply_markup=get_main_reply_keyboard(),
+        disable_web_page_preview=True
     )
+    await state.finish()
 
-    if ADMIN_ID and ADMIN_ID != 0:
+    if ADMIN_ID != 0:
+        admin_caption = (
+            f"🔔 <b>فیش پرداخت جدید ثبت شد!</b>\n\n"
+            f"👤 کاربر: <b>{fullname}</b>\n"
+            f"🆔 آیدی عددی: <code>{user_id}</code>\n"
+            f"🏷 یوزرنیم: {username}\n"
+            f"📦 پلن: <b>{plan['name']}</b> ({plan['price']})\n"
+        )
         try:
-            await bot.send_photo(chat_id=ADMIN_ID, photo=photo_file_id, caption=caption_for_admin, parse_mode="Markdown")
+            await bot.send_photo(chat_id=ADMIN_ID, photo=photo_id, caption=admin_caption)
         except Exception as e:
             logger.error(f"خطا در ارسال فیش به ادمین: {e}")
 
-    await message.answer(
-        "✅ **فیش واریزی شما با موفقیت ثبت شد.**\n\n"
-        "کارشناسان ما پس از بررسی، اشتراک و آموزش اتصال را فوراً برای شما ارسال خواهند کرد. صمیمانه از صبوری شما سپاسگزاریم. 🙏",
-        reply_markup=get_main_reply_keyboard(),
-        parse_mode="Markdown"
-    )
-    await state.clear()
-
-@dp.message(ReceiptState.waiting_for_receipt)
-async def handle_invalid_receipt(message: types.Message):
-    await message.answer("⚠️ لطفاً تنها **عکس واضح فیش واریزی** خود را ارسال فرمایید.")
-
-# ==============================
-# هندلر: 📊 اطلاعات حساب
-# ==============================
-@dp.message(F.text == "📊 اطلاعات حساب")
+# ==================== اطلاعات حساب ====================
+@dp.message_handler(lambda msg: msg.text == "📊 اطلاعات حساب", state="*")
 async def handle_account_info(message: types.Message):
     user = message.from_user
-    username = f"@{user.username}" if user.username else "ثبت‌نشده"
-    date_str, time_str, _ = get_tehran_datetime_details()
+    username_str = f"@{user.username}" if user.username else "ثبت نشده"
+    name_str = user.full_name or "کاربر شانلی"
+    user_id = user.id
 
     text = (
-        f"👤 **اطلاعات حساب کاربری شما:**\n\n"
-        f"▫️ نام: {user.first_name}\n"
-        f"▫️ شناسه کاربری: `{user.id}`\n"
-        f"▫️ نام کاربری تلگرام: {username}\n"
-        f"▫️ وضعیت حساب: فعال ✅\n"
-        f"▫️ تاریخ بررسی: {date_str} ({time_str})\n\n"
-        f"برای مشاهده سرویس‌های فعال خود از دکمه «💎 اشتراک‌های من» استفاده فرمایید."
+        "📊 <b>مشخصات حساب کاربری:</b>\n\n"
+        f"👤 <b>نام و نام خانوادگی:</b> {name_str}\n"
+        f"🆔 <b>شناسه عددی (ID):</b> <code>{user_id}</code>\n"
+        f"🏷 <b>یوزرنیم:</b> {username_str}\n"
+        f"💎 <b>وضعیت حساب:</b> فعال\n"
+        f"💰 <b>موجودی کیف پول:</b> ۰ تومان\n\n"
+        f"📢 کانال اطلاع‌رسانی: <a href='{CHANNEL_URL}'>{CHANNEL_DISPLAY}</a>"
     )
-    await message.answer(text, parse_mode="Markdown")
+    await message.answer(text, reply_markup=get_main_reply_keyboard(), disable_web_page_preview=True)
 
-# ==============================
-# هندلر: 💎 اشتراک‌های من
-# ==============================
-@dp.message(F.text == "💎 اشتراک‌های من")
+# ==================== اشتراک‌های من ====================
+@dp.message_handler(lambda msg: msg.text == "💎 اشتراک‌های من", state="*")
 async def handle_my_subscriptions(message: types.Message):
     text = (
-        "💎 **اشتراک‌های فعال شما:**\n\n"
-        "در حال حاضر هیچ سرویس فعالی به این شناسه متصل نیست یا سرویس شما توسط ادمین در حال تنظیم است.\n"
-        "جهت خرید یا فعال‌سازی به بخش «🛒 خرید اشتراک» مراجعه فرمایید یا با پشتیبانی در تماس باشید."
+        "💎 <b>لیست سرویس‌ها و اشتراک‌های شما:</b>\n\n"
+        "در حال حاضر هیچ سرویس فعالی برای اکانت شما ثبت نشده است.\n"
+        "جهت خرید یا تمدید از گزینه «🛒 خرید اشتراک» استفاده نمایید."
     )
-    await message.answer(text, parse_mode="Markdown")
+    await message.answer(text, reply_markup=get_main_reply_keyboard())
 
-# ==============================
-# هندلر: 💰 شارژ حساب
-# ==============================
-@dp.message(F.text == "💰 شارژ حساب")
-async def handle_charge_account(message: types.Message):
+# ==================== شارژ حساب ====================
+@dp.message_handler(lambda msg: msg.text == "💰 شارژ حساب", state="*")
+async def handle_wallet_charge(message: types.Message):
     text = (
-        f"💰 **شارژ حساب و تمدید اشتراک:**\n\n"
-        f"برای تمدید اشتراک فعلی یا افزایش موجودی حساب خود، می‌توانید مبلغ مورد نظر را به شماره کارت زیر واریز کرده و فیش آن را برای پشتیبانی ({SUPPORT_USERNAME}) ارسال نمایید:\n\n"
-        f"💳 شماره کارت:\n`{CARD_NUMBER}`\n"
-        f"👤 به نام: **{CARD_HOLDER}**"
+        "💰 <b>افزایش موجودی و شارژ کیف پول:</b>\n\n"
+        f"شماره کارت جهت واریز:\n<code>{CARD_NUMBER}</code>\n"
+        f"به نام: <b>{CARD_HOLDER}</b>\n\n"
+        f"پس از واریز مبلغ، تصویر فیش را به همراه شناسه کاربری خود به پشتیبانی ارسال فرمایید:\n"
+        f"👉 <a href='{SUPPORT_URL}'>{SUPPORT_USERNAME}</a>"
     )
-    await message.answer(text, parse_mode="Markdown")
+    kb = InlineKeyboardMarkup().add(
+        InlineKeyboardButton("ارتباط مستقیم با پشتیبانی 💬", url=SUPPORT_URL)
+    )
+    await message.answer(text, reply_markup=kb, disable_web_page_preview=True)
 
-# ==============================
-# هندلر: 👥 پشتیبانی
-# ==============================
-@dp.message(F.text == "👥 پشتیبانی")
+# ==================== پشتیبانی ====================
+@dp.message_handler(lambda msg: msg.text == "👥 پشتیبانی", state="*")
 async def handle_support(message: types.Message):
-    inline_kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="💬 ارسال پیام به پشتیبان", url=SUPPORT_URL)]
-        ]
+    support_text = (
+        "👥 <b>واحد پشتیبانی و پاسخگویی:</b>\n\n"
+        "تیم پشتیبانی ما آماده پاسخگویی به سوالات، حل مشکلات و پیگیری سفارشات شماست.\n\n"
+        f"🆔 آیدی پشتیبان: <b>{SUPPORT_USERNAME}</b>\n"
+        f"📢 کانال اطلاع‌رسانی: <a href='{CHANNEL_URL}'>{CHANNEL_DISPLAY}</a>\n\n"
+        "برای ارتباط مستقیم روی دکمه زیر کلیک کنید:"
     )
-    text = (
-        f"👥 **واحد پشتیبانی و پاسخگویی:**\n\n"
-        f"تیم پشتیبانی ما آماده پاسخگویی سریع به سوالات، درخواست‌های تمدید و حل مشکلات احتمالی شماست.\n\n"
-        f"▫️ آیدی پشتیبان: {SUPPORT_USERNAME}\n"
-        f"▫️ کانال رسمی: {CHANNEL_LINK}\n\n"
-        f"جهت ارتباط مستقیم می‌توانید روی کلید زیر کلیک کنید:"
-    )
-    await message.answer(text, reply_markup=inline_kb, parse_mode="Markdown")
+    kb = InlineKeyboardMarkup(row_width=1)
+    kb.add(InlineKeyboardButton(f"💬 چت با پشتیبانی ({SUPPORT_USERNAME})", url=SUPPORT_URL))
+    await message.answer(support_text, reply_markup=kb, disable_web_page_preview=True)
 
-# ==============================
-# هندلر: ❓ سوالات متداول
-# ==============================
-@dp.message(F.text == "❓ سوالات متداول")
+# ==================== سوالات متداول ====================
+@dp.message_handler(lambda msg: msg.text == "❓ سوالات متداول", state="*")
 async def handle_faq(message: types.Message):
-    text = (
-        "❓ **سوالات پرتکرار کاربران:**\n\n"
-        "۱. **روی چه سیستم‌عامل‌هایی قابل استفاده است؟**\n"
-        "پاسخ: تمامی سیستم‌عامل‌ها شامل اندروید، iOS (آیفون)، ویندوز و مکینتاش.\n\n"
-        "۲. **آیا سرعت سرویس‌ها برای اینستاگرام و یوتیوب مناسب است؟**\n"
-        "پاسخ: بله، تمام سرورها از پروتکل‌های پرسرعت با آپ‌تایم بالا و بدون محدودیت حجمی بهره می‌برند.\n\n"
-        "۳. **تحویل سرویس بعد از پرداخت چقدر زمان می‌برد؟**\n"
-        "پاسخ: بلافاصله پس از بررسی فیش توسط ادمین (معمولاً بین ۵ الی ۱۵ دقیقه)."
+    faq_text = (
+        "❓ <b>پرسش‌های متداول کاربران:</b>\n\n"
+        "۱. <b>سرویس‌ها روی چه دستگاه‌هایی قابل استفاده است؟</b>\n"
+        "پاسخ: تمامی سیستم‌عامل‌ها شامل Android, iOS, Windows و macOS پشتیبانی می‌شوند.\n\n"
+        "۲. <b>تحویل اکانت چقدر زمان می‌برد؟</b>\n"
+        "پاسخ: پس از ارسال فیش و بررسی توسط اپراتور، در کمتر از ۱۵ دقیقه ارسال می‌گردد.\n\n"
+        "۳. <b>در صورت بروز مشکل در اتصال چه کنم؟</b>\n"
+        f"پاسخ: از بخش «👥 پشتیبانی» مستقیماً با {SUPPORT_USERNAME} در ارتباط باشید."
     )
-    await message.answer(text, parse_mode="Markdown")
+    await message.answer(faq_text, reply_markup=get_main_reply_keyboard())
 
-# ==============================
-# هندلر: ⚙️ کانفیگ‌ها و آموزش اتصال
-# ==============================
-@dp.message(F.text == "⚙️ کانفیگ‌ها و آموزش اتصال")
-async def handle_configs_and_tutorial(message: types.Message):
-    inline_kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="📢 عضویت در کانال آموزش‌ها", url=CHANNEL_LINK)]
-        ]
+# ==================== کانفیگ‌ها و آموزش اتصال ====================
+@dp.message_handler(lambda msg: msg.text == "⚙️ کانفیگ‌ها و آموزش اتصال", state="*")
+async def handle_configs(message: types.Message):
+    config_text = (
+        "⚙️ <b>راهنمای اتصال و دانلود برنامه‌ها:</b>\n\n"
+        "جهت دریافت اپلیکیشن‌های اختصاصی و آخرین آموزش‌های اتصال، به کانال رسمی ما مراجعه فرمایید:\n\n"
+        f"📢 <b>کانال تلگرام:</b>\n👉 <a href='{CHANNEL_URL}'>{CHANNEL_DISPLAY}</a>\n\n"
+        f"💬 <b>ارتباط مستقیم با واحد فنی:</b>\n👉 <a href='{SUPPORT_URL}'>{SUPPORT_USERNAME}</a>"
     )
-    text = (
-        "⚙️ **راهنمای اتصال و دانلود برنامه‌ها:**\n\n"
-        "برای مشاهده آخرین نسخه‌های نرم‌افزارها و ویدیوهای گام‌به‌گام آموزش اتصال در انواع گوشی‌ها و کامپیوتر، به کانال رسمی ما مراجعه فرمایید."
-    )
-    await message.answer(text, reply_markup=inline_kb, parse_mode="Markdown")
+    kb = InlineKeyboardMarkup(row_width=1)
+    kb.add(InlineKeyboardButton("ورود به کانال تلگرام 📢", url=CHANNEL_URL))
+    kb.add(InlineKeyboardButton(f"پشتیبانی فنی 💬", url=SUPPORT_URL))
+    await message.answer(config_text, reply_markup=kb, disable_web_page_preview=True)
 
-# ==============================
-# وب‌سرور سبک جهت رفع محدودیت Port Scan در رندر
-# ==============================
-async def health_check(request):
-    return web.Response(text="OK - Shanli Bot is Live and Healthy!", status=200)
+# ==================== وب‌سرور هلث‌چک Render (Port 10000) ====================
+async def handle_ping(request):
+    return web.Response(text="Shanli Bot is alive and running!", status=200)
 
-async def start_web_server():
+async def start_health_server():
     app = web.Application()
-    app.router.add_get("/", health_check)
-    app.router.add_get("/health", health_check)
+    app.router.add_get("/", handle_ping)
+    app.router.add_get("/health", handle_ping)
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", PORT)
+    port = int(os.getenv("PORT", 10000))
+    site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
-    logger.info(f"وب‌سرور هلث‌چک روی پورت {PORT} با موفقیت اجرا شد.")
+    logger.info(f"Health check server started on port {port}")
 
-# ==============================
-# تابع اصلی اجرای ربات
-# ==============================
+# ==================== تابع اصلی ====================
 async def main():
     if not BOT_TOKEN:
-        logger.error("خطا: BOT_TOKEN در متغیرهای محیطی یافت نشد!")
+        logger.error("خطا: BOT_TOKEN در متغیرهای محیطی Render تعریف نشده است!")
         return
 
-    # اجرای همزمان وب‌سرور پورت رندر
-    await start_web_server()
-
-    # حذف وب‌هوک و آپدیت‌های در صف جهت جلوگیری از تداخل قبلی
+    # رفع خطای Conflict با پاک‌سازی وب‌هوک و آپدیت‌های انباشته
     await bot.delete_webhook(drop_pending_updates=True)
-    logger.info("ربات شانلی با موفقیت راه‌اندازی شد. در حال دریافت پیام‌ها...")
+    logger.info("Webhook deleted and pending updates dropped.")
 
-    await dp.start_polling(bot)
+    # راه‌اندازی سرور پورت
+    await start_health_server()
+
+    logger.info("Shanli Bot started successfully.")
+    try:
+        await dp.start_polling()
+    finally:
+        await bot.session.close()
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
-        logger.info("ربات متوقف گردید.")
+    asyncio.run(main())
