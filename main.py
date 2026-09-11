@@ -89,7 +89,7 @@ def get_main_keyboard():
 def get_welcome_text(user):
     date_str, time_str = get_persian_datetime()
     return (
-        f"سلام <b>{user.first_name}</b> عزیز، به ربات هوشمند شانلی خوش آمدید! 🌸\n\n"
+        f"سلام <b>{user.first_name}</b> عزیز، به ربات هوشمند vpn خوش آمدید! 🌸\n\n"
         f"📅 تاریخ امروز (شمسی): <code>{date_str}</code>\n"
         f"⏰ ساعت رسمی تهران: <code>{time_str}</code>\n"
         f"🆔 شناسه کاربری شما: <code>{user.id}</code>\n\n"
