@@ -19,7 +19,7 @@ from aiohttp import web
 # ==================== تنظیمات و لاگ ====================
 logging.basicConfig(level=logging.INFO)
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENdn5tfujx75X0X").strip()
+BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENflg02hxx9zeX0X").strip()
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "6278859256").strip()
 ADMIN_ID = int(ADMIN_ID_RAW) if ADMIN_ID_RAW.isdigit() else 6278859256
 
@@ -33,13 +33,13 @@ CARD_HOLDER = os.getenv("PAYMENT_NAME", "رحیمی (بانک ملت)").strip()
 IBSNG_PANEL_URL = os.getenv("IBSNG_PANEL_URL", "http://94.184.45.58:48201/IBSng/user/").strip()
 
 VPN_SERVER_IP = "94.184.43.106"
-IPSEC_SECRET = "GAPGPTMASKTOKENdn5tfujx75X1X"
+IPSEC_SECRET = "GAPGPTMASKTOKENflg02hxx9zeX1X"
 
 # مسیر تصاویر
 CARD_IMAGE_PATH = "شماره کارت1.jpg"
 TARIFF_IMAGE_PATH = "تعرفه.jpg"
 
-bot = Bot(token=GAPGPTMASKTOKENdn5tfujx75X2X
+bot = Bot(token=GAPGPTMASKTOKENflg02hxx9zeX2X
 dp = Dispatcher(bot, storage=MemoryStorage())
 
 # ==================== دیتابیس و شمارنده اعضا ====================
@@ -89,7 +89,7 @@ class ChargeState(StatesGroup):
 class SupportState(StatesGroup):
     waiting_for_username_and_msg = State()
 
-# ==================== تعرفه‌ها و پلن‌های اصلاح‌شده ====================
+# ==================== تعرفه‌ها و پلن‌های رسمی ====================
 PLANS = {
     "1m_1u": {"name": "اشتراک ۱ ماهه (تک کاربره + ۱۰ گیگ هدیه)", "price": "۲۰۰,۰۰۰ تومان"},
     "1m_2u": {"name": "اشتراک ۱ ماهه (دو کاربره + ۱۰ گیگ هدیه)", "price": "۲۵۰,۰۰۰ تومان"},
@@ -151,23 +151,10 @@ def get_welcome_text(user):
         f"📆 <b>تاریخ:</b> <code>{date_str}</code> | ⏰ <b>ساعت:</b> <code>{time_str}</code>\n"
         f"🆔 شناسه کاربری: <code>{user.id}</code>\n\n"
         f"⚡️ <b>پروتکل‌های پرسرعت و پایدار L2TP VPN 24/7:</b>\n"
-        f"▫️ پروتکل امن <b>L2TP / IPSec</b> (بدون نرم‌افزار، فعال در تنظیمات سیستم‌عامل)\n"
-        f"▫️ پروتکل‌های <b>OpenVPN</b> و <b>PPTP</b> سازگار با انواع سیستم‌ها و مودم‌ها\n"
+        f"▫️ پروتکل امن <b>L2TP / IPSec</b> (بدون نیاز به نرم‌افزار جانبی)\n"
+        f"▫️ پروتکل‌های <b>OpenVPN</b> و <b>PPTP</b> سازگار با انواع سیستم‌عامل‌ها و مودم‌ها\n"
         f"🎁 <b>۱۰ گیگابایت ترافیک هدیه</b> روی تمامی پلن‌های جدید\n\n"
-        "👇 جهت استفاده از امکانات، یکی از گز kb
-
-def get_welcome_text(user):
-    date_str, time_str, day_name = get_persian_datetime()
-    return (
-        f"سلام <b>{user.first_name}</b> عزیز، خیلی خوش آمدید! 🌹\n\n"
-        f"📅 <b>روز:</b> {day_name}\n"
-        f"📆 <b>تاریخ:</b> <code>{date_str}</code> | ⏰ <b>ساعت:</b> <code>{time_str}</code>\n"
-        f"🆔 شناسه کاربری: <code>{user.id}</code>\n\n"
-        f"⚡️ <b>پروتکل‌های پرسرعت و پایدار L2TP VPN 24/7:</b>\n"
-        f"▫️ پروتکل امن <b>L2TP / IPSec</b> (بدون نرم‌افزار، فعال در تنظیمات سیستم‌عامل)\n"
-        f"▫️ پروتکل‌های <b>OpenVPN</b> و <b>PPTP</b> سازگار با انواع سیستم‌ها و مودم‌ها\n"
-        f"🎁 <b>۱۰ گیگابایت ترافیک هدیه</b> روی تمامی پلن‌های جدید\n\n"
-        "👇 جهت استفاده از امکانات، یکی از گزینه‌های منوی زیر را لمس نمایید:"
+        "👇 جهت استفاده از امکانات، یکی از گزینه‌های منوی زیر را انتخاب نمایید:"
     )
 
 # ==================== هندلر بازگشت عمومی ====================
@@ -176,7 +163,7 @@ async def process_global_back(message: types.Message, state: FSMContext):
     await state.finish()
     await message.reply("به منوی اصلی بازگشتید 👇", reply_markup=get_main_keyboard())
 
-# ==================== هندلرهای اصلی ربات ====================
+# ==================== هندلرهای اصلی ====================
 @dp.message_handler(commands=['start'], state="*")
 async def cmd_start(message: types.Message, state: FSMContext):
     await state.finish()
@@ -184,7 +171,34 @@ async def cmd_start(message: types.Message, state: FSMContext):
     
     quick_kb = InlineKeyboardMarkup(row_width=2)
     quick_kb.row(
-        InlineKeyboardButton("📢 کانال اطلاع‌رسانی", url=CHANNEL_finish()
+        InlineKeyboardButton("📢 کانال اطلاع‌رسانی", url=CHANNEL_URL),
+        InlineKeyboardButton("💬 پشتیبانی", url=SUPPORT_URL)
+    )
+    
+    await message.reply(
+        get_welcome_text(message.from_user),
+        reply_markup=get_main_keyboard(),
+        parse_mode="HTML"
+    )
+    await message.answer("دسترسی‌های سریع به کانال و پشتیبان:", reply_markup=quick_kb)
+
+# آمار کاربران برای ادمین
+@dp.message_handler(commands=['stats'], state="*")
+async def cmd_stats(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    total_users = get_total_users_count()
+    date_str, time_str, _ = get_persian_datetime()
+    await message.reply(
+        f"📊 <b>آمار زنده ربات:</b>\n\n"
+        f"👥 تعداد کل کاربران ثبت‌شده: <b>{total_users:,} نفر</b>\n"
+        f"📅 تاریخ: <code>{date_str}</code> | ساعت: <code>{time_str}</code>"
+    )
+
+# خرید اشتراک
+@dp.message_handler(lambda m: m.text == "🛒 خرید اشتراک", state="*")
+async def handle_buy(message: types.Message, state: FSMContext):
+    await state.finish()
     kb = InlineKeyboardMarkup(row_width=1)
     for p_id, info in PLANS.items():
         kb.add(InlineKeyboardButton(f"🔹 {info['name']} — {info['price']}", callback_data=f"buy_{p_id}"))
@@ -221,7 +235,7 @@ async def handle_account(message: types.Message, state: FSMContext):
     )
     await message.reply(text, reply_markup=get_main_keyboard())
 
-# پنل کاربری IBSng
+# پنل کاربری IBSng با هشدار امنیتی تغییر پسورد
 @dp.message_handler(lambda m: m.text == "🌐 پنل کاربری IBSng", state="*")
 async def handle_ibsng_panel(message: types.Message, state: FSMContext):
     await state.finish()
@@ -253,14 +267,14 @@ async def handle_charge(message: types.Message, state: FSMContext):
         "۱. مبلغ اشتراک مورد نظر را واریز نمایید.\n"
         "۲. <b>عکس واضح فیش واریزی</b> را همین‌جا ارسال کنید.\n"
         "۳. در مرحله بعد نام کاربری (Username) اکانت را ارسال خواهید کرد.\n\n"
-        "<i>برای لغو فرآیند می‌توانید از دکمه زیر استفاده نمایید:</i>"
+        "<i>برای لغو فرآیند می‌توانید دکمه برگشت زیر را بزنید:</i>"
     )
     if os.path.exists(CARD_IMAGE_PATH):
         await message.reply_photo(photo=InputFile(CARD_IMAGE_PATH), caption=caption, reply_markup=get_back_keyboard())
     else:
         await message.reply(caption, reply_markup=get_back_keyboard())
 
-# پشتیبانی (با الزام ورود یوزرنیم)
+# پشتیبانی (دریافت یوزرنیم)
 @dp.message_handler(lambda m: m.text == "👥 پشتیبانی", state="*")
 async def handle_support(message: types.Message, state: FSMContext):
     await state.finish()
@@ -278,7 +292,7 @@ async def handle_support(message: types.Message, state: FSMContext):
     await message.reply(text, reply_markup=get_back_keyboard())
     await message.answer("ارتباط از طریق تلگرام:", reply_markup=ikb)
 
-# دریافت پیام و نام کاربری برای پشتیبان و ارسال رسید تحویل
+# ثبت تیکت پشتیبانی و اعلام تحویل
 @dp.message_handler(state=SupportState.waiting_for_username_and_msg, content_types=types.ContentTypes.ANY)
 async def process_support_input(message: types.Message, state: FSMContext):
     user = message.from_user
@@ -328,7 +342,7 @@ async def handle_faq(message: types.Message, state: FSMContext):
     )
     await message.reply(text, reply_markup=get_back_keyboard())
 
-# کانفیگ‌ها و راهنماها
+# آموزش‌ها و کانفیگ‌ها
 @dp.message_handler(lambda m: m.text == "⚙️ کانفیگ‌ها و آموزش اتصال", state="*")
 async def handle_configs(message: types.Message, state: FSMContext):
     await state.finish()
@@ -339,14 +353,14 @@ async def handle_configs(message: types.Message, state: FSMContext):
         "⚙️ <b>آموزش اتصال به پروتکل L2TP/IPSec:</b>\n\n"
         f"🌐 <b>Server:</b> <code>{VPN_SERVER_IP}</code>\n"
         f"🔑 <b>Secret / Pre-Shared Key:</b> <code>{IPSEC_SECRET}</code>\n\n"
-        "📱 <b>آیفون و اندروید:</b> وارد بخش تنظیمات VPN شده، پروتکل L2TP را انتخاب و سرور، یوزرنیم، پسورد و سکرت را وارد نمایید.\n"
-        "💻 <b>ویندوز و مودم:</b> نوع اتصال را L2TP with Pre-Shared Key ست کنید.\n\n"
+        "📱 <b>آیفون و اندروید:</b> وارد تنظیمات VPN شده، نوع L2TP را انتخاب و اطلاعات بالا را وارد کنید.\n"
+        "💻 <b>ویندوز و مودم:</b> نوع اتصال را L2TP with Pre-Shared Key تنظیم نمایید.\n\n"
         "فایل‌های کامل و ویدیوهای آموزشی در کانال رسمی قرار دارند:"
     )
     await message.reply(text, reply_markup=kb)
     await message.answer("جهت برگشت به منو دکمه زیر را بزنید:", reply_markup=get_back_keyboard())
 
-# ==================== جریان‌های کال‌بک خرید ====================
+# ==================== فرآیند خرید ====================
 @dp.callback_query_handler(lambda c: c.data.startswith("buy_"), state="*")
 async def callback_buy_plan(query: types.CallbackQuery, state: FSMContext):
     plan_key = query.data.split("buy_")[1]
@@ -450,12 +464,37 @@ async def handle_charge_username(message: types.Message, state: FSMContext):
     )
     await state.finish()
 
-# پیام‌های متفرقه
+# سایر پیام‌ها
 @dp.message_handler(state="*")
 async def handle_other_messages(message: types.Message):
     await message.reply("لطفاً از دکمه‌های منوی زیر استفاده نمایید 👇", reply_markup=get_main_keyboard())
 
-# ==================== سرور ضد خاموشی رندر (Health Check) ====================
+# ==================== سرور داخلی سلامت Render ====================
+async def run_server():
+    app = web.Application()
+    app.router.add_get("/", lambda r: web.Response(text="L2TP VPN Bot is running cleanly."))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.getenv("PORT", 10000))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    logging.info(f"Render health check server started on port {port}")
+
+async def main():
+    await bot.delete_webhook(drop_
+    await message.reply(
+        f"✅ <b>درخواست شارژ برای اکانت {username_val} با موفقیت ثبت گردید.</b>\n"
+        "پس از بررسی، شارژ سرویس شما اعمال می‌شود.",
+        reply_markup=get_main_keyboard()
+    )
+    await state.finish()
+
+# سایر پیام‌ها
+@dp.message_handler(state="*")
+async def handle_other_messages(message: types.Message):
+    await message.reply("لطفاً از دکمه‌های منوی زیر استفاده نمایید 👇", reply_markup=get_main_keyboard())
+
+# ==================== سرور داخلی سلامت Render ====================
 async def run_server():
     app = web.Application()
     app.router.add_get("/", lambda r: web.Response(text="L2TP VPN Bot is running cleanly."))
