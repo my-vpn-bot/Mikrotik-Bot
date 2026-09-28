@@ -7,8 +7,8 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 
-# ==================== مشخصات ثابت و رسمی سرویس ====================
-BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKEN56xw8aret4jX0X")
+# ==================== مشخصات ثابت سرویس ====================
+BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENs3bibpotgeX0X")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "6278859256"))
 
 CHANNEL_URL = "https://t.me/L2tp_vpn402"
@@ -22,7 +22,7 @@ PAYMENT_NAME = "رحیمی (بانک ملت)"
 IBSNG_PANEL_URL = "http://94.184.45.58:48201/IBSng/user/"
 
 VPN_SERVER_IP = "94.184.43.106"
-IPSEC_SECRET = "GAPGPTMASKTOKEN56xw8aret4jX1X"
+IPSEC_SECRET = "GAPGPTMASKTOKENs3bibpotgeX1X"
 
 IMG_TARIFF = "تعرفه.jpg"
 IMG_CARD = "شماره کارت1.jpg"
@@ -30,11 +30,11 @@ IMG_MOBILE = "ایفون و اندروید.jpg"
 IMG_PC_MODEM = "مودم و لب تاب.jpg"
 
 logging.basicConfig(level=logging.INFO)
-bot = Bot(token=GAPGPTMASKTOKEN56xw8aret4jX2X
+bot = Bot(token=BOT_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 
-# ==================== محاسبه تاریخ شمسی و ساعت تهران ====================
+# ==================== تبدیل تاریخ شمسی و ساعت تهران ====================
 def gregorian_to_jalali(gy, gm, gd):
     g_d_m = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
     jy = 0 if gy <= 1600 else 979
@@ -53,33 +53,12 @@ def gregorian_to_jalali(gy, gm, gd):
     return jy, jm, jd
 
 def get_current_jalali_datetime():
-    # اختلاف ساعت با UTC برای ساعت رسمی تهران (+3:30)
     tz_tehran = datetime.timezone(datetime.timedelta(hours=3, minutes=30))
     now = datetime.datetime.now(tz_tehran)
-    
     jy, jm, jd = gregorian_to_jalali(now.year, now.month, now.day)
-    
-    days_fa = {
-        5: "شنبه",
-        6: "یک‌شنبه",
-        0: "دوشنبه",
-        1: "سه‌شنبه",
-        2: "چهارشنبه",
-        3: "پنج‌شنبه",
-        4: "جمعه"
-    }
-    
-    months_fa = [
-        "", "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
-        "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"
-    ]
-    
-    day_name = days_fa[now.weekday()]
-    month_name = months_fa[jm]
-    time_str = now.strftime("%H:%M:%S")
-    date_str = f"{jd} {month_name} {jy}"
-    
-    return day_name, date_str, time_str
+    days_fa = {5: "شنبه", 6: "یک‌شنبه", 0: "دوشنبه", 1: "سه‌شنبه", 2: "چهارشنبه", 3: "پنج‌شنبه", 4: "جمعه"}
+    months_fa = ["", "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"]
+    return days_fa[now.weekday()], f"{jd} {months_fa[jm]} {jy}", now.strftime("%H:%M:%S")
 
 # ==================== دیتابیس ====================
 conn = sqlite3.connect("bot_database.db", check_same_thread=False)
@@ -155,14 +134,6 @@ def get_guide_keyboard():
     kb.row(BTN_BACK)
     return kb
 
-def get_support_inline():
-    ikb = types.InlineKeyboardMarkup(row_width=2)
-    ikb.row(
-        types.InlineKeyboardButton(text="💬 پیام به پشتیبان تلگرام", url=SUPPORT_URL),
-        types.InlineKeyboardButton(text="📢 کانال اطلاع‌رسانی", url=CHANNEL_URL)
-    )
-    return ikb
-
 # ==================== متن تعرفه‌ها ====================
 PRICING_MESSAGE = (
     "📋 <b>تعرفه‌های رسمی اشتراک پرسرعت L2TP VPN 24/7</b>\n"
@@ -222,13 +193,7 @@ async def start_handler(message: types.Message, state: FSMContext):
         types.InlineKeyboardButton(text="💬 ارتباط با پشتیبان", url=SUPPORT_URL)
     )
     
-    try:
-        await message.reply(welcome_text, reply_markup=quick_kb, parse_mode="HTML")
-    except Exception as e:
-        logging.error(f"Start send error: {e}")
-        clean_text = welcome_text.replace("<b>", "").replace("</b>", "").replace("<i>", "").replace("</i>", "")
-        await message.reply(clean_text, reply_markup=quick_kb)
-        
+    await message.reply(welcome_text, reply_markup=quick_kb, parse_mode="HTML")
     await message.answer("منوی خدمات:", reply_markup=get_main_keyboard())
 
 @dp.message_handler(commands=['stats', 'counter'], state="*")
@@ -306,18 +271,14 @@ async def ibsng_menu_handler(message: types.Message):
     inline_kb.add(types.InlineKeyboardButton(text="🔗 ورود به پنل کاربری IBSng", url=IBSNG_PANEL_URL))
 
     text = (
-        "🌐 <b>ورود به سامانه مدیریت حساب کاربری (IBSng)</b>\n\n"
-        "از این طریق می‌توانید حجم باقیمانده، تاریخ انقضا و وضعیت آنلاین بودن اکانت خود را مشاهده فرمایید.\n\n"
-        "⚠️ <b>هشدار امنیتی بسیار مهم:</b>\n"
-        "<b>«حتماً در اولین ورود به پنل، رمز عبور (Password) خود را تغییر دهید تا امنیت سرویس تضمین گردد.»</b>\n\n"
-        "📌 <b>مراحل:</b>\n"
-        "1️⃣ روی دکمه زیر کلیک کرده و وارد صفحه شوید.\n"
-        "2️⃣ نام کاربری و رمز دریافتی را وارد نمایید.\n"
-        "3️⃣ از منوی بالای پنل بر روی گزینه <b>Change Password</b> بزنید و رمز اختصاصی خود را وارد و ذخیره کنید.\n\n"
-        f"💬 در صورت بروز هرگونه مشکل با پشتیبانی در تماس باشید: {SUPPORT_ID}"
+        "🌐 <b>ورود به سامانه مدیریت اکانت IBSng:</b>\n\n"
+        "▫️ مشاهده مانده حجم و روزهای باقیمانده\n"
+        "▫️ مشاهده وضعیت اتصال و گزارش مصرف\n"
+        "▫️ تغییر رمز عبور اکانت VPN\n\n"
+        f"🔗 <b>آدرس مستقیم ورود به پنل:</b>\n{IBSNG_PANEL_URL}\n\n"
+        "💡 <i>نام کاربری و کلمه عبور همان اطلاعات اشتراک دریافتی شماست.</i>"
     )
     await message.reply(text, reply_markup=inline_kb, parse_mode="HTML")
-    await message.answer("جهت بازگشت به منوی قبلی:", reply_markup=get_back_keyboard())
 
 @dp.message_handler(lambda m: m.text == "📖 راهنمای اتصال", state="*")
 async def guide_menu_handler(message: types.Message):
@@ -386,12 +347,12 @@ async def support_handler(message: types.Message, state: FSMContext):
     increment_counter("click_support")
     await FormState.waiting_for_support.set()
     text = (
-        "💬 <b>واحد پشتیبانی رسمی L2TP VPN 24/7</b>\n\n"
-        "برای ثبت مستقیم تیکت، <b>نام کاربری سرویس</b> و <b>متن سوال یا مشکل</b> خود را در قالب یک پیام همین‌جا ارسال نمایید.\n\n"
-        "یا می‌توانید مستقیماً از طریق دکمه‌های زیر با آیدی پشتیبان در تلگرام ارتباط برقرار کنید:"
+        "💬 <b>ارتباط با واحد پشتیبانی و ثبت درخواست:</b>\n\n"
+        "لطفاً پیام، سوال، نام کاربری یا درخواست خود را همین‌جا تایپ و ارسال فرمایید.\n"
+        "پیام شما مستقیماً به پنل پشتیبان ارسال می‌شود.\n\n"
+        f"یا مستقیماً به آیدی تلگرام پیام دهید: {SUPPORT_ID}"
     )
-    await message.reply(text, reply_markup=get_support_inline(), parse_mode="HTML")
-    await message.answer("جهت انصراف دکمه برگشت را بزنید:", reply_markup=get_back_keyboard())
+    await message.reply(text, reply_markup=get_back_keyboard(), parse_mode="HTML")
 
 @dp.message_handler(state=FormState.waiting_for_support, content_types=types.ContentTypes.ANY)
 async def process_support_ticket(message: types.Message, state: FSMContext):
