@@ -31,7 +31,7 @@ logger = logging.getLogger("L2TP_VPN_BOT")
 # ============================
 # دریافت متغیرهای محیطی
 # ============================
-BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENik41nwp457X0X")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENa7ytpjhibj6X0X")
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "2786850266")
 try:
     ADMIN_ID = int(ADMIN_ID_RAW)
@@ -46,7 +46,7 @@ IBSNG_PANEL_URL = os.getenv("IBSNG_PANEL_URL", "http://94.184.45.58:48201/IBSng/
 PORT = int(os.getenv("PORT", 10000))
 
 SERVER_IP = "94.184.43.106"
-IPSEC_SECRET = ".12345678"
+IPSEC_SECRET = "GAPGPTMASKTOKENa7ytpjhibj6X1X"
 
 # ============================
 # سیستم تبدیل تاریخ به شمسی (سبک و داخلی)
@@ -178,7 +178,7 @@ PLANS_INFO = {
 # ============================
 # راه‌اندازی بات و دیسپچر
 # ============================
-bot = Bot(token=BOT_TOKEN)
+bot = Bot(token=GAPGPTMASKTOKENa7ytpjhibj6X2X
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
@@ -377,7 +377,7 @@ async def show_server_config(message: types.Message):
     text = (
         "⚙️ **مشخصات سرور و اتصال L2TP/IPSec**\n\n"
         f"🌐 **Server Address / IP:** `{SERVER_IP}`\n"
-        f"🔑 **IPSec Pre-Shared Key (Secret):** `{IPSEC_SECRET}`\n"
+        f"🔑 **IPSec Pre-Shared Key (Secret):** `GAPGPTMASKTOKENa7ytpjhibj6X3X`\n"
         "🔒 **Protocol:** L2TP / IPSec (Pre-shared key)\n\n"
         "💡 *نام کاربری و رمز عبور اختصاصی خود را در بخش مربوطه وارد نمایید.*"
     )
@@ -404,13 +404,13 @@ async def show_guides(message: types.Message):
         "📚 **راهنمای اتصال به سرویس L2TP VPN 24/7**\n\n"
         "🔹 **آیفون (iOS):**\n"
         "Settings > VPN & Device Management > Add VPN Configuration\n"
-        f"Type: L2TP | Server: `{SERVER_IP}` | Secret: `{IPSEC_SECRET}`\n\n"
+        f"Type: L2TP | Server: `{SERVER_IP}` | Secret: `GAPGPTMASKTOKENa7ytpjhibj6X4X`\n\n"
         "🔹 **اندروید (Android):**\n"
         "تنظیمات > اتصالات بیشتر > VPN > افزودن VPN\n"
-        f"نوع: L2TP/IPSec PSK | آدرس: `{SERVER_IP}` | کلید پیش‌مشترک: `{IPSEC_SECRET}`\n\n"
+        f"نوع: L2TP/IPSec PSK | آدرس: `{SERVER_IP}` | کلید پیش‌مشترک: `GAPGPTMASKTOKENa7ytpjhibj6X5X`\n\n"
         "🔹 **ویندوز (Windows):**\n"
         "Settings > Network & Internet > VPN > Add VPN Connection\n"
-        f"VPN Provider: Windows (built-in) | Type: L2TP/IPsec with pre-shared key | Server: `{SERVER_IP}` | Secret: `{IPSEC_SECRET}`\n\n"
+        f"VPN Provider: Windows (built-in) | Type: L2TP/IPsec with pre-shared key | Server: `{SERVER_IP}` | Secret: `GAPGPTMASKTOKENa7ytpjhibj6X6X`\n\n"
         "🔹 **مودم / روتر:**\n"
         f"بخش L2TP Client را فعال کرده و Server IP را `{SERVER_IP}` قرار دهید."
     )
@@ -454,13 +454,13 @@ async def main():
     init_db()
     logger.info("Database initialized successfully.")
     
-    # اجرای وب‌سرور داخلی در پس‌زمینه
+    # اجرای وب‌سرور داخلی در پس‌زمینه برای Render
     await start_web_server()
     
-    # حذف وب‌هوک‌های قبلی در صورت وجود و شروع Polling
+    # ریست وب‌هوک و شروع دریافت آپدیت‌ها با مشخص کردن انواع آپدیت
     await bot.delete_webhook(drop_pending_updates=True)
     logger.info("Starting bot polling...")
-    await dp.start_polling(bot)
+    await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
 
 if __name__ == "__main__":
     try:
