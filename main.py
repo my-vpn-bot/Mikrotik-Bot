@@ -16,10 +16,10 @@ from aiogram.types import (
 )
 from aiohttp import web
 
-# ==================== تنظیمات و متغیرها ====================
+# ==================== تنظیمات و لاگ ====================
 logging.basicConfig(level=logging.INFO)
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKEN49et9cde8osX0X").strip()
+BOT_TOKEN = os.getenv("BOT_TOKEN", "7963384594:AAFlU14U17k5Yv1K9mN8V8V1b2_demo").strip()
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "6278859256").strip()
 ADMIN_ID = int(ADMIN_ID_RAW) if ADMIN_ID_RAW.isdigit() else 6278859256
 
@@ -33,7 +33,7 @@ CARD_HOLDER = os.getenv("PAYMENT_NAME", "رحیمی (بانک ملت)").strip()
 IBSNG_PANEL_URL = os.getenv("IBSNG_PANEL_URL", "http://94.184.45.58:48201/IBSng/user/").strip()
 
 VPN_SERVER_IP = "94.184.43.106"
-IPSEC_SECRET = "GAPGPTMASKTOKEN49et9cde8osX1X"
+IPSEC_SECRET = "12345678."
 
 CARD_IMAGE_PATH = "شماره کارت1.jpg"
 TARIFF_IMAGE_PATH = "تعرفه.jpg"
@@ -41,7 +41,7 @@ TARIFF_IMAGE_PATH = "تعرفه.jpg"
 bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
 
-# ==================== دیتابیس شمارنده کاربران ====================
+# ==================== دیتابیس ====================
 DB_FILE = "bot_users.db"
 
 def init_db():
@@ -88,17 +88,17 @@ class ChargeState(StatesGroup):
 class SupportState(StatesGroup):
     waiting_for_username_and_msg = State()
 
-# ==================== تعرفه‌ها و پلن‌ها ====================
+# ==================== تعرفه‌ها ====================
 PLANS = {
-    "1m_1u": {"name": "اشتراک ۱ ماهه (تک کاربره + ۱۰ گیگ هدیه)", "price": "۲۰۰,۰۰۰ تومان"},
-    "1m_2u": {"name": "اشتراک ۱ ماهه (دو کاربره + ۱۰ گیگ هدیه)", "price": "۲۵۰,۰۰۰ تومان"},
-    "2m_1u": {"name": "اشتراک ۲ ماهه (تک کاربره + ۱۰ گیگ هدیه)", "price": "۳۸۰,۰۰۰ تومان"},
-    "2m_2u": {"name": "اشتراک ۲ ماهه (دو کاربره + ۱۰ گیگ هدیه)", "price": "۴۳۰,۰۰۰ تومان"},
-    "3m_1u": {"name": "اشتراک ۳ ماهه (تک کاربره + ۱۰ گیگ هدیه)", "price": "۵۵۰,۰۰۰ تومان"},
-    "3m_2u": {"name": "اشتراک ۳ ماهه (دو کاربره + ۱۰ گیگ هدیه)", "price": "۶۰۰,۰۰۰ تومان"},
+    "1m_1u": {"name": "اشتراک 1 ماهه (تک کاربره + 10 گیگ هدیه)", "price": "200,000 تومان"},
+    "1m_2u": {"name": "اشتراک 1 ماهه (دو کاربره + 10 گیگ هدیه)", "price": "250,000 تومان"},
+    "2m_1u": {"name": "اشتراک 2 ماهه (تک کاربره + 10 گیگ هدیه)", "price": "380,000 تومان"},
+    "2m_2u": {"name": "اشتراک 2 ماهه (دو کاربره + 10 گیگ هدیه)", "price": "430,000 تومان"},
+    "3m_1u": {"name": "اشتراک 3 ماهه (تک کاربره + 10 گیگ هدیه)", "price": "550,000 تومان"},
+    "3m_2u": {"name": "اشتراک 3 ماهه (دو کاربره + 10 گیگ هدیه)", "price": "600,000 تومان"},
 }
 
-# ==================== تاریخ و زمان شمسی ====================
+# ==================== تاریخ شمسی ====================
 def gregorian_to_jalali(gy, gm, gd):
     g_d_m = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
     jy = 0 if gy <= 1600 else 979
@@ -122,8 +122,8 @@ def get_persian_datetime():
     time_str = now.strftime("%H:%M:%S")
     jy, jm, jd = gregorian_to_jalali(now.year, now.month, now.day)
     days_fa = {5: "شنبه", 6: "یک‌شنبه", 0: "دوشنبه", 1: "سه‌شنبه", 2: "چهارشنبه", 3: "پنج‌شنبه", 4: "جمعه"}
-    day_name = days_fa[now.weekday()]
-    date_str = f"{jd:02d} / {jm:02d} / {jy}"
+    day_name = days_fa.get(now.weekday(), "")
+    date_str = f"{jy}/{jm:02d}/{jd:02d}"
     return date_str, time_str, day_name
 
 # ==================== کیبوردها ====================
@@ -150,19 +150,18 @@ def get_welcome_text(user):
         f"📆 <b>تاریخ:</b> <code>{date_str}</code> | ⏰ <b>ساعت:</b> <code>{time_str}</code>\n"
         f"🆔 شناسه کاربری: <code>{user.id}</code>\n\n"
         f"⚡️ <b>پروتکل‌های پرسرعت و پایدار L2TP VPN 24/7:</b>\n"
-        f"▫️ پروتکل امن <b>L2TP / IPSec</b> (بدون نرم‌افزار جانبی)\n"
+        f"▫️ پروتکل امن <b>L2TP / IPSec</b> (بدون نیاز به نرم‌افزار جانبی)\n"
         f"▫️ پروتکل‌های <b>OpenVPN</b> و <b>PPTP</b> سازگار با انواع سیستم‌عامل‌ها و مودم‌ها\n"
-        f"🎁 <b>۱۰ گیگابایت ترافیک هدیه</b> روی تمامی پلن‌های جدید\n\n"
+        f"🎁 <b>10 گیگابایت ترافیک هدیه</b> روی تمامی پلن‌های جدید\n\n"
         "👇 جهت استفاده از امکانات، یکی از گزینه‌های منوی زیر را انتخاب نمایید:"
     )
 
-# ==================== دکمه بازگشت عمومی ====================
+# ==================== هندلرهای عمومی ====================
 @dp.message_handler(lambda m: m.text == BTN_BACK, state="*")
 async def process_global_back(message: types.Message, state: FSMContext):
     await state.finish()
     await message.reply("به منوی اصلی بازگشتید 👇", reply_markup=get_main_keyboard())
 
-# ==================== دستور استارت ====================
 @dp.message_handler(commands=['start'], state="*")
 async def cmd_start(message: types.Message, state: FSMContext):
     await state.finish()
@@ -178,9 +177,8 @@ async def cmd_start(message: types.Message, state: FSMContext):
         get_welcome_text(message.from_user),
         reply_markup=get_main_keyboard()
     )
-    await message.answer("دسترسی‌های سریع به کانال و پشتیبان:", reply_markup=quick_kb)
+    await message.answer("دسترسی‌های سریع:", reply_markup=quick_kb)
 
-# آمار کاربران (مخصوص ادمین)
 @dp.message_handler(commands=['stats'], state="*")
 async def cmd_stats(message: types.Message):
     if message.from_user.id != ADMIN_ID:
@@ -193,7 +191,7 @@ async def cmd_stats(message: types.Message):
         f"📅 تاریخ: <code>{date_str}</code> | ساعت: <code>{time_str}</code>"
     )
 
-# خرید اشتراک
+# ==================== خرید اشتراک ====================
 @dp.message_handler(lambda m: m.text == "🛒 خرید اشتراک", state="*")
 async def handle_buy(message: types.Message, state: FSMContext):
     await state.finish()
@@ -203,16 +201,16 @@ async def handle_buy(message: types.Message, state: FSMContext):
     
     caption = (
         "🛍 <b>لیست تعرفه‌های رسمی اشتراک L2TP VPN 24/7</b>\n"
-        "🎁 <i>(تمامی پلن‌ها شامل ۱۰ گیگابایت ترافیک هدیه هستند)</i>\n\n"
+        "🎁 <i>(تمامی پلن‌ها شامل 10 گیگابایت ترافیک هدیه هستند)</i>\n\n"
         "🔹 <b>پلن‌های یک‌ماهه:</b>\n"
-        "▫️ یک‌ماهه تک‌کاربره: <b>۲۰۰,۰۰۰ تومان</b>\n"
-        "▫️ یک‌ماهه دو‌کاربره: <b>۲۵۰,۰۰۰ تومان</b>\n\n"
+        "▫️ یک‌ماهه تک‌کاربره: <b>200,000 تومان</b>\n"
+        "▫️ یک‌ماهه دو‌کاربره: <b>250,000 تومان</b>\n\n"
         "🔹 <b>پلن‌های دو‌ماهه:</b>\n"
-        "▫️ دو‌ماهه تک‌کاربره: <b>۳۸۰,۰۰۰ تومان</b>\n"
-        "▫️ دو‌ماهه دو‌کاربره: <b>۴۳۰,۰۰۰ تومان</b>\n\n"
+        "▫️ دو‌ماهه تک‌کاربره: <b>380,000 تومان</b>\n"
+        "▫️ دو‌ماهه دو‌کاربره: <b>430,000 تومان</b>\n\n"
         "🔹 <b>پلن‌های سه‌ماهه:</b>\n"
-        "▫️ سه‌ماهه تک‌کاربره: <b>۵۵۰,۰۰۰ تومان</b>\n"
-        "▫️ سه‌ماهه دو‌کاربره: <b>۶۰۰,۰۰۰ تومان</b>\n\n"
+        "▫️ سه‌ماهه تک‌کاربره: <b>550,000 تومان</b>\n"
+        "▫️ سه‌ماهه دو‌کاربره: <b>600,000 تومان</b>\n\n"
         "👇 پلن مورد نظر خود را برای صدور فاکتور انتخاب نمایید:"
     )
     if os.path.exists(TARIFF_IMAGE_PATH):
@@ -220,7 +218,7 @@ async def handle_buy(message: types.Message, state: FSMContext):
     else:
         await message.reply(caption, reply_markup=kb)
 
-# اطلاعات حساب
+# ==================== اطلاعات حساب ====================
 @dp.message_handler(lambda m: m.text == "📊 اطلاعات حساب", state="*")
 async def handle_account(message: types.Message, state: FSMContext):
     await state.finish()
@@ -233,7 +231,7 @@ async def handle_account(message: types.Message, state: FSMContext):
     )
     await message.reply(text, reply_markup=get_main_keyboard())
 
-# پنل کاربری IBSng
+# ==================== پنل کاربری IBSng ====================
 @dp.message_handler(lambda m: m.text == "🌐 پنل کاربری IBSng", state="*")
 async def handle_ibsng_panel(message: types.Message, state: FSMContext):
     await state.finish()
@@ -251,7 +249,7 @@ async def handle_ibsng_panel(message: types.Message, state: FSMContext):
     )
     await message.reply(text, reply_markup=ikb)
 
-# شارژ حساب
+# ==================== شارژ حساب ====================
 @dp.message_handler(lambda m: m.text == "💰 شارژ حساب", state="*")
 async def handle_charge(message: types.Message, state: FSMContext):
     await state.finish()
@@ -262,9 +260,9 @@ async def handle_charge(message: types.Message, state: FSMContext):
         f"💳 شماره کارت جهت واریز:\n<code>{CARD_NUMBER}</code>\n"
         f"👤 به نام: <b>{CARD_HOLDER}</b>\n\n"
         "📌 <b>مراحل شارژ حساب:</b>\n"
-        "۱. مبلغ اشتراک مورد نظر را واریز نمایید.\n"
-        "۲. <b>عکس واضح فیش واریزی</b> را همین‌جا ارسال کنید.\n"
-        "۳. در مرحله بعد نام کاربری (Username) اکانت را ارسال خواهید کرد.\n\n"
+        "1. مبلغ اشتراک مورد نظر را واریز نمایید.\n"
+        "2. <b>عکس واضح فیش واریزی</b> را همین‌جا ارسال کنید.\n"
+        "3. در مرحله بعد نام کاربری (Username) اکانت را ارسال خواهید کرد.\n\n"
         "<i>برای لغو فرآیند می‌توانید دکمه برگشت زیر را بزنید:</i>"
     )
     if os.path.exists(CARD_IMAGE_PATH):
@@ -272,7 +270,7 @@ async def handle_charge(message: types.Message, state: FSMContext):
     else:
         await message.reply(caption, reply_markup=get_back_keyboard())
 
-# پشتیبانی
+# ==================== پشتیبانی ====================
 @dp.message_handler(lambda m: m.text == "👥 پشتیبانی", state="*")
 async def handle_support(message: types.Message, state: FSMContext):
     await state.finish()
@@ -290,7 +288,6 @@ async def handle_support(message: types.Message, state: FSMContext):
     await message.reply(text, reply_markup=get_back_keyboard())
     await message.answer("ارتباط از طریق تلگرام:", reply_markup=ikb)
 
-# ثبت پیام پشتیبانی و تایید تحویل
 @dp.message_handler(state=SupportState.waiting_for_username_and_msg, content_types=types.ContentTypes.ANY)
 async def process_support_input(message: types.Message, state: FSMContext):
     user = message.from_user
@@ -321,7 +318,7 @@ async def process_support_input(message: types.Message, state: FSMContext):
     )
     await state.finish()
 
-# سوالات متداول با تاکید امنیتی
+# ==================== سوالات متداول ====================
 @dp.message_handler(lambda m: m.text == "❓ سوالات متداول", state="*")
 async def handle_faq(message: types.Message, state: FSMContext):
     await state.finish()
@@ -330,17 +327,17 @@ async def handle_faq(message: types.Message, state: FSMContext):
         "🔐 <b>تغییر اجباری رمز عبور در اولین ورود:</b>\n"
         "<b>«مشترکین گرامی، حتماً و موکداً در اولین ورود از طریق قسمت پنل کاربری IBSng، پسورد (رمز عبور) اکانت خود را تغییر دهید تا امنیت حساب شما تضمین شده و از قطعی اشتراک توسط دیگران جلوگیری شود.»</b>\n\n"
         "🔄 <b>طرح جبرانی ویژه مشترکین قدیمی:</b>\n"
-        "مشترکین عزیزی که طی ۲ تا ۳ سال گذشته به علت قطعی‌ها اشتراکشان قطع شده بود، "
-        "با ارسال نام کاربری و رسید قبلی به پشتیبانی، <b>اکانتشان با دوره کامل و ۱۰ گیگابایت حجم هدیه بدون دریافت هیچ هزینه‌ای مجدداً فعال خواهد شد.</b>\n\n"
+        "مشترکین عزیزی که طی 2 تا 3 سال گذشته به علت قطعی‌ها اشتراکشان قطع شده بود، "
+        "با ارسال نام کاربری و رسید قبلی به پشتیبانی، <b>اکانتشان با دوره کامل و 10 گیگابایت حجم هدیه بدون دریافت هیچ هزینه‌ای مجدداً فعال خواهد شد.</b>\n\n"
         "🎁 <b>ترافیک هدیه:</b>\n"
-        "تمامی پلن‌های جدید ۱، ۲ و ۳ ماهه دارای <b>۱۰ گیگابایت ترافیک هدیه</b> می‌باشند.\n\n"
+        "تمامی پلن‌های جدید 1، 2 و 3 ماهه دارای <b>10 گیگابایت ترافیک هدیه</b> می‌باشند.\n\n"
         "⚡️ <b>مشخصات اتصال سریع سرور:</b>\n"
         f"▫️ آدرس سرور: <code>{VPN_SERVER_IP}</code>\n"
         f"▫️ کلید امنیتی (IPsec Secret): <code>{IPSEC_SECRET}</code>"
     )
     await message.reply(text, reply_markup=get_back_keyboard())
 
-# کانفیگ‌ها و راهنماها
+# ==================== آموزش اتصال ====================
 @dp.message_handler(lambda m: m.text == "⚙️ کانفیگ‌ها و آموزش اتصال", state="*")
 async def handle_configs(message: types.Message, state: FSMContext):
     await state.finish()
@@ -358,7 +355,7 @@ async def handle_configs(message: types.Message, state: FSMContext):
     await message.reply(text, reply_markup=kb)
     await message.answer("جهت برگشت به منو دکمه زیر را بزنید:", reply_markup=get_back_keyboard())
 
-# کال‌بک خرید
+# ==================== کال‌بک خرید و دریافت فیش ====================
 @dp.callback_query_handler(lambda c: c.data.startswith("buy_"), state="*")
 async def callback_buy_plan(query: types.CallbackQuery, state: FSMContext):
     plan_key = query.data.split("buy_")[1]
@@ -369,30 +366,6 @@ async def callback_buy_plan(query: types.CallbackQuery, state: FSMContext):
     
     await state.update_data(plan_name=plan["name"], plan_price=plan["price"])
     await OrderState.waiting_for_receipt.set()
-    
-    kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(InlineKeyboardButton("🔙 بازگشت به لیست پلن‌ها", callback_data="back_to_plans"))
-    
-    caption = (
-        "🧾 <b>پیش‌فاکتور صدور اکانت L2TP VPN 24/"فایل‌های کامل و ویدیوهای آموزشی در کانال رسمی قرار دارند:"
-    )
-    await message.reply(text, reply_markup=kb)
-    await message.answer("جهت برگشت به منو دکمه زیر را بزنید:", reply_markup=get_back_keyboard())
-
-# کال‌بک خرید
-@dp.callback_query_handler(lambda c: c.data.startswith("buy_"), state="*")
-async def callback_buy_plan(query: types.CallbackQuery, state: FSMContext):
-    plan_key = query.data.split("buy_")[1]
-    plan = PLANS.get(plan_key)
-    if not plan:
-        await query.answer("پلن یافت نشد.", show_alert=True)
-        return
-    
-    await state.update_data(plan_name=plan["name"], plan_price=plan["price"])
-    await OrderState.waiting_for_receipt.set()
-    
-    kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(InlineKeyboardButton("🔙 بازگشت به لیست پلن‌ها", callback_data="back_to_plans"))
     
     caption = (
         "🧾 <b>پیش‌فاکتور صدور اکانت L2TP VPN 24/7</b>\n\n"
@@ -404,7 +377,13 @@ async def callback_buy_plan(query: types.CallbackQuery, state: FSMContext):
     )
     await query.message.delete()
     if os.path.exists(CARD_IMAGE_PATH):
-        await bot.send_photo(query.message.chat.id, photo=InputFile(CARD_IMAGE_):
+        await bot.send_photo(query.message.chat.id, photo=InputFile(CARD_IMAGE_PATH), caption=caption, reply_markup=get_back_keyboard())
+    else:
+        await bot.send_message(query.message.chat.id, caption, reply_markup=get_back_keyboard())
+    await query.answer()
+
+@dp.message_handler(content_types=['photo'], state=OrderState.waiting_for_receipt)
+async def handle_order_receipt(message: types.Message, state: FSMContext):
     data = await state.get_data()
     plan_name = data.get("plan_name", "خرید اشتراک")
     plan_price = data.get("plan_price", "نامشخص")
@@ -427,7 +406,7 @@ async def callback_buy_plan(query: types.CallbackQuery, state: FSMContext):
     )
     await state.finish()
 
-# دریافت فیش شارژ حساب
+# ==================== شارژ و تمدید حساب ====================
 @dp.message_handler(content_types=['photo'], state=ChargeState.waiting_for_receipt)
 async def handle_charge_receipt(message: types.Message, state: FSMContext):
     await state.update_data(receipt_file_id=message.photo[-1].file_id)
@@ -438,7 +417,6 @@ async def handle_charge_receipt(message: types.Message, state: FSMContext):
         reply_markup=get_back_keyboard()
     )
 
-# دریافت یوزرنیم شارژ حساب
 @dp.message_handler(state=ChargeState.waiting_for_username)
 async def handle_charge_username(message: types.Message, state: FSMContext):
     username_val = message.text.strip()
