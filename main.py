@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 # ============================
 # مقادیر و متغیرهای اصلی
 # ============================
-BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENlv7rm182derX0X")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENytzh4ynqajjX0X")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "2786850266"))
 PORT = int(os.getenv("PORT", "10000"))
 
@@ -44,7 +44,7 @@ PAYMENT_CARD = os.getenv("PAYMENT_CARD", "6104338904607443")
 PAYMENT_NAME = os.getenv("PAYMENT_NAME", "رحیمی")
 
 VPN_SERVER_IP = "94.184.43.106"
-IPSEC_SECRET = ".12345678"
+IPSEC_SECRET = "GAPGPTMASKTOKENytzh4ynqajjX1X"
 
 # ============================
 # پایگاه داده SQLite
@@ -285,11 +285,12 @@ async def process_receipt_photo(message: Message, state: FSMContext):
 
     photo_id = message.photo[-1].file_id
 
-    admin
-        f"📌 نوع درخواست: <b>{'خرید جدید' if action_type == 'buy' else
+    req_type = "خرید جدید" if action_type == "buy" else "تمدید اشتراک"
+    admin_caption = (
+        "🔔 <b>رسید پرداخت جدید دریافت شد!</b>\n\n"
         f"👤 کاربر: {user.full_name} (@{user.username or 'ندارد'})\n"
         f"🆔 آیدی عددی: <code>{user.id}</code>\n"
-        f"📌 نوع درخواست: <b>{'خرید جدید' if action_type == 'buy' else 'تمدید اشتراک'}</b>\n"
+        f"📌 نوع درخواست: <b>{req_type}</b>\n"
         f"🔑 نام کاربری اکانت: <code>{vpn_user}</code>\n"
         f"📦 پلن: <b>{plan_name}</b>\n"
         f"💰 مبلغ: <b>{price}</b>"
