@@ -1,3 +1,4 @@
 aiogram==2.25.2
-aiohttp==3.9.5
-pytz==2024.2
+aiohttp>=3.8.0,<3.9.0
+pytz
+requests
