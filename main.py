@@ -3,7 +3,7 @@ import logging
 import os
 import sqlite3
 from aiohttp import web
-from aiogram import Bot, Dispatcher, F
+from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
@@ -19,6 +19,7 @@ from aiogram.types import (
     ReplyKeyboardRemove,
 )
 from aiogram.client.default import DefaultBotProperties
+from magic_filter import F
 
 # ============================
 # تنظیمات لاگینگ
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 # ============================
 # مقادیر و متغیرهای اصلی
 # ============================
-BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENyfnxte0fwboX1X")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENlv7rm182derX0X")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "2786850266"))
 PORT = int(os.getenv("PORT", "10000"))
 
@@ -165,7 +166,6 @@ bot = Bot(
 )
 dp = Dispatcher(storage=MemoryStorage())
 
-# اطلاعات تعرفه‌ها
 PLANS_DATA = {
     "1m_1u": ("۱ ماهه - ۱ کاربره", "۲۰۰,۰۰۰ تومان"),
     "1m_2u": ("۱ ماهه - ۲ کاربره", "۲۵۰,۰۰۰ تومان"),
@@ -285,8 +285,8 @@ async def process_receipt_photo(message: Message, state: FSMContext):
 
     photo_id = message.photo[-1].file_id
 
-    admin_caption = (
-        f"🔔 <b>رسید پرداخت جدید دریافت شد!</b>\n\n"
+    admin
+        f"📌 نوع درخواست: <b>{'خرید جدید' if action_type == 'buy' else
         f"👤 کاربر: {user.full_name} (@{user.username or 'ندارد'})\n"
         f"🆔 آیدی عددی: <code>{user.id}</code>\n"
         f"📌 نوع درخواست: <b>{'خرید جدید' if action_type == 'buy' else 'تمدید اشتراک'}</b>\n"
