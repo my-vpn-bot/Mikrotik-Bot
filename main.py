@@ -32,7 +32,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ----------------- متغیرهای محیطی Render -----------------
-GAPGPTMASKTOKEN4vz3ry7lqljX0X = os.getenv("GAPGPTMASKTOKEN4vz3ry7lqljX1X", "GAPGPTMASKTOKEN4vz3ry7lqljX2X")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENuv6tybcj2dX0X")
 ADMIN_ID = os.getenv("ADMIN_ID", "02786850266")
 CHANNEL_URL = os.getenv("CHANNEL_URL", "https://t.me/L2tp_vpn402")
 SUPPORT_ID = os.getenv("SUPPORT_ID", "@L2tp1Support")
@@ -42,9 +42,8 @@ PAYMENT_NAME = os.getenv("PAYMENT_NAME", "رحیمی")
 PORT = int(os.getenv("PORT", 10000))
 
 VPN_SERVER_IP = "94.184.43.106"
-IPSEC_SECRET = "GAPGPTMASKTOKEN4vz3ry7lqljX3X"
+IPSEC_SECRET = "12345678."
 BOT_USERNAME = "@L2TP_Arshavin_Bot"
-CHANNEL_USERNAME = "@L2tp_vpn402"
 
 # ----------------- دیتابیس -----------------
 DB_FILE = "bot_database.db"
@@ -230,7 +229,7 @@ def get_tariffs_text():
     )
 
 # ----------------- راه‌اندازی ربات -----------------
-bot = Bot(token=GAPGPTMASKTOKEN4vz3ry7lqljX4X, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher(storage=MemoryStorage())
 
 # ----------------- هندلرهای اصلی -----------------
@@ -256,6 +255,16 @@ async def handle_stats(message: Message):
 async def cancel_handler(message: Message, state: FSMContext):
     await state.clear()
     await message.answer("عملیات لغو شد. به منوی اصلی برگشتید.", reply_markup=get_main_keyboard())
+
+@dp.callback_query(F.data == "cancel_action")
+async def cancel_callback_handler(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await callback.message.answer("عملیات لغو شد. به منوی اصلی برگشتید.", reply_markup=get_main_keyboard())
+    await callback.answer()
 
 @dp.message(F.text == "🛍 خرید اشتراک")
 async def buy_subscription_menu(message: Message):
@@ -383,7 +392,27 @@ async def process_help_callback(callback: CallbackQuery):
         text = (
             "🍎 <b>راهنمای اتصال در مک‌بوک (macOS):</b>\n\n"
             "1️⃣ به <b>System Settings</b> و بخش <b>Network</b> بروید.\n"
-            "2️⃣ روی علامت سه‌نقطه پایین یا علامت (+) کلیک کرده و <b>Add VPN Configuration > L2TP over IPSec</b> را انتخاب کنید.\n"
+            "2️⃣ روی علامت (+) کلیک کرده و <b>Add VPN Configuration > L2TP over IPSec</b> را انتخاب کنید.\n"
+            f"• <b>Server Address:</b> <code>{VPN_SERVER_IP}</code>\n"
+            "• <b>Account Name:</b> نام کاربری اکانت شما\n"
+            "3️⃣ روی <b>Authentication Settings</b> کلیک کنید:\n"
+            "• <b>Password:</b> رمز عبور شما\n"
+            f"• <b>Shared Secret:</b> <code>.\n"
+            "2️⃣ روی دکمه <b>Add VPN</b> کلیک کنید.\n"
+            "• <b>VPN provider:</b> Windows (built-in)\n"
+            "• <b>Connection name:</b> <code>L2TP 24/7</code>\n"
+            f"• <b>Server name or address:</b> <code>{VPN_SERVER_IP}</code>\n"
+            "• <b>VPN type:</b> <code>L2TP/IPsec with pre-shared key</code>\n"
+            f"• <b>Pre-shared key:</b> <code>{IPSEC_SECRET}</code>\n"
+            "• <b>Type of sign-in info:</b> User name and password\n"
+            "• نام کاربری و پسورد اکانت خود را وارد کنید.\n"
+            "3️⃣ ذخیره کنید و دکمه <b>Connect</b> را بزنید."
+        )
+    elif action == "help_mac":
+        text = (
+            "🍎 <b>راهنمای اتصال در مک‌بوک (macOS):</b>\n\n"
+            "1️⃣ به <b>System Settings</b> و بخش <b>Network</b> بروید.\n"
+            "2️⃣ روی علامت (+) کلیک کرده و <b>Add VPN Configuration > L2TP over IPSec</b> را انتخاب کنید.\n"
             f"• <b>Server Address:</b> <code>{VPN_SERVER_IP}</code>\n"
             "• <b>Account Name:</b> نام کاربری اکانت شما\n"
             "3️⃣ روی <b>Authentication Settings</b> کلیک کنید:\n"
@@ -393,25 +422,7 @@ async def process_help_callback(callback: CallbackQuery):
         )
     elif action == "help_router":
         text = (
-            "📡 <b>راهنمای تنظیم روی مودم و روتر (Router / Modem):</b>\n\n"
-            "1️⃣ وارد صفحه مدیریت مودم خود شوید (معمولاً <code>192.168.1.1</code>).\n"
-            "2️⃣ به بخش <b>VPN Settings</b> یا <b>VPN Client</b> مراجعه کنید.\n"
-            "3️⃣ نوع تانل را بر روی <b>L2TP Client</b> قرار دهید.\n"
-            f"• <b>LNS Address / Server:</b> <code>{VPN_SERVER_IP}</code>\n"
-            "• <b>User Name:</b> نام کاربری اکانت شما\n"
-            "• <b>Password:</b> رمز عبور شما\n"
-            f"• <b>IPsec Secret / Pre-shared Key:</b> <code>{IPSEC_SECRET}</code> (در صورت وجود)\n"
-            "4️⃣ وضعیت را روی <b>Enabled / Connect</b> بگذارید و ذخیره نمایید."
-        )
-    else:  # help_faq
-        text = (
-            "❓ <b>سوالات متداول و عیب‌یابی:</b>\n\n"
-            "📌 <b>ارور کلمه عبور یا احراز هویت (Authentication Error):</b>\n"
-            "مطمئن شوید یوزرنیم و پسورد را بدون فاصله و با حروف کوچک/بزرگ دقیق وارد کرده‌اید. همچنین کلید Pre-shared key را چک کنید.\n\n"
-            "📌 <b>مشاهده حجم باقی‌مانده و روزهای اشتراک:</b>\n"
-            f"وارد پنل کاربری IBSng به آدرس {IBSNG_PANEL_URL} شوید. (وی‌پی‌ان حتماً هنگام ورود خاموش باشد).\n\n"
-            "📌 <b>مشکل در اتصال در برخی اپراتورها:</b>\n"
-            "یک بار حالت پرواز را روشن و خاموش کنید و مجدداً متصل شوید."
+            "📡 <b>راهنمای تنظیم روی مودم و روتر (Router / Modem):</b> بار حالت پرواز را روشن و خاموش کنید و مجدداً متصل شوید."
         )
 
     await callback.message.answer(text)
@@ -476,33 +487,6 @@ async def process_plan_selection(callback: CallbackQuery, state: FSMContext):
         "buy_3m_1u": ("۳ ماهه | تک کاربره", "550,000"),
         "buy_3m_2u": ("۳ ماهه | دو کاربره", "600,000"),
     }
-    plan_info = plans.get(callback.data)    )
-    await message.answer(
-        f"در صورت نیاز به مشاوره، راهنمایی یا پیگیری سفارش با ما در ارتباط باشید:\n"
-        f"👤 پشتیبان رسمی: {SUPPORT_ID}",
-        reply_markup=keyboard
-    )
-
-@dp.message(F.text == "📢 کانال تلگرام")
-async def show_channel(message: Message):
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="📢 عضویت در کانال رسمی", url=CHANNEL_URL)]
-        ]
-    )
-    await message.answer("برای دریافت آخرین اخبار، سرورها و اطلاعیه‌های رسمی در کانال عضو شوید:", reply_markup=keyboard)
-
-# ----------------- هندلرهای فرآیند خرید -----------------
-@dp.callback_query(F.data.startswith("buy_"))
-async def process_plan_selection(callback: CallbackQuery, state: FSMContext):
-    plans = {
-        "buy_1m_1u": ("۱ ماهه | تک کاربره", "200,000"),
-        "buy_1m_2u": ("۱ ماهه | دو کاربره", "250,000"),
-        "buy_2m_1u": ("۲ ماهه | تک کاربره", "380,000"),
-        "buy_2m_2u": ("۲ ماهه | دو کاربره", "430,000"),
-        "buy_3m_1u": ("۳ ماهه | تک کاربره", "550,000"),
-        "buy_3m_2u": ("۳ ماهه | دو کاربره", "600,000"),
-    }
     plan_info = plans.get(callback.data)
     if not plan_info:
         await callback.answer()
@@ -512,7 +496,26 @@ async def process_plan_selection(callback: CallbackQuery, state: FSMContext):
     await state.update_data(selected_plan=plan_title, selected_price=plan_price)
     await state.set_state(PurchaseStates.waiting_for_receipt)
 
-    await callback.: @{message.from_user.username or 'ندارد'}\n"
+    await callback.message.answer(
+        f"✅ پلن انتخابی: <b>{plan_title}</b>\n"
+        f"💰 مبلغ قابل پرداخت: <b>{plan_price} تومان</b>\n\n"
+        f"💳 شماره کارت: <code>{PAYMENT_CARD}</code>\n"
+        f"👤 به نام: <b>{PAYMENT_NAME}</b>\n\n"
+        "پس از واریز، لطفاً تصویر فیش پرداخت را همین‌جا ارسال کنید.",
+        reply_markup=get_cancel_keyboard()
+    )
+    await callback.answer()
+
+@dp.message(PurchaseStates.waiting_for_receipt, F.photo)
+async def process_purchase_receipt(message: Message, state: FSMContext):
+    data = await state.get_data()
+    plan_title = data.get("selected_plan", "نامشخص")
+    plan_price = data.get("selected_price", "نامشخص")
+    photo_id = message.photo[-1].file_id
+
+    caption_admin = (
+        "🔔 <b>درخواست خرید اشتراک جدید</b>\n\n"
+        f"👤 کاربر تلگرام: @{message.from_user.username or 'ندارد'}\n"
         f"🆔 آیدی عددی: <code>{message.from_user.id}</code>\n"
         f"📦 پلن: <b>{plan_title}</b>\n"
         f"💰 مبلغ: <b>{plan_price} تومان</b>"
