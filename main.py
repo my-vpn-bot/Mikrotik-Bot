@@ -24,7 +24,7 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
 )
 
-# ----------------- لاگینگ -----------------
+# ----------------- تنظیمات لاگینگ -----------------
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -32,7 +32,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ----------------- متغیرهای محیطی Render -----------------
-BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENuv6tybcj2dX0X")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENr6qcsocxi29X0X")
 ADMIN_ID = os.getenv("ADMIN_ID", "02786850266")
 CHANNEL_URL = os.getenv("CHANNEL_URL", "https://t.me/L2tp_vpn402")
 SUPPORT_ID = os.getenv("SUPPORT_ID", "@L2tp1Support")
@@ -45,7 +45,7 @@ VPN_SERVER_IP = "94.184.43.106"
 IPSEC_SECRET = "12345678."
 BOT_USERNAME = "@L2TP_Arshavin_Bot"
 
-# ----------------- دیتابیس -----------------
+# ----------------- دیتابیس کاربران -----------------
 DB_FILE = "bot_database.db"
 
 def init_db():
@@ -84,10 +84,10 @@ def get_users_count():
         conn.close()
         return count
     except Exception as e:
-        logger.error(f"Database error: {e}")
+        logger.error(f"Database count error: {e}")
         return 0
 
-# ----------------- تقویم شمسی و ساعت تهران -----------------
+# ----------------- تقویم جلالی و ساعت رسمی -----------------
 def gregorian_to_jalali(gy, gm, gd):
     g_d_m = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
     if gy > 1600:
@@ -132,7 +132,7 @@ def get_persian_date_time():
     time_str = now.strftime("%H:%M")
     return weekday_name, date_str, time_str
 
-# ----------------- استیت‌های ماشین وضعیت -----------------
+# ----------------- ماشین وضعیت FSM -----------------
 class RenewalStates(StatesGroup):
     waiting_for_username = State()
     waiting_for_receipt = State()
@@ -140,7 +140,7 @@ class RenewalStates(StatesGroup):
 class PurchaseStates(StatesGroup):
     waiting_for_receipt = State()
 
-# ----------------- کیبوردهای اصلی -----------------
+# ----------------- کیبوردها -----------------
 def get_main_keyboard():
     return ReplyKeyboardMarkup(
         keyboard=[
@@ -172,12 +172,12 @@ def get_plans_keyboard():
 def get_help_keyboard():
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🍏 راهنمای اتصال آیفون و آیپد (iOS)", callback_data="help_ios")],
-            [InlineKeyboardButton(text="🤖 راهنمای اتصال گوشی‌های اندروید (Android)", callback_data="help_android")],
-            [InlineKeyboardButton(text="💻 راهنمای اتصال ویندوز (Windows)", callback_data="help_windows")],
-            [InlineKeyboardButton(text="🍎 راهنمای اتصال مک‌بوک (macOS)", callback_data="help_mac")],
-            [InlineKeyboardButton(text="📡 راهنمای تنظیم روی مودم و روتر", callback_data="help_router")],
-            [InlineKeyboardButton(text="❓ سوالات متداول و رفع خطاهای رایج", callback_data="help_faq")],
+            [InlineKeyboardButton(text="🍏 راهنمای آیفون و آیپد (iOS)", callback_data="help_ios")],
+            [InlineKeyboardButton(text="🤖 راهنمای اندروید (Android)", callback_data="help_android")],
+            [InlineKeyboardButton(text="💻 راهنمای ویندوز (Windows)", callback_data="help_windows")],
+            [InlineKeyboardButton(text="🍎 راهنمای مک‌بوک (macOS)", callback_data="help_mac")],
+            [InlineKeyboardButton(text="📡 راهنمای مودم و روتر", callback_data="help_router")],
+            [InlineKeyboardButton(text="❓ سوالات متداول و رفع عیب", callback_data="help_faq")],
             [InlineKeyboardButton(text="❌ بستن راهنما", callback_data="cancel_action")]
         ]
     )
@@ -188,7 +188,7 @@ def get_cancel_keyboard():
         resize_keyboard=True
     )
 
-# ----------------- پیام‌های ثابت -----------------
+# ----------------- متون پیام‌ها -----------------
 def get_welcome_text(user_full_name: str):
     weekday, pdate, ptime = get_persian_date_time()
     name_clean = escape(user_full_name)
@@ -197,21 +197,21 @@ def get_welcome_text(user_full_name: str):
         f"به ربات رسمی و اختصاصی <b>L2TP VPN 24/7</b> خوش آمدید.\n\n"
         f"📅 امروز: <b>{weekday} - {pdate}</b>\n"
         f"⏰ ساعت: <b>{ptime}</b>\n\n"
-        "⚡️ <b>وضعیت شبکه:</b> پایدار و متصل به قدرتمندترین سرورهای پرسرعت اختصاصی\n"
-        "🌐 پروتکل امن L2TP/IPsec با پایداری کامل برای تمام اپراتورها\n\n"
-        "📌 <b>لینک‌های رسمی و ارتباطی:</b>\n"
+        "⚡️ <b>وضعیت شبکه:</b> پایدار و متصل به سرورهای پرسرعت اختصاصی\n"
+        "🌐 پروتکل امن L2TP/IPsec با پایداری کامل روی تمامی اپراتورها\n\n"
+        "📌 <b>پل‌های ارتباطی رسمی:</b>\n"
         f"📢 کانال تلگرام: {CHANNEL_URL}\n"
         f"💬 پشتیبانی آنلاین: {SUPPORT_ID}\n"
         f"🤖 شناسه ربات: {BOT_USERNAME}\n\n"
         "🌐 <b>پنل کاربری IBSng:</b>\n"
         f"🔗 {IBSNG_PANEL_URL}\n"
         "⚠️ <i>برای ارتباط بهتر با پنل لطفاً وی‌پی‌ان خود را خاموش کنید و بعد از اتمام دوباره روشن کنید.</i>\n\n"
-        "👇 لطفاً برای استفاده از خدمات، گزینه مورد نظر خود را از منوی زیر انتخاب نمایید:"
+        "👇 لطفاً از منوی زیر گزینه مورد نظرتان را انتخاب کنید:"
     )
 
 def get_tariffs_text():
     return (
-        "📊 <b>لیست تعرفه‌ها و قیمت سرویس‌ها (L2TP VPN L2TP 24/7):</b>\n\n"
+        "📊 <b>لیست تعرفه‌ها و قیمت سرویس‌ها (L2TP VPN 24/7):</b>\n\n"
         "🔹 <b>پلن‌های ۱ ماهه:</b>\n"
         "• یک ماهه تک کاربره: <code>200,000</code> تومان\n"
         "• یک ماهه دو کاربره: <code>250,000</code> تومان\n\n"
@@ -225,14 +225,14 @@ def get_tariffs_text():
         "💳 <b>شماره کارت جهت واریز وجه:</b>\n"
         f"<code>{PAYMENT_CARD}</code>\n"
         f"به نام: <b>{PAYMENT_NAME}</b>\n\n"
-        "جهت خرید یا تمدید اشتراک، از گزینه‌های منو استفاده فرمایید."
+        "جهت خرید یا تمدید، دکمه‌های مربوطه در منو را لمس کنید."
     )
 
 # ----------------- راه‌اندازی ربات -----------------
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher(storage=MemoryStorage())
 
-# ----------------- هندلرهای اصلی -----------------
+# ----------------- هندلرهای تلگرام -----------------
 @dp.message(CommandStart())
 async def handle_start(message: Message, state: FSMContext):
     await state.clear()
@@ -247,9 +247,9 @@ async def handle_start(message: Message, state: FSMContext):
 async def handle_stats(message: Message):
     if str(message.from_user.id) == str(ADMIN_ID):
         count = get_users_count()
-        await message.answer(f"📊 <b>آمار اعضای ربات:</b>\n\nتعداد کل کاربران ثبت‌شده: <b>{count}</b> نفر")
+        await message.answer(f"📊 <b>آمار کاربران ربات:</b>\n\nتعداد کل اعضا: <b>{count}</b> نفر")
     else:
-        await message.answer("⛔️ این دستور فقط برای مدیریت قابل مشاهده است.")
+        await message.answer("⛔️ این دستور فقط مخصوص مدیریت است.")
 
 @dp.message(F.text == "❌ انصراف و بازگشت به منو")
 async def cancel_handler(message: Message, state: FSMContext):
@@ -290,8 +290,8 @@ async def process_renewal_username(message: Message, state: FSMContext):
     await state.update_data(renew_username=username)
     await state.set_state(RenewalStates.waiting_for_receipt)
     await message.answer(
-        f"اکانت وارد شده جهت تمدید: <b>{escape(username)}</b>\n\n"
-        "لطفاً مبلغ اشتراک انتخابی را به شماره کارت زیر انتقال داده و سپس <b>تصویر فیش واریزی</b> را ارسال نمایید:\n\n"
+        f"اکانت ثبت‌شده جهت تمدید: <b>{escape(username)}</b>\n\n"
+        "مبلغ پلن مورد نظر خود را به شماره کارت زیر واریز کرده و سپس <b>تصویر فیش واریزی</b> را همین‌جا ارسال نمایید:\n\n"
         f"💳 شماره کارت: <code>{PAYMENT_CARD}</code>\n"
         f"👤 به نام: <b>{PAYMENT_NAME}</b>\n\n"
         "در انتظار ارسال تصویر رسید پرداخت...",
@@ -308,19 +308,19 @@ async def process_renewal_receipt(message: Message, state: FSMContext):
         "🔔 <b>درخواست تمدید اشتراک</b>\n\n"
         f"👤 کاربر تلگرام: @{message.from_user.username or 'ندارد'}\n"
         f"🆔 آیدی عددی: <code>{message.from_user.id}</code>\n"
-        f"🔑 نام کاربری: <code>{escape(username)}</code>"
+        f"🔑 نام کاربری اکانت: <code>{escape(username)}</code>"
     )
 
     try:
         if ADMIN_ID:
             await bot.send_photo(chat_id=ADMIN_ID, photo=photo_id, caption=caption_admin)
     except Exception as e:
-        logger.error(f"Error sending renewal receipt to admin: {e}")
+        logger.error(f"Error sending renewal receipt: {e}")
 
     await state.clear()
     await message.answer(
-        "✅ فیش واریزی با موفقیت به پشتیبانی تحویل شد.\n"
-        "اکانت شما در اسرع وقت تمدید و فعال‌سازی خواهد شد.",
+        "✅ فیش واریزی شما با موفقیت برای مدیریت ارسال شد.\n"
+        "اکانت شما در سریع‌ترین زمان تمدید و فعال می‌گردد.",
         reply_markup=get_main_keyboard()
     )
 
@@ -328,12 +328,12 @@ async def process_renewal_receipt(message: Message, state: FSMContext):
 async def show_tariffs(message: Message):
     await message.answer(get_tariffs_text())
 
-# ----------------- بخش راهنمای اتصال و سوالات متداول -----------------
+# ----------------- راهنمای اتصال سیستم‌عامل‌ها -----------------
 @dp.message(F.text == "📚 راهنمای اتصال و سوالات متداول")
 async def show_help_center(message: Message):
     await message.answer(
-        "📚 <b>مرکز راهنما و سوالات متداول اتصال به L2TP VPN:</b>\n\n"
-        "دستگاه یا سیستم‌عامل خود را از لیست زیر انتخاب کنید تا آموزش تنظیم دقیق برای شما نمایش داده شود:",
+        "📚 <b>مرکز راهنما و آموزش اتصال به L2TP VPN:</b>\n\n"
+        "سیستم‌عامل یا دستگاه خود را انتخاب کنید تا آموزش گام‌به‌گام برایتان ارسال شود:",
         reply_markup=get_help_keyboard()
     )
 
@@ -343,87 +343,87 @@ async def process_help_callback(callback: CallbackQuery):
     
     if action == "help_ios":
         text = (
-            "🍏 <b>راهنمای اتصال در آیفون و آیپد (iOS):</b>\n\n"
-            "1️⃣ به تنظیمات گوشی (<b>Settings</b>) بروید.\n"
-            "2️⃣ وارد بخش <b>VPN & Device Management</b> و سپس <b>VPN</b> شوید.\n"
+            "🍏 <b>راهنمای اتصال آیفون و آیپد (iOS):</b>\n\n"
+            "1️⃣ وارد <b>Settings</b> گوشی شوید.\n"
+            "2️⃣ بخش <b>VPN & Device Management > VPN</b> را باز کنید.\n"
             "3️⃣ گزینه <b>Add VPN Configuration...</b> را انتخاب کنید.\n"
-            "4️⃣ مشخصات را دقیقاً به شکل زیر وارد نمایید:\n"
+            "4️⃣ مقادیر را مطابق زیر تکمیل فرمایید:\n"
             "• <b>Type:</b> <code>L2TP</code>\n"
             "• <b>Description:</b> <code>L2TP VPN</code>\n"
             f"• <b>Server:</b> <code>{VPN_SERVER_IP}</code>\n"
             "• <b>Account:</b> نام کاربری شما\n"
-            "• <b>RSA SecurID:</b> خاموش (Off)\n"
+            "• <b>RSA SecurID:</b> Off (خاموش)\n"
             "• <b>Password:</b> رمز عبور شما\n"
             f"• <b>Secret:</b> <code>{IPSEC_SECRET}</code>\n"
-            "• <b>Send All Traffic:</b> روشن (On)\n"
-            "5️⃣ روی <b>Done</b> کلیک کرده و اتصال را روشن کنید."
+            "• <b>Send All Traffic:</b> On (روشن)\n"
+            "5️⃣ ذخیره (Done) کرده و اتصال را روشن کنید."
         )
     elif action == "help_android":
         text = (
-            "🤖 <b>راهنمای اتصال در گوشی‌های اندروید (Android):</b>\n\n"
+            "🤖 <b>راهنمای اتصال گوشی‌های اندروید (Android):</b>\n\n"
             "1️⃣ وارد تنظیمات گوشی (<b>Settings</b>) شوید.\n"
-            "2️⃣ بخش <b>اتصال‌ها (Connections)</b> یا <b>Network & Internet</b> را باز کنید.\n"
-            "3️⃣ وارد <b>More connection settings</b> و سپس <b>VPN</b> شوید.\n"
-            "4️⃣ گزینه افزودن پروفایل (+) یا <b>Add VPN</b> را بزنید.\n"
+            "2️⃣ بخش <b>Connections</b> یا <b>Network & Internet</b> را انتخاب کنید.\n"
+            "3️⃣ وارد <b>More connection settings > VPN</b> شوید.\n"
+            "4️⃣ علامت (+) یا <b>Add VPN</b> را لمس کنید:\n"
             "• <b>Name:</b> <code>L2TP VPN</code>\n"
             "• <b>Type:</b> <code>L2TP/IPSec PSK</code>\n"
             f"• <b>Server address:</b> <code>{VPN_SERVER_IP}</code>\n"
-            "• <b>IPSec identifier:</b> خالی بگذارید\n"
+            "• <b>IPSec identifier:</b> خالی بماند\n"
             f"• <b>IPSec pre-shared key:</b> <code>{IPSEC_SECRET}</code>\n"
             "• <b>Username:</b> نام کاربری شما\n"
-            "• <b>Password:</b> پسورد شما\n"
-            "5️⃣ ذخیره (Save) کنید و متصل شوید."
+            "• <b>Password:</b> رمز عبور شما\n"
+            "5️⃣ ذخیره کرده و متصل شوید."
         )
     elif action == "help_windows":
         text = (
-            "💻 <b>راهنمای اتصال در ویندوز (Windows 10 / 11):</b>\n\n"
-            "1️⃣ کلیدهای <b>Win + I</b> را بزنید و به بخش <b>Network & internet > VPN</b> بروید.\n"
-            "2️⃣ روی دکمه <b>Add VPN</b> کلیک کنید.\n"
+            "💻 <b>راهنمای اتصال ویندوز (Windows 10 / 11):</b>\n\n"
+            "1️⃣ کلیدهای <b>Win + I</b> را زده و وارد <b>Network & internet > VPN</b> شوید.\n"
+            "2️⃣ گزینه <b>Add VPN</b> را انتخاب کنید:\n"
             "• <b>VPN provider:</b> Windows (built-in)\n"
-            "• <b>Connection name:</b> <code>L2TP 24/7</code>\n"
+            "• <b>Connection name:</b> <code>L2TP VPN</code>\n"
             f"• <b>Server name or address:</b> <code>{VPN_SERVER_IP}</code>\n"
             "• <b>VPN type:</b> <code>L2TP/IPsec with pre-shared key</code>\n"
             f"• <b>Pre-shared key:</b> <code>{IPSEC_SECRET}</code>\n"
             "• <b>Type of sign-in info:</b> User name and password\n"
-            "• نام کاربری و پسورد اکانت خود را وارد کنید.\n"
-            "3️⃣ ذخیره کنید و دکمه <b>Connect</b> را بزنید."
+            "• نام کاربری و رمز عبور خود را وارد کنید.\n"
+            "3️⃣ گزینه <b>Save</b> را زده و سپس روی کانکشن <b>Connect</b> را بزنید."
         )
     elif action == "help_mac":
         text = (
-            "🍎 <b>راهنمای اتصال در مک‌بوک (macOS):</b>\n\n"
-            "1️⃣ به <b>System Settings</b> و بخش <b>Network</b> بروید.\n"
-            "2️⃣ روی علامت (+) کلیک کرده و <b>Add VPN Configuration > L2TP over IPSec</b> را انتخاب کنید.\n"
+            "🍎 <b>راهنمای اتصال مک‌بوک (macOS):</b>\n\n"
+            "1️⃣ وارد <b>System Settings</b> و بخش <b>Network</b> شوید.\n"
+            "2️⃣ روی فلش کنار علامت (+) کلیک کرده و <b>Add VPN Configuration > L2TP over IPSec</b> را انتخاب کنید.\n"
             f"• <b>Server Address:</b> <code>{VPN_SERVER_IP}</code>\n"
             "• <b>Account Name:</b> نام کاربری اکانت شما\n"
-            "3️⃣ روی <b>Authentication Settings</b> کلیک کنید:\n"
-            "• <b>Password:</b> رمز عبور شما\n"
-            f"• <b>Shared Secret:</b> <code>.\n"
-            "2️⃣ روی دکمه <b>Add VPN</b> کلیک کنید.\n"
-            "• <b>VPN provider:</b> Windows (built-in)\n"
-            "• <b>Connection name:</b> <code>L2TP 24/7</code>\n"
-            f"• <b>Server name or address:</b> <code>{VPN_SERVER_IP}</code>\n"
-            "• <b>VPN type:</b> <code>L2TP/IPsec with pre-shared key</code>\n"
-            f"• <b>Pre-shared key:</b> <code>{IPSEC_SECRET}</code>\n"
-            "• <b>Type of sign-in info:</b> User name and password\n"
-            "• نام کاربری و پسورد اکانت خود را وارد کنید.\n"
-            "3️⃣ ذخیره کنید و دکمه <b>Connect</b> را بزنید."
-        )
-    elif action == "help_mac":
-        text = (
-            "🍎 <b>راهنمای اتصال در مک‌بوک (macOS):</b>\n\n"
-            "1️⃣ به <b>System Settings</b> و بخش <b>Network</b> بروید.\n"
-            "2️⃣ روی علامت (+) کلیک کرده و <b>Add VPN Configuration > L2TP over IPSec</b> را انتخاب کنید.\n"
-            f"• <b>Server Address:</b> <code>{VPN_SERVER_IP}</code>\n"
-            "• <b>Account Name:</b> نام کاربری اکانت شما\n"
-            "3️⃣ روی <b>Authentication Settings</b> کلیک کنید:\n"
-            "• <b>Password:</b> رمز عبور شما\n"
+            "3️⃣ روی دکمه <b>Authentication Settings</b> کلیک کنید:\n"
+            "• <b>Password:</b> رمز عبور اکانت شما\n"
             f"• <b>Shared Secret:</b> <code>{IPSEC_SECRET}</code>\n"
-            "4️⃣ تیک گزینه <b>Send all traffic over VPN connection</b> را در تنظیمات پیشرفته بزنید و وصل شوید."
+            "4️⃣ در تب تنظیمات پیشرفته گزینه <b>Send all traffic over VPN</b> را تیک زده و وصل شوید."
         )
     elif action == "help_router":
         text = (
-            "📡 <b>راهنمای تنظیم روی مودم و روتر (Router / Modem):</b> بار حالت پرواز را روشن و خاموش کنید و مجدداً متصل شوید."
+            "📡 <b>راهنمای تنظیم روی مودم و روتر (Router / Modem):</b>\n\n"
+            "1️⃣ وارد پنل مودم (معمولاً <code>192.168.1.1</code>) شوید.\n"
+            "2️⃣ به بخش <b>VPN Settings > L2TP Client</b> مراجعه کنید.\n"
+            "3️⃣ وضعیت را روی <b>Enable</b> بگذارید.\n"
+            f"• <b>LNS Address (Server):</b> <code>{VPN_SERVER_IP}</code>\n"
+            "• <b>User Name:</b> نام کاربری شما\n"
+            "• <b>Password:</b> رمز عبور شما\n"
+            f"• <b>Tunnel Name / Preshared Key:</b> <code>{IPSEC_SECRET}</code>\n"
+            "4️⃣ دکمه <b>Save / Apply</b> را بزنید تا کل شبکه به اینترنت آزاد وصل شود."
         )
+    elif action == "help_faq":
+        text = (
+            "❓ <b>سوالات متداول و رفع خطاهای اتصال:</b>\n\n"
+            "🔸 <b>خطای ۷۸۹ در ویندوز یا متصل نشدن:</b>\n"
+            "در بیشتر موارد به دلیل عدم تطابق Preshared Key است. مطمئن شوید کلید دقیقاً <code>12345678.</code> (با نقطه آخر) وارد شده باشد.\n\n"
+            "🔸 <b>وصل می‌شود ولی وب باز نمی‌شود:</b>\n"
+            "یک بار اتصال را قطع کنید، حالت پرواز (Airplane Mode) را برای ۵ ثانیه روشن و خاموش کنید و دوباره وصل شوید.\n\n"
+            "🔸 <b>مشاهده باقیمانده حجم و روز:</b>\n"
+            "از طریق گزینه «ورود به پنل کاربری IBSng» در منوی ربات می‌توانید حساب خود را چک کنید."
+        )
+    else:
+        text = "گزینه نامعتبر است."
 
     await callback.message.answer(text)
     await callback.answer()
@@ -462,7 +462,7 @@ async def show_support(message: Message):
         ]
     )
     await message.answer(
-        f"در صورت نیاز به مشاوره، راهنمایی یا پیگیری سفارش با ما در ارتباط باشید:\n"
+        f"در صورت نیاز به مشاوره یا پیگیری سفارش با ما در ارتباط باشید:\n"
         f"👤 پشتیبان رسمی: {SUPPORT_ID}",
         reply_markup=keyboard
     )
@@ -474,7 +474,7 @@ async def show_channel(message: Message):
             [InlineKeyboardButton(text="📢 عضویت در کانال رسمی", url=CHANNEL_URL)]
         ]
     )
-    await message.answer("برای دریافت آخرین اخبار، سرورها و اطلاعیه‌های رسمی در کانال عضو شوید:", reply_markup=keyboard)
+    await message.answer("برای دریافت آخرین اطلاعیه‌ها و وضعیت شبکه در کانال رسمی عضو شوید:", reply_markup=keyboard)
 
 # ----------------- هندلرهای فرآیند خرید -----------------
 @dp.callback_query(F.data.startswith("buy_"))
@@ -499,9 +499,9 @@ async def process_plan_selection(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer(
         f"✅ پلن انتخابی: <b>{plan_title}</b>\n"
         f"💰 مبلغ قابل پرداخت: <b>{plan_price} تومان</b>\n\n"
-        f"💳 شماره کارت: <code>{PAYMENT_CARD}</code>\n"
+        f"💳 شماره کارت جهت واریز:\n<code>{PAYMENT_CARD}</code>\n"
         f"👤 به نام: <b>{PAYMENT_NAME}</b>\n\n"
-        "پس از واریز، لطفاً تصویر فیش پرداخت را همین‌جا ارسال کنید.",
+        "پس از واریز، لطفاً <b>عکس فیش پرداختی</b> را در همین چت ارسال نمایید.",
         reply_markup=get_cancel_keyboard()
     )
     await callback.answer()
@@ -517,7 +517,7 @@ async def process_purchase_receipt(message: Message, state: FSMContext):
         "🔔 <b>درخواست خرید اشتراک جدید</b>\n\n"
         f"👤 کاربر تلگرام: @{message.from_user.username or 'ندارد'}\n"
         f"🆔 آیدی عددی: <code>{message.from_user.id}</code>\n"
-        f"📦 پلن: <b>{plan_title}</b>\n"
+        f"📦 پلن انتخابی: <b>{plan_title}</b>\n"
         f"💰 مبلغ: <b>{plan_price} تومان</b>"
     )
 
@@ -525,17 +525,17 @@ async def process_purchase_receipt(message: Message, state: FSMContext):
         if ADMIN_ID:
             await bot.send_photo(chat_id=ADMIN_ID, photo=photo_id, caption=caption_admin)
     except Exception as e:
-        logger.error(f"Error sending purchase receipt to admin: {e}")
+        logger.error(f"Error sending purchase receipt: {e}")
 
     await state.clear()
     await message.answer(
-        "✅ فیش واریزی دریافت شد.\n"
-        "اطلاعات اکانت شما به زودی و پس از بررسی ارسال خواهد شد.\n\n"
-        "از شکیبایی شما سپاسگزاریم 🌹",
+        "✅ فیش واریزی با موفقیت دریافت شد.\n"
+        "اطلاعات اکانت شما به زودی و پس از بررسی توسط مدیریت تحویل داده خواهد شد.\n\n"
+        "از صبوری شما سپاسگزاریم 🌹",
         reply_markup=get_main_keyboard()
     )
 
-# ----------------- وب‌سرور Render -----------------
+# ----------------- وب‌سرور سلامت پورت Render -----------------
 async def health_check(request):
     return web.Response(text="Bot is running smoothly!", status=200)
 
@@ -546,26 +546,4 @@ async def start_web_server():
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
-    logger.info(f"Web server started on port {PORT}")
-
-# ----------------- تابع اصلی اجرای برنامه -----------------
-async def main():
-    init_db()
-    logger.info("Database ready.")
-
-    asyncio.create_task(start_web_server())
-
-    logger.info("Starting Polling...")
-    try:
-        await bot.delete_webhook(drop_pending_updates=True)
-        await dp.start_polling(bot)
-    except TelegramConflictError:
-        logger.warning("Conflict error detected. Waiting 5s...")
-        await asyncio.sleep(5)
-    except Exception as e:
-        logger.error(f"Fatal error in main: {e}")
-    finally:
-        await bot.session.close()
-
-if __name__ == "__main__":
-    asyncio.run(main())
+    logger.info
