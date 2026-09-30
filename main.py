@@ -21,7 +21,7 @@ from aiohttp import web
 # ==================== تنظیمات لاگ و متغیرهای محیطی ====================
 logging.basicConfig(level=logging.INFO)
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENkcg6htqvw1X0X").strip()
+BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENseu11f55okX0X").strip()
 
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "02786850266").strip()
 clean_admin_id = ADMIN_ID_RAW.lstrip('0')
@@ -366,36 +366,7 @@ async def approve_order_admin(callback_query: types.CallbackQuery):
     plan = PLANS.get(plan_id, {"name": "سرویس ویژه", "prefix": "user_"})
 
     prefix = plan.get("prefix", "user_")
-    username, password = generate_credentials(prefix)
-
-    delivery_text = (
-        "🎉 <b>سفارش شما با موفقیت تأیید شد و اکانت شما فعال گردید!</b>\n\n"
-        f"📦 نوع سرویس: <b>{plan_markup=admin_kb
-        )
-    except Exception as e:
-        logging.error(f"Error sending order receipt to admin: {e}")
-
-    await message.reply(
-        "✅ <b>فیش واریزی شما با موفقیت برای مدیریت ارسال شد.</b>\n\n"
-        "پس از بررسی، مشخصات اتصال اختصاصی مستقیماً در همین چت برای شما ارسال خواهد شد.",
-        reply_markup=get_main_keyboard()
-    )
-    await state.finish()
-
-# ==================== تأیید و رد سفارش توسط ادمین ====================
-@dp.callback_query_handler(lambda c: c.data.startswith("adm_ok_"), state="*")
-async def approve_order_admin(callback_query: types.CallbackQuery):
-    if callback_query.from_user.id != ADMIN_ID:
-        await callback_query.answer("⛔️ شما ادمین نیستید.", show_alert=True)
-        return
-
-    parts = callback_query.data.split("_")
-    user_id = int(parts[2])
-    plan_id = "_".join(parts[3:])
-    plan = PLANS.get(plan_id, {"name": "سرویس ویژه", "prefix": "user_"})
-
-    prefix = plan.get("prefix", "user_")
-    username, password = generate_credentials(prefix)
+    username, password = generate_credentials(prefix=prefix)
 
     delivery_text = (
         "🎉 <b>سفارش شما با موفقیت تأیید شد و اکانت شما فعال گردید!</b>\n\n"
@@ -403,7 +374,29 @@ async def approve_order_admin(callback_query: types.CallbackQuery):
         f"🌐 آدرس سرور (Server IP): <code>{VPN_SERVER_IP}</code>\n"
         f"🔑 کلید امنیتی (IPsec Secret): <code>{IPSEC_SECRET}</code>\n"
         f"👤 نام کاربری (Username): <code>{username}</code>\n"
-        f"🔒True)
+        f"🔒 رمز عبور (Password): <code>{password}</code>\n\n"
+        f"🌐 <b>لینک پنل اختصاصی IBSng جهت مشاهده مانده حجم:</b>\n{IBSNG_PANEL_URL}\n\n"
+        "⚠️ <b>نکته مهم:</b> برای ارتباط بهتر با پنل لطفاً وی‌پی‌ان خود را خاموش کنید و بعد از اتمام دوباره روشن کنید.\n"
+        "⚠️ <b>نکته امنیتی:</b> لطفاً در اولین ورود به پنل IBSng حتماً رمز عبور خود را تغییر دهید.\n\n"
+        f"💬 پشتیبانی: {SUPPORT_USERNAME}"
+    )
+
+    try:
+        await bot.send_message(user_id, delivery_text)
+        await callback_query.message.reply(
+            f"✅ سرویس با موفقیت برای کاربر <code>{user_id}</code> ارسال شد.\n\n"
+            f"👤 یوزر: <code>{username}</code>\n🔒 پسورد: <code>{password}</code>"
+        )
+        await callback_query.message.edit_reply_markup(reply_markup=None)
+    except Exception as e:
+        await callback_query.answer(f"خطا در ارسال پیام به کاربر: {e}", show_alert=True)
+
+    await callback_query.answer()
+
+@dp.callback_query_handler(lambda c: c.data.startswith("adm_no_"), state="*")
+async def reject_order_admin(callback_query: types.CallbackQuery):
+    if callback_query.from_user.id != ADMIN_ID:
+        await callback_query.answer("⛔️ شما ادمین نیستید.", show_alert=True)
         return
 
     user_id = int(callback_query.data.split("_")[2])
@@ -505,7 +498,7 @@ async def approve_charge_admin(callback_query: types.CallbackQuery):
         f"👤 اکانت شارژ شده: <code>{account_username}</code>\n"
         "⚡️ سرویس شما به همراه ۱۰ گیگابایت ترافیک هدیه تمدید گردید و اکنون فعال است.\n\n"
         f"🌐 <b>پنل کاربری IBSng جهت مشاهده جزئیات:</b>\n{IBSNG_PANEL_URL}\n\n"
-        "⚠️ <i>برای ورود به پنل، ابتدا VPN را خاموش نمایید.</i>\n\n"
+        "⚠️ <i>برای ارتباط بهتر با پنل لطفاً وی‌پی‌ان خود را خاموش کنید و بعد از اتمام دوباره روشن کنید.</i>\n\n"
         f"💬 پشتیبانی: {SUPPORT_USERNAME}"
     )
 
@@ -715,5 +708,4 @@ async def handle_faq_callbacks(callback_query: types.CallbackQuery):
             "5. نام کاربری و رمز اشتراک خود را وارد نمایید.\n"
             "6. وضعیت را ذخیره و اتصال خودکار را فعال کنید."
         )
-        if os.path.exists(MODEM_LAPTOP_IMAGE_PATH):
-            await bot.send_photo(user_id, photo=InputFile(MODEM_LAPTOP_IMAGE_PATH), captio
+        if os.path.ex
