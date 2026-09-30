@@ -21,7 +21,7 @@ from aiohttp import web
 # ==================== تنظیمات لاگ و متغیرهای محیطی ====================
 logging.basicConfig(level=logging.INFO)
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENseu11f55okX0X").strip()
+BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENxfuq42iw34sX0X").strip()
 
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "02786850266").strip()
 clean_admin_id = ADMIN_ID_RAW.lstrip('0')
@@ -34,34 +34,37 @@ SUPPORT_USERNAME = f"@{SUPPORT_ID}"
 CHANNEL_URL = os.getenv("CHANNEL_URL", "https://t.me/L2tp_vpn402").strip()
 CARD_NUMBER = os.getenv("PAYMENT_CARD", "6104338904607443").strip()
 CARD_HOLDER = os.getenv("PAYMENT_NAME", "رحیمی").strip()
-IBSNG_PANEL_URL = os.getenv("IBSNG_PANEL_URL", "http://94.184.45.58:48201/IBSng/user/").strip()
+IBSNG_PANEL_URL = os.getenv("IBSNG_PANEL_URL", "http://94Group):
+    waiting_for_receipt = State()
+    waiting_for_username = State()
 
-VPN_SERVER_IP = os.getenv("VPN_SERVER_IP", "94.184.43.106").strip()
-IPSEC_SECRET = os.getenv("IPSEC_SECRET", ".12345678").strip()
+class SupportState(StatesGroup):
+    waiting_for_username_and_msg = State()
 
-# مسیر تصاویر
-TARIFF_IMAGE_PATH = "تعرفه.jpg"
-CARD_IMAGE_PATH = "شماره کارت1.jpg"
-IOS_ANDROID_IMAGE_PATH = "ایفون و اندروید.jpg"
-MODEM_LAPTOP_IMAGE_PATH = "مودم و لب تاب.jpg"
-
-# ==================== راه‌اندازی ربات ====================
-bot = Bot(token=BOT_TOKEN, parse_mode=types.ParseMode.HTML)
-storage = MemoryStorage()
-dp = Dispatcher(bot, storage=storage)
-
-# ==================== دیتابیس کاربران ====================
-DB_FILE = "bot_users.db"
-
-def init_db():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY,
-            full_name TEXT,
-            username TEXT,
-            join_date TEXT
+# ==================== پلن‌ها ====================
+PLANS = {
+    "1m_1u": {
+        "name": "اشتراک 1 ماهه (تک کاربره + 10 گیگ هدیه)",
+        "price": "200,000 تومان",
+        "prefix": "1m1u_"
+    },
+    "1m_2u": {
+        "name": "اشتراک 1 ماهه (دو کاربره + 10 گیگ هدیه)",
+        "price": "250,000 تومان",
+        "prefix": "1m2u_"
+    },
+    "2m_1u": {
+        "name": "اشتراک 2 ماهه (تک کاربره + 10 گیگ هدیه)",
+        "price": "380,000 تومان",
+        "prefix": "2m1u_"
+    },
+    "2m_2u": {
+        "name": "اشتراک 2 ماهه (دو کاربره + 10 گیگ هدیه)",
+        "price": "430,000 تومان",
+        "prefix": "2m2u_"
+    },
+    "3m_1u": {
+        "_date TEXT
         )
     ''')
     conn.commit()
@@ -81,7 +84,7 @@ def add_user_to_db(user: types.User):
 def get_total_users_count() -> int:
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute("SELECT COUNT(*) FROM users")
+    c.execute("SELECT COUNT(*)")
     count = c.fetchone()[0]
     conn.close()
     return count
@@ -366,7 +369,7 @@ async def approve_order_admin(callback_query: types.CallbackQuery):
     plan = PLANS.get(plan_id, {"name": "سرویس ویژه", "prefix": "user_"})
 
     prefix = plan.get("prefix", "user_")
-    username, password = generate_credentials(prefix=prefix)
+    username, password = generate_credentials(prefix)
 
     delivery_text = (
         "🎉 <b>سفارش شما با موفقیت تأیید شد و اکانت شما فعال گردید!</b>\n\n"
@@ -708,4 +711,5 @@ async def handle_faq_callbacks(callback_query: types.CallbackQuery):
             "5. نام کاربری و رمز اشتراک خود را وارد نمایید.\n"
             "6. وضعیت را ذخیره و اتصال خودکار را فعال کنید."
         )
-        if os.path.ex
+        if os.path.exists(MODEM_LAPTOP_IMAGE_PATH):
+            await bot.send_photo(user_id, photo=Input
