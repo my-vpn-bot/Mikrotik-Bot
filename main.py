@@ -21,7 +21,7 @@ from aiohttp import web
 # ==================== تنظیمات لاگ و متغیرهای محیطی ====================
 logging.basicConfig(level=logging.INFO)
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENrbzb6roixklX0X").strip()
+BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENkcg6htqvw1X0X").strip()
 
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "02786850266").strip()
 clean_admin_id = ADMIN_ID_RAW.lstrip('0')
@@ -36,9 +36,8 @@ CARD_NUMBER = os.getenv("PAYMENT_CARD", "6104338904607443").strip()
 CARD_HOLDER = os.getenv("PAYMENT_NAME", "رحیمی").strip()
 IBSNG_PANEL_URL = os.getenv("IBSNG_PANEL_URL", "http://94.184.45.58:48201/IBSng/user/").strip()
 
-VPN_SERVER_IP
-    c.execute(
-        "INSERT OR IGNORE INTO users (user_id, full_name,-45244fec"
+VPN_SERVER_IP = os.getenv("VPN_SERVER_IP", "94.184.43.106").strip()
+IPSEC_SECRET = os.getenv("IPSEC_SECRET", ".12345678").strip()
 
 # مسیر تصاویر
 TARIFF_IMAGE_PATH = "تعرفه.jpg"
@@ -100,7 +99,7 @@ class ChargeState(StatesGroup):
 class SupportState(StatesGroup):
     waiting_for_username_and_msg = State()
 
-# ==================== پلن‌ها و پیشوند یوزرنیم اختصاصی ====================
+# ==================== پلن‌ها ====================
 PLANS = {
     "1m_1u": {
         "name": "اشتراک 1 ماهه (تک کاربره + 10 گیگ هدیه)",
@@ -130,12 +129,11 @@ PLANS = {
     "3m_2u": {
         "name": "اشتراک 3 ماهه (دو کاربره + 10 گیگ هدیه)",
         "price": "600,000 تومان",
-        "prefix": "600,000 تومان",
         "prefix": "3m2u_"
     },
 }
 
-# ==================== توابع تقویم و تولید اطلاعات ====================
+# ==================== توابع تقویم و ساخت اطلاعات ====================
 def generate_credentials(prefix="user_"):
     rand_num = random.randint(1000, 9999)
     chars = string.ascii_lowercase + string.digits
@@ -196,52 +194,55 @@ def get_welcome_text(user: types.User):
         "👇 لطفاً جهت خرید، تمدید یا دریافت راهنمای اتصال، از منوی زیر استفاده نمایید:"
     )
 
-# ==================== کیبورد اصلی اصیل و جدید ====================
+# ==================== کیبوردها ====================
 BTN_BACK = "🔙 برگشت به منوی اصلی"
 
 def get_main_keyboard():
     kb = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    # سطر اول: خرید اشتراک به صورت یک خط کامل و اختصاصی
     kb.add(KeyboardButton("🛒 خرید اشتراک"))
-    # سطر دوم: شارژ حساب و پنل کاربری
     kb.add(
         KeyboardButton("💰 شارژ حساب"),
         KeyboardButton("🌐 پنل کاربری IBSng")
     )
-    # سطر سوم: اطلاعات حساب و سوالات متداول
     kb.add(
         KeyboardButton("📊 اطلاعات حساب"),
         KeyboardButton("❓ سوالات متداول")
     )
-    # سطر چهارTP VPN 24/7</b> بسیار خوش آمدید.\n\n"
-        f"📅 <b>امروز:</b> {detailed_date}\n"
-        f"⏰ <b>ساعت رسمی کشور:</b> <code>{time_str}</code>\n\n"
-        "⚡️ <b>امکانات سامانه ما:</b>\n"
-        "▫️ دسترسی به اینترنت پرسرعت، پایدار و بدون قطعی\n"
-        "▫️ مناسب برای تمامی سیستم‌عامل‌ها (iOS، اندروید، ویندوز و مودم)\n"
-        "▫️ پنل اختصاصی مدیریت حجم و اشتراک IBSng\n"
-        "▫️ پشتیبانی فنی و مانیتورینگ ۲۴ ساعته سرورها\n\n"
-        "👇 لطفاً جهت خرید، تمدید یا دریافت راهنمای اتصال، از منوی زیر استفاده نمایید:"
-    )
+    kb.add(KeyboardButton("👥 پشتیبانی"))
+    return kb
 
-# ==================== کیبورد اصلی اصیل و جدید ====================
-BTN_BACK = "🔙 برگشت به منوی اصلی"
+def get_back_keyboard():
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.add(KeyboardButton(BTN_BACK))
+    return kb
 
-def get_main_keyboard():
-    kb = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    # سطر اول: خرید اشتراک به صورت یک خط کامل و اختصاصی
-    kb.add(KeyboardButton("🛒 خرید اشتراک"))
-    # سطر دوم: شارژ حساب و پنل کاربری
-    kb.add(
-        KeyboardButton("💰 شارژ حساب"),
-        KeyboardButton("🌐 پنل کاربری IBSng")
+def get_faq_keyboard():
+    ikb = InlineKeyboardMarkup(row_width=2)
+    ikb.add(
+        InlineKeyboardButton("📱 iOS (آیفون/آیپد)", callback_data="faq_ios"),
+        InlineKeyboardButton("🤖 اندروید (Android)", callback_data="faq_android")
     )
-    # سطر سوم: اطلاعات حساب و سوالات متداول
-    kb.add(
-        KeyboardButton("📊 اطلاعات حساب"),
-        KeyboardButton("❓ سوالات متداول")
+    ikb.add(
+        InlineKeyboardButton("💻 ویندوز (Windows)", callback_data="faq_windows"),
+        InlineKeyboardButton("📡 مودم و روتر", callback_data="faq_modem")
     )
-    # سطر چهار),
+    ikb.add(InlineKeyboardButton("🌐 پنل کاربری IBSng", callback_data="faq_ibsng"))
+    return ikb
+
+# ==================== هاندرلرهای اصلی ====================
+@dp.message_handler(lambda m: m.text == BTN_BACK, state="*")
+async def handle_back(message: types.Message, state: FSMContext):
+    await state.finish()
+    await message.reply(get_welcome_text(message.from_user), reply_markup=get_main_keyboard())
+
+@dp.message_handler(commands=['start'], state="*")
+async def cmd_start(message: types.Message, state: FSMContext):
+    await state.finish()
+    add_user_to_db(message.from_user)
+    
+    quick_kb = InlineKeyboardMarkup(row_width=2)
+    quick_kb.add(
+        InlineKeyboardButton("📢 کانال رسمی", url=CHANNEL_URL),
         InlineKeyboardButton("💬 پشتیبانی", url=SUPPORT_URL)
     )
     
@@ -264,7 +265,7 @@ async def cmd_stats(message: types.Message):
         f"⏰ ساعت: <code>{time_str}</code>"
     )
 
-# ==================== خرید اشتراک (کاملاً شیک، خلوت و اصلاح‌شده) ====================
+# ==================== خرید اشتراک ====================
 @dp.message_handler(lambda m: m.text == "🛒 خرید اشتراک", state="*")
 async def handle_buy(message: types.Message, state: FSMContext):
     await state.finish()
@@ -352,7 +353,36 @@ async def process_order_receipt(message: types.Message, state: FSMContext):
     )
     await state.finish()
 
-# ==================== تأیید و رد سفارش خرید ====================
+# ==================== تأیید و رد سفارش توسط ادمین ====================
+@dp.callback_query_handler(lambda c: c.data.startswith("adm_ok_"), state="*")
+async def approve_order_admin(callback_query: types.CallbackQuery):
+    if callback_query.from_user.id != ADMIN_ID:
+        await callback_query.answer("⛔️ شما ادمین نیستید.", show_alert=True)
+        return
+
+    parts = callback_query.data.split("_")
+    user_id = int(parts[2])
+    plan_id = "_".join(parts[3:])
+    plan = PLANS.get(plan_id, {"name": "سرویس ویژه", "prefix": "user_"})
+
+    prefix = plan.get("prefix", "user_")
+    username, password = generate_credentials(prefix)
+
+    delivery_text = (
+        "🎉 <b>سفارش شما با موفقیت تأیید شد و اکانت شما فعال گردید!</b>\n\n"
+        f"📦 نوع سرویس: <b>{plan_markup=admin_kb
+        )
+    except Exception as e:
+        logging.error(f"Error sending order receipt to admin: {e}")
+
+    await message.reply(
+        "✅ <b>فیش واریزی شما با موفقیت برای مدیریت ارسال شد.</b>\n\n"
+        "پس از بررسی، مشخصات اتصال اختصاصی مستقیماً در همین چت برای شما ارسال خواهد شد.",
+        reply_markup=get_main_keyboard()
+    )
+    await state.finish()
+
+# ==================== تأیید و رد سفارش توسط ادمین ====================
 @dp.callback_query_handler(lambda c: c.data.startswith("adm_ok_"), state="*")
 async def approve_order_admin(callback_query: types.CallbackQuery):
     if callback_query.from_user.id != ADMIN_ID:
@@ -373,27 +403,7 @@ async def approve_order_admin(callback_query: types.CallbackQuery):
         f"🌐 آدرس سرور (Server IP): <code>{VPN_SERVER_IP}</code>\n"
         f"🔑 کلید امنیتی (IPsec Secret): <code>{IPSEC_SECRET}</code>\n"
         f"👤 نام کاربری (Username): <code>{username}</code>\n"
-        f"🔒 رمز عبور (Password): <code>{password}</code>\n\n"
-        f"🌐 <b>پنل کاربری IBSng جهت مشاهده حجم و تغییر رمز:</b>\n{IBSNG_PANEL_URL}\n\n"
-        "⚠️ <b>نکته مهم:</b> برای ارتباط بهتر با پنل لطفاً وی‌پی‌ان خود را خاموش کنید و بعد از اتمام دوباره روشن کنید.\n"
-        "⚠️ <i>لطفاً پس از اولین ورود، رمز عبور خود را در پنل IBSng تغییر دهید.</i>\n\n"
-        f"💬 پشتیبانی: {SUPPORT_USERNAME}\n"
-        f"📢 کانال رسمی: @L2tp_vpn402"
-    )
-
-    try:
-        await bot.send_message(user_id, delivery_text)
-        await callback_query.message.reply(f"✅ اکانت <code>{username}</code> برای کاربر <code>{user_id}</code> با موفقیت ارسال شد.")
-        await callback_query.message.edit_reply_markup(reply_markup=None)
-    except Exception as e:
-        await callback_query.answer(f"خطا در ارسال به کاربر: {e}", show_alert=True)
-
-    await callback_query.answer()
-
-@dp.callback_query_handler(lambda c: c.data.startswith("adm_no_"), state="*")
-async def reject_order_admin(callback_query: types.CallbackQuery):
-    if callback_query.from_user.id != ADMIN_ID:
-        await callback_query.answer("⛔️ شما ادمین نیستید.", show_alert=True)
+        f"🔒True)
         return
 
     user_id = int(callback_query.data.split("_")[2])
@@ -412,7 +422,7 @@ async def reject_order_admin(callback_query: types.CallbackQuery):
 
     await callback_query.answer()
 
-# ==================== شارژ حساب (با تایید/رد ادمین) ====================
+# ==================== شارژ حساب ====================
 @dp.message_handler(lambda m: m.text == "💰 شارژ حساب", state="*")
 async def handle_charge(message: types.Message, state: FSMContext):
     await state.finish()
@@ -475,12 +485,11 @@ async def process_charge_username(message: types.Message, state: FSMContext):
 
     await message.reply(
         f"✅ <b>درخواست شارژ برای اکانت «{account_username}» برای مدیریت ارسال گردید.</b>\n\n"
-        "پس از بررسی و اعمال شارژ در پنل، نتیجه از همین طریق به شما اعلام خواهد شد.",
+        "پس از بررسی، نتیجه به شما اعلام خواهد شد.",
         reply_markup=get_main_keyboard()
     )
     await state.finish()
 
-# ==================== تأیید و رد شارژ توسط ادمین ====================
 @dp.callback_query_handler(lambda c: c.data.startswith("chg_ok_"), state="*")
 async def approve_charge_admin(callback_query: types.CallbackQuery):
     if callback_query.from_user.id != ADMIN_ID:
@@ -502,10 +511,10 @@ async def approve_charge_admin(callback_query: types.CallbackQuery):
 
     try:
         await bot.send_message(user_id, delivery_text)
-        await callback_query.message.reply(f"✅ شارژ اکانت <code>{account_username}</code> تأیید و پیام آن برای کاربر ارسال شد.")
+        await callback_query.message.reply(f"✅ شارژ اکانت <code>{account_username}</code> تأیید شد.")
         await callback_query.message.edit_reply_markup(reply_markup=None)
     except Exception as e:
-        await callback_query.answer(f"خطا در ارسال به کاربر: {e}", show_alert=True)
+        await callback_query.answer(f"خطا در ارسال: {e}", show_alert=True)
 
     await callback_query.answer()
 
@@ -521,14 +530,13 @@ async def reject_charge_admin(callback_query: types.CallbackQuery):
 
     reject_text = (
         f"❌ <b>درخواست شارژ برای اکانت «{account_username}» مورد تأیید قرار نگرفت.</b>\n\n"
-        "علت: عدم تطابق اطلاعات یا نامعتبر بودن فیش.\n"
         "جهت پیگیری لطفاً به پشتیبانی پیام دهید:\n"
         f"💬 {SUPPORT_USERNAME}"
     )
 
     try:
         await bot.send_message(user_id, reject_text)
-        await callback_query.message.reply(f"❌ درخواست شارژ اکانت <code>{account_username}</code> رد شد.")
+        await callback_query.message.reply(f"❌ درخواست شارژ <code>{account_username}</code> رد شد.")
         await callback_query.message.edit_reply_markup(reply_markup=None)
     except Exception as e:
         await callback_query.answer(f"خطا: {e}", show_alert=True)
@@ -598,24 +606,22 @@ async def process_support_input(message: types.Message, state: FSMContext):
         f"📝 <b>متن / اطلاعات ارسالی:</b>\n{user_text}"
     )
     
-    if ADMIN_ID != 0:
-        try:
-            if message.photo:
-                await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=admin_alert)
-            else:
-                await bot.send_message(ADMIN_ID, admin_alert)
-        except Exception as e:
-            logging.error(f"Error alerting admin: {e}")
+    try:
+        if message.photo:
+            await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=admin_alert)
+        else:
+            await bot.send_message(ADMIN_ID, admin_alert)
+    except Exception as e:
+        logging.error(f"Error alerting admin: {e}")
             
     await message.reply(
         "✅ <b>درخواست شما با موفقیت برای تیم پشتیبانی ارسال شد.</b>\n\n"
-        "در کوتاه‌ترین زمان بررسی و به شما پاسخ داده خواهد شد.\n\n"
         f"💬 پیگیری مستقیم: {SUPPORT_USERNAME}",
         reply_markup=get_main_keyboard()
     )
     await state.finish()
 
-# ==================== سوالات متداول (همراه با پاک‌سازی هوشمند) ====================
+# ==================== سوالات متداول (پاک‌سازی هوشمند) ====================
 @dp.message_handler(lambda m: m.text == "❓ سوالات متداول", state="*")
 async def handle_faq(message: types.Message, state: FSMContext):
     await state.finish()
@@ -692,7 +698,7 @@ async def handle_faq_callbacks(callback_query: types.CallbackQuery):
             "4. VPN type را روی <b>L2TP/IPsec with pre-shared key</b> تنظیم نمایید.\n"
             f"5. در Server name or address مقدار <code>{VPN_SERVER_IP}</code> را وارد فرمایید.\n"
             f"6. در Pre-shared key مقدار <code>{IPSEC_SECRET}</code> را بنویسید.\n"
-            "7. نام کاربری و رمز اکانت را وارد نموده و ذخیره (Save) کنید."
+            "7. نام کاربری و رمز اکانت را وارد نموده و ذخیره کنید."
         )
         if os.path.exists(MODEM_LAPTOP_IMAGE_PATH):
             await bot.send_photo(user_id, photo=InputFile(MODEM_LAPTOP_IMAGE_PATH), caption=caption, reply_markup=back_faq_kb)
@@ -700,3 +706,14 @@ async def handle_faq_callbacks(callback_query: types.CallbackQuery):
             await bot.send_message(user_id, text=caption, reply_markup=back_faq_kb)
 
     elif action == "faq_modem":
+        caption = (
+            "📡 <b>راهنمای تنظیم سرویس روی مودم و روتر:</b>\n\n"
+            "1. وارد پنل مدیریت روتر شوید (معمولاً 192.168.1.1 یا 192.168.8.1).\n"
+            "2. به بخش <b>VPN</b> یا <b>VPN Client</b> مراجعه کنید.\n"
+            "3. پروتکل را روی <b>L2TP</b> بگذارید.\n"
+            f"4. آدرس سرور (Server/LNS) را <code>{VPN_SERVER_IP}</code> قرار دهید.\n"
+            "5. نام کاربری و رمز اشتراک خود را وارد نمایید.\n"
+            "6. وضعیت را ذخیره و اتصال خودکار را فعال کنید."
+        )
+        if os.path.exists(MODEM_LAPTOP_IMAGE_PATH):
+            await bot.send_photo(user_id, photo=InputFile(MODEM_LAPTOP_IMAGE_PATH), captio
