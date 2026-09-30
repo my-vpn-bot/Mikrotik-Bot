@@ -21,7 +21,7 @@ from aiohttp import web
 # ==================== تنظیمات لاگ و متغیرهای محیطی ====================
 logging.basicConfig(level=logging.INFO)
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKEN2u8qnzw56k4X0X").strip()
+BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENrbzb6roixklX0X").strip()
 
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "02786850266").strip()
 clean_admin_id = ADMIN_ID_RAW.lstrip('0')
@@ -36,8 +36,9 @@ CARD_NUMBER = os.getenv("PAYMENT_CARD", "6104338904607443").strip()
 CARD_HOLDER = os.getenv("PAYMENT_NAME", "رحیمی").strip()
 IBSNG_PANEL_URL = os.getenv("IBSNG_PANEL_URL", "http://94.184.45.58:48201/IBSng/user/").strip()
 
-VPN_SERVER_IP = "94.184.43.106"
-IPSEC_SECRET = ".12345678"
+VPN_SERVER_IP
+    c.execute(
+        "INSERT OR IGNORE INTO users (user_id, full_name,-45244fec"
 
 # مسیر تصاویر
 TARIFF_IMAGE_PATH = "تعرفه.jpg"
@@ -99,7 +100,7 @@ class ChargeState(StatesGroup):
 class SupportState(StatesGroup):
     waiting_for_username_and_msg = State()
 
-# ==================== پلن‌ها و تعریف پیشوند یوزرنیم اختصاصی ====================
+# ==================== پلن‌ها و پیشوند یوزرنیم اختصاصی ====================
 PLANS = {
     "1m_1u": {
         "name": "اشتراک 1 ماهه (تک کاربره + 10 گیگ هدیه)",
@@ -129,6 +130,7 @@ PLANS = {
     "3m_2u": {
         "name": "اشتراک 3 ماهه (دو کاربره + 10 گیگ هدیه)",
         "price": "600,000 تومان",
+        "prefix": "600,000 تومان",
         "prefix": "3m2u_"
     },
 }
@@ -194,51 +196,52 @@ def get_welcome_text(user: types.User):
         "👇 لطفاً جهت خرید، تمدید یا دریافت راهنمای اتصال، از منوی زیر استفاده نمایید:"
     )
 
-# ==================== کیبوردها ====================
+# ==================== کیبورد اصلی اصیل و جدید ====================
 BTN_BACK = "🔙 برگشت به منوی اصلی"
 
 def get_main_keyboard():
     kb = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    # سطر اول: خرید اشتراک به صورت یک خط کامل و اختصاصی
+    kb.add(KeyboardButton("🛒 خرید اشتراک"))
+    # سطر دوم: شارژ حساب و پنل کاربری
     kb.add(
-        KeyboardButton("🛒 خرید اشتراک"),
-        KeyboardButton("💰 شارژ حساب")
+        KeyboardButton("💰 شارژ حساب"),
+        KeyboardButton("🌐 پنل کاربری IBSng")
     )
+    # سطر سوم: اطلاعات حساب و سوالات متداول
     kb.add(
-        KeyboardButton("🌐 پنل کاربری IBSng"),
-        KeyboardButton("📊 اطلاعات حساب")
+        KeyboardButton("📊 اطلاعات حساب"),
+        KeyboardButton("❓ سوالات متداول")
     )
+    # سطر چهارTP VPN 24/7</b> بسیار خوش آمدید.\n\n"
+        f"📅 <b>امروز:</b> {detailed_date}\n"
+        f"⏰ <b>ساعت رسمی کشور:</b> <code>{time_str}</code>\n\n"
+        "⚡️ <b>امکانات سامانه ما:</b>\n"
+        "▫️ دسترسی به اینترنت پرسرعت، پایدار و بدون قطعی\n"
+        "▫️ مناسب برای تمامی سیستم‌عامل‌ها (iOS، اندروید، ویندوز و مودم)\n"
+        "▫️ پنل اختصاصی مدیریت حجم و اشتراک IBSng\n"
+        "▫️ پشتیبانی فنی و مانیتورینگ ۲۴ ساعته سرورها\n\n"
+        "👇 لطفاً جهت خرید، تمدید یا دریافت راهنمای اتصال، از منوی زیر استفاده نمایید:"
+    )
+
+# ==================== کیبورد اصلی اصیل و جدید ====================
+BTN_BACK = "🔙 برگشت به منوی اصلی"
+
+def get_main_keyboard():
+    kb = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    # سطر اول: خرید اشتراک به صورت یک خط کامل و اختصاصی
+    kb.add(KeyboardButton("🛒 خرید اشتراک"))
+    # سطر دوم: شارژ حساب و پنل کاربری
     kb.add(
-        KeyboardButton("❓ سوالات متداول"),
-        KeyboardButton("👥 پشتیبانی")
+        KeyboardButton("💰 شارژ حساب"),
+        KeyboardButton("🌐 پنل کاربری IBSng")
     )
-    return kb
-
-def get_back_keyboard():
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add(KeyboardButton(BTN_BACK))
-    return kb
-
-def get_faq_keyboard():
-    ikb = InlineKeyboardMarkup(row_width=1)
-    ikb.add(
-        InlineKeyboardButton("📱 راهنمای اتصال آیفون و آیپد (iOS)", callback_data="faq_ios"),
-        InlineKeyboardButton("🤖 راهنمای اتصال گوشی‌های اندروید (Android)", callback_data="faq_android"),
-        InlineKeyboardButton("💻 راهنمای اتصال ویندوز (Windows 10/11)", callback_data="faq_windows"),
-        InlineKeyboardButton("📡 راهنمای ست کردن روی مودم و روتر", callback_data="faq_modem"),
-        InlineKeyboardButton("🌐 راهنمای ورود و کار با پنل IBSng", callback_data="faq_ibsng")
+    # سطر سوم: اطلاعات حساب و سوالات متداول
+    kb.add(
+        KeyboardButton("📊 اطلاعات حساب"),
+        KeyboardButton("❓ سوالات متداول")
     )
-    return ikb
-
-# ==================== دستورات عمومی ====================
-@dp.message_handler(commands=['start'], state="*")
-@dp.message_handler(lambda m: m.text == BTN_BACK, state="*")
-async def cmd_start(message: types.Message, state: FSMContext):
-    await state.finish()
-    add_user_to_db(message.from_user)
-    
-    quick_kb = InlineKeyboardMarkup(row_width=2)
-    quick_kb.row(
-        InlineKeyboardButton("📢 کانال اطلاع‌رسانی", url=CHANNEL_URL),
+    # سطر چهار),
         InlineKeyboardButton("💬 پشتیبانی", url=SUPPORT_URL)
     )
     
@@ -261,7 +264,7 @@ async def cmd_stats(message: types.Message):
         f"⏰ ساعت: <code>{time_str}</code>"
     )
 
-# ==================== خرید اشتراک (نواری مستقیم) ====================
+# ==================== خرید اشتراک (کاملاً شیک، خلوت و اصلاح‌شده) ====================
 @dp.message_handler(lambda m: m.text == "🛒 خرید اشتراک", state="*")
 async def handle_buy(message: types.Message, state: FSMContext):
     await state.finish()
@@ -270,20 +273,7 @@ async def handle_buy(message: types.Message, state: FSMContext):
     for p_id, info in PLANS.items():
         kb.add(InlineKeyboardButton(f"💳 {info['name']} ⇦ {info['price']}", callback_data=f"buy_{p_id}"))
     
-    text = (
-        "🛒 <b>سامانه ثبت و صدور اشتراک L2TP VPN 24/7</b>\n"
-        "🎁 <i>(تمامی پلن‌ها شامل ۱۰ گیگابایت ترافیک هدیه هستند)</i>\n\n"
-        "┌ <b>پلن‌های ۱ ماهه:</b>\n"
-        "├▫️ یک‌ماهه تک‌کاربره: <b>200,000 تومان</b>\n"
-        "└▫️ یک‌ماهه دو‌کاربره: <b>250,000 تومان</b>\n\n"
-        "┌ <b>پلن‌های ۲ ماهه:</b>\n"
-        "├▫️ دو‌ماهه تک‌کاربره: <b>380,000 تومان</b>\n"
-        "└▫️ دو‌ماهه دو‌کاربره: <b>430,000 تومان</b>\n\n"
-        "┌ <b>پلن‌های ۳ ماهه:</b>\n"
-        "├▫️ سه‌ماهه تک‌کاربره: <b>550,000 تومان</b>\n"
-        "└▫️ سه‌ماهه دو‌کاربره: <b>600,000 تومان</b>\n\n"
-        "👇 <b>جهت دریافت شماره کارت و صدور فاکتور، پلن مورد نظر خود را انتخاب نمایید:</b>"
-    )
+    text = "👇 <b>لطفاً پلن مورد نظر خود را جهت دریافت شماره کارت و صدور فاکتور انتخاب نمایید:</b>"
     await message.reply(text, reply_markup=kb)
 
 @dp.callback_query_handler(lambda c: c.data.startswith("buy_"), state="*")
@@ -374,7 +364,6 @@ async def approve_order_admin(callback_query: types.CallbackQuery):
     plan_id = "_".join(parts[3:])
     plan = PLANS.get(plan_id, {"name": "سرویس ویژه", "prefix": "user_"})
 
-    # تولید نام کاربری هوشمند متناسب با پلن انتخابی
     prefix = plan.get("prefix", "user_")
     username, password = generate_credentials(prefix)
 
@@ -644,7 +633,6 @@ async def handle_faq_callbacks(callback_query: types.CallbackQuery):
     action = callback_query.data
     user_id = callback_query.from_user.id
     
-    # حذف پیام قبلی برای خلوت ماندن چت
     try:
         await bot.delete_message(chat_id=user_id, message_id=callback_query.message.message_id)
     except Exception:
@@ -712,52 +700,3 @@ async def handle_faq_callbacks(callback_query: types.CallbackQuery):
             await bot.send_message(user_id, text=caption, reply_markup=back_faq_kb)
 
     elif action == "faq_modem":
-        caption = (
-            "📡 <b>راهنمای تنظیم سرویس روی مودم و روتر:</b>\n\n"
-            "1. وارد پنل مدیریت روتر شوید (معمولاً 192.168.1.1 یا 192.168.8.1).\n"
-            "2. به بخش <b>VPN</b> یا <b>VPN Client</b> مراجعه کنید.\n"
-            "3. پروتکل را روی <b>L2TP</b> بگذارید.\n"
-            f"4. آدرس سرور (Server/LNS) را <code>{VPN_SERVER_IP}</code> قرار دهید.\n"
-            "5. نام کاربری و رمز اشتراک خود را وارد نمایید.\n"
-            "6. وضعیت را ذخیره و اتصال خودکار (Auto-Connect) را فعال کنید."
-        )
-        if os.path.exists(MODEM_LAPTOP_IMAGE_PATH):
-            await bot.send_photo(user_id, photo=InputFile(MODEM_LAPTOP_IMAGE_PATH), caption=caption, reply_markup=back_faq_kb)
-        else:
-            await bot.send_message(user_id, text=caption, reply_markup=back_faq_kb)
-
-    elif action == "faq_ibsng":
-        text = (
-            "🌐 <b>راهنمای ورود و استفاده از پنل IBSng:</b>\n\n"
-            f"🔗 آدرس پنل: {IBSNG_PANEL_URL}\n\n"
-            "⚠️ <b>نکته مهم:</b> برای ارتباط بهتر با پنل لطفاً وی‌پی‌ان خود را خاموش کنید و بعد از اتمام دوباره روشن کنید.\n\n"
-            "▫️ با نام کاربری و رمز دریافتی وارد شوید.\n"
-            "▫️ در صفحه اول مانده حجم دقیق و اعتبار زمانی اشتراک نمایش داده می‌شود.\n"
-            "▫️ حتماً در اولین ورود پسورد خود را تغییر دهید."
-        )
-        await bot.send_message(user_id, text=text, reply_markup=back_faq_kb)
-
-    await callback_query.answer()
-
-# ==================== وب‌سرور برای Render ====================
-async def handle_ping(request):
-    return web.Response(text="L2TP VPN Bot is Alive & Running 24/7!")
-
-async def start_web_server():
-    port = int(os.getenv("PORT", 10000))
-    app = web.Application()
-    app.router.add_get("/", handle_ping)
-    app.router.add_get("/healthz", handle_ping)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", port)
-    await site.start()
-    logging.info(f"Web server started on port {port}")
-
-# ==================== نقطه اجرای برنامه ====================
-async def main():
-    await start_web_server()
-    await dp.start_polling()
-
-if __name__ == "__main__":
-    asyncio.run(main())
