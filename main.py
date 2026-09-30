@@ -19,7 +19,7 @@ from aiohttp import web
 # ==================== تنظیمات و لاگ ====================
 logging.basicConfig(level=logging.INFO)
 
-GAPGPTMASKTOKENt7wb4pr3ufdX0X = os.getenv("GAPGPTMASKTOKENt7wb4pr3ufdX1X", "GAPGPTMASKTOKENt7wb4pr3ufdX2X").strip()
+BOT_TOKEN = os.getenv("BOT_TOKEN", "7963384594:AAFlU14U17k5Yv1K9mN8V8V1b2_demo").strip()
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "6278859256").strip()
 ADMIN_ID = int(ADMIN_ID_RAW) if ADMIN_ID_RAW.isdigit() else 6278859256
 
@@ -33,12 +33,12 @@ CARD_HOLDER = os.getenv("PAYMENT_NAME", "رحیمی (بانک ملت)").strip()
 IBSNG_PANEL_URL = os.getenv("IBSNG_PANEL_URL", "http://94.184.45.58:48201/IBSng/user/").strip()
 
 VPN_SERVER_IP = "94.184.43.106"
-IPSEC_SECRET = "GAPGPTMASKTOKENt7wb4pr3ufdX3X"
+IPSEC_SECRET = "12345678."
 
 CARD_IMAGE_PATH = "شماره کارت1.jpg"
 TARIFF_IMAGE_PATH = "تعرفه.jpg"
 
-bot = Bot(token=GAPGPTMASKTOKENt7wb4pr3ufdX4X, parse_mode="HTML")
+bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
 
 # ==================== دیتابیس ====================
@@ -241,9 +241,8 @@ async def handle_ibsng_panel(message: types.Message, state: FSMContext):
     text = (
         "🌐 <b>سامانه اختصاصی مشاهده وضعیت و مدیریت اکانت IBSng</b>\n\n"
         f"🔗 <b>لینک ورود به پنل:</b>\n{IBSNG_PANEL_URL}\n\n"
-        "⚠️ <b>نکته مهم:</b> برای ارتباط بهتر با پنل لطفاً وی‌پی‌ان خود را خاموش کنید و بعد از اتمام دوباره روشن کنید.\n\n"
         "⚠️ <b>نکته بسیار مهم امنیتی:</b>\n"
-        "<b>«حتماً و الزاماً در اولین ورود به پنل کاربری، GAPGPTMASKTOKENt7wb4pr3ufdX5X عبور (پسورد) خود را تغییر دهید تا از هرگونه سوءاستفاده جلوگیری شود.»</b>\n\n"
+        "<b>«حتماً و الزاماً در اولین ورود به پنل کاربری، رمز عبور (پسورد) خود را تغییر دهید تا از هرگونه سوءاستفاده جلوگیری شود.»</b>\n\n"
         "▫️ مشاهده مانده حجم دقیق و ترافیک مصرفی\n"
         "▫️ مشاهده تاریخ انقضای دقیق اشتراک\n"
         "▫️ امکان تغییر پسورد اکانت اتصال"
@@ -258,16 +257,13 @@ async def handle_charge(message: types.Message, state: FSMContext):
     
     caption = (
         "💰 <b>شارژ و تمدید حساب کاربری</b>\n\n"
-        "📋 <b>تعرفه‌های رسمی تمدید و شارژ (شامل 10 گیگ هدیه):</b>\n"
-        "▫️ 1 ماهه تک کاربره: <b>200,000 تومان</b>\n"
-        "▫️ 1 ماهه دو کاربره: <b>250,000 تومان</b>\n"
-        "▫️ 2 ماهه تک کاربره: <b>380,000 تومان</b>\n"
-        "▫️ 2 ماهه دو کاربره: <b>430,000 تومان</b>\n"
-        "▫️ 3 ماهه تک کاربره: <b>550,000 تومان</b>\n"
-        "▫️ 3 ماهه دو کاربره: <b>600,000 تومان</b>\n\n"
         f"💳 شماره کارت جهت واریز:\n<code>{CARD_NUMBER}</code>\n"
         f"👤 به نام: <b>{CARD_HOLDER}</b>\n\n"
-        "📸 لطفاً ابتدا مبلغ مورد نظر را واریز نموده و <b>تصویر فیش واریزی</b> را همین‌جا ارسال نمایید:"
+        "📌 <b>مراحل شارژ حساب:</b>\n"
+        "1. مبلغ اشتراک مورد نظر را واریز نمایید.\n"
+        "2. <b>عکس واضح فیش واریزی</b> را همین‌جا ارسال کنید.\n"
+        "3. در مرحله بعد نام کاربری (Username) اکانت را ارسال خواهید کرد.\n\n"
+        "<i>برای لغو فرآیند می‌توانید دکمه برگشت زیر را بزنید:</i>"
     )
     if os.path.exists(CARD_IMAGE_PATH):
         await message.reply_photo(photo=InputFile(CARD_IMAGE_PATH), caption=caption, reply_markup=get_back_keyboard())
@@ -322,54 +318,22 @@ async def process_support_input(message: types.Message, state: FSMContext):
     )
     await state.finish()
 
-# ==================== سوالات متداول و راهنمای نصب ====================
+# ==================== سوالات متداول ====================
 @dp.message_handler(lambda m: m.text == "❓ سوالات متداول", state="*")
 async def handle_faq(message: types.Message, state: FSMContext):
     await state.finish()
     text = (
-        "❓ <b>پاسخ به سوالات متداول و راهنمای جامع اتصال L2TP/IPSec</b>\n\n"
-        "⚡️ <b>مشخصات عمومی سرور:</b>\n"
-        f"▫️ آدرس سرور (Server Address): <code>{VPN_SERVER_IP}</code>\n"
-        f"▫️ کلید امنیتی (IPsec Secret / Pre-Shared Key): <code>{IPSEC_SECRET}</code>\n\n"
-        "━━━━━━━━━━━━━━━━━━━\n"
-        "📱 <b>۱. راهنمای اتصال در آیفون و آیپد (Apple iOS):</b>\n"
-        "1. وارد Settings ⬅️ General ⬅️ VPN & Device Management ⬅️ VPN شوید.\n"
-        "2. گزینه Add VPN Configuration را لمس کنید.\n"
-        "3. نوع (Type) را روی <b>L2TP</b> قرار دهید.\n"
-        f"4. در بخش Server آدرس <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-        "5. نام کاربری (Account) و GAPGPTMASKTOKENt7wb4pr3ufdX6X عبور (Password) خود را وارد کنید.\n"
-        f"6. در کادر Secret GAPGPTMASKTOKENt7wb4pr3ufdX7X <code>{IPSEC_SECRET}</code> را وارد و Save را بزنید.\n\n"
-        "🤖 <b>۲. راهنمای اتصال در اندروید (Android):</b>\n"
-        "1. وارد تنظیمات گوشی ⬅️ اتصالات (Connections) ⬅️ تنظیمات بیشتر (More connection settings) ⬅️ VPN شوید.\n"
-        "2. علامت + یا سه نقطه بالا را زده و Add VPN Profile را انتخاب کنید.\n"
-        "3. نوع (Type) را روی <b>L2TP/IPSec PSK</b> قرار دهید.\n"
-        f"4. در Server address مقدار <code>{VPN_SERVER_IP}</code> را بنویسید.\n"
-        f"5. در کادر IPSec pre-shared key GAPGPTMASKTOKENt7wb4pr3ufdX8X <code>{IPSEC_SECRET}</code> را وارد کنید.\n"
-        "6. ذخیره کرده و هنگام اتصال یوزرنیم و پسورد خود را بزنید.\n\n"
-        "💻 <b>۳. راهنمای اتصال در ویندوز (Windows 10 / 11):</b>\n"
-        "1. وارد Settings ⬅️ Network & Internet ⬅️ VPN شده و Add VPN را بزنید.\n"
-        "2. VPN Provider را روی Windows (built-in) بگذارید.\n"
-        "3. VPN Type را روی <b>L2TP/IPsec with pre-shared key</b> تنظیم کنید.\n"
-        f"4. در Server name or address مقدار <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-        f"5. در Pre-shared key GAPGPTMASKTOKENt7wb4pr3ufdX9X <code>{IPSEC_SECRET}</code> را بنویسید.\n"
-        "6. یوزرنیم و پسورد اکانت را وارد کرده و Save و Connect را بزنید.\n\n"
-        "🍏 <b>۴. راهنمای اتصال در مک‌بوک (macOS):</b>\n"
-        "1. وارد System Settings ⬅️ Network شوید.\n"
-        "2. روی علامت سه نقطه/افزودن کلیک کرده و Add VPN Configuration ⬅️ <b>L2TP over IPSec</b> را انتخاب کنید.\n"
-        f"3. در Server Address مقدار <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-        "4. Account Name را یوزرنیم خود وارد کرده و در Authentication Settings:\n"
-        f"   - Password: GAPGPTMASKTOKENt7wb4pr3ufdX10X عبور شما\n"
-        f"   - Shared Secret: GAPGPTMASKTOKENt7wb4pr3ufdX11X <code>{IPSEC_SECRET}</code>\n"
-        "5. Apply را زده و متصل شوید.\n\n"
-        "📶 <b>۵. راهنمای تنظیم روی انواع مودم و روتر (Router / Modem):</b>\n"
-        "1. وارد پنل وب مودم (معمولاً 192.168.1.1 یا 192.168.8.1) شوید.\n"
-        "2. به منوی VPN ⬅️ L2TP Client بروید.\n"
-        "3. وضعیت را Enabled کرده، Protocol را روی L2TP قرار دهید.\n"
-        f"4. در فیلد LNS Address / Server آدرس <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-        "5. یوزرنیم و پسورد اکانت را وارد کرده و ذخیره نمایید.\n\n"
-        "━━━━━━━━━━━━━━━━━━━\n"
-        "🔐 <b>تغییر پسورد در اولین ورود:</b> حتماً در اولین ورود به پنل IBSng پسورد خود را تغییر دهید.\n"
-        "🔄 <b>طرح جبرانی مشترکین قدیمی:</b> با ارسال یوزرنیم و فیش قبلی، اکانت با دوره کامل و ۱۰ گیگ هدیه فعال می‌گردد."
+        "❓ <b>پاسخ به سوالات متداول و نکات کلیدی:</b>\n\n"
+        "🔐 <b>تغییر اجباری رمز عبور در اولین ورود:</b>\n"
+        "<b>«مشترکین گرامی، حتماً و موکداً در اولین ورود از طریق قسمت پنل کاربری IBSng، پسورد (رمز عبور) اکانت خود را تغییر دهید تا امنیت حساب شما تضمین شده و از قطعی اشتراک توسط دیگران جلوگیری شود.»</b>\n\n"
+        "🔄 <b>طرح جبرانی ویژه مشترکین قدیمی:</b>\n"
+        "مشترکین عزیزی که طی 2 تا 3 سال گذشته به علت قطعی‌ها اشتراکشان قطع شده بود، "
+        "با ارسال نام کاربری و رسید قبلی به پشتیبانی، <b>اکانتشان با دوره کامل و 10 گیگابایت حجم هدیه بدون دریافت هیچ هزینه‌ای مجدداً فعال خواهد شد.</b>\n\n"
+        "🎁 <b>ترافیک هدیه:</b>\n"
+        "تمامی پلن‌های جدید 1، 2 و 3 ماهه دارای <b>10 گیگابایت ترافیک هدیه</b> می‌باشند.\n\n"
+        "⚡️ <b>مشخصات اتصال سریع سرور:</b>\n"
+        f"▫️ آدرس سرور: <code>{VPN_SERVER_IP}</code>\n"
+        f"▫️ کلید امنیتی (IPsec Secret): <code>{IPSEC_SECRET}</code>"
     )
     await message.reply(text, reply_markup=get_back_keyboard())
 
