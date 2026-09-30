@@ -19,9 +19,12 @@ from aiohttp import web
 # ==================== تنظیمات و لاگ ====================
 logging.basicConfig(level=logging.INFO)
 
-GAPGPTMASKTOKEN2398mm480nbX0X = os.getenv("GAPGPTMASKTOKEN2398mm480nbX1X", "GAPGPTMASKTOKEN2398mm480nbX2X").strip()
+BOT_TOKEN = os.getenv("BOT_TOKEN", "7718029969:AAF-cQ3i8nN6o6Vb0rG13Jd6yZ_v2g9_p0w").strip()
+
+# رفع خطای اعداد با پیشوند صفر
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "6278859256").strip()
-ADMIN_ID = int(ADMIN_ID_RAW) if ADMIN_ID_RAW.isdigit() else 6278859256
+clean_admin_id = ADMIN_ID_RAW.lstrip('0')
+ADMIN_ID = int(clean_admin_id) if clean_admin_id.isdigit() else 6278859256
 
 SUPPORT_ID = os.getenv("SUPPORT_ID", "L2tp1Support").strip().replace("@", "")
 SUPPORT_URL = f"https://t.me/{SUPPORT_ID}"
@@ -29,16 +32,16 @@ SUPPORT_USERNAME = f"@{SUPPORT_ID}"
 
 CHANNEL_URL = os.getenv("CHANNEL_URL", "https://t.me/L2tp_vpn402").strip()
 CARD_NUMBER = os.getenv("PAYMENT_CARD", "6104338904607443").strip()
-CARD_HOLDER = os.getenv("PAYMENT_NAME", "رحیمی (بانک ملت)").strip()
+CARD_HOLDER = os.getenv("PAYMENT_NAME", "رحیمی").strip()
 IBSNG_PANEL_URL = os.getenv("IBSNG_PANEL_URL", "http://94.184.45.58:48201/IBSng/user/").strip()
 
 VPN_SERVER_IP = "94.184.43.106"
-IPSEC_SECRET = "GAPGPTMASKTOKEN2398mm480nbX3X"
+IPSEC_SECRET = "12345678."
 
 CARD_IMAGE_PATH = "شماره کارت1.jpg"
 TARIFF_IMAGE_PATH = "تعرفه.jpg"
 
-bot = Bot(token=GAPGPTMASKTOKEN2398mm480nbX4X, parse_mode="HTML")
+bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
 
 # ==================== دیتابیس ====================
@@ -243,7 +246,7 @@ async def handle_ibsng_panel(message: types.Message, state: FSMContext):
         f"🔗 <b>لینک ورود به پنل:</b>\n{IBSNG_PANEL_URL}\n\n"
         "⚠️ <b>نکته مهم:</b> برای ارتباط بهتر با پنل لطفاً وی‌پی‌ان خود را خاموش کنید و بعد از اتمام دوباره روشن کنید.\n\n"
         "⚠️ <b>نکته بسیار مهم امنیتی:</b>\n"
-        "<b>«حتماً و الزاماً در اولین ورود به پنل کاربری، GAPGPTMASKTOKEN2398mm480nbX5X عبور (پسورد) خود را تغییر دهید تا از هرگونه سوءاستفاده جلوگیری شود.»</b>\n\n"
+        "<b>«حتماً و الزاماً در اولین ورود به پنل کاربری، رمز عبور (پسورد) خود را تغییر دهید تا از هرگونه سوءاستفاده جلوگیری شود.»</b>\n\n"
         "▫️ مشاهده مانده حجم دقیق و ترافیک مصرفی\n"
         "▫️ مشاهده تاریخ انقضای دقیق اشتراک\n"
         "▫️ امکان تغییر پسورد اکانت اتصال"
@@ -322,7 +325,7 @@ async def process_support_input(message: types.Message, state: FSMContext):
     )
     await state.finish()
 
-# ==================== سوالات متداول و راهنمای نصب ====================
+# ==================== سوالات متداول و راهنمای جامع اتصال ====================
 @dp.message_handler(lambda m: m.text == "❓ سوالات متداول", state="*")
 async def handle_faq(message: types.Message, state: FSMContext):
     await state.finish()
@@ -337,29 +340,29 @@ async def handle_faq(message: types.Message, state: FSMContext):
         "2. گزینه Add VPN Configuration را لمس کنید.\n"
         "3. نوع (Type) را روی <b>L2TP</b> قرار دهید.\n"
         f"4. در بخش Server آدرس <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-        "5. نام کاربری (Account) و GAPGPTMASKTOKEN2398mm480nbX6X عبور (Password) خود را وارد کنید.\n"
-        f"6. در کادر Secret GAPGPTMASKTOKEN2398mm480nbX7X <code>{IPSEC_SECRET}</code> را وارد و Save را بزنید.\n\n"
+        "5. نام کاربری (Account) و رمز عبور (Password) خود را وارد کنید.\n"
+        f"6. در کادر Secret مقدار <code>{IPSEC_SECRET}</code> را وارد و Save را بزنید.\n\n"
         "🤖 <b>۲. راهنمای اتصال در اندروید (Android):</b>\n"
         "1. وارد تنظیمات گوشی ⬅️ اتصالات (Connections) ⬅️ تنظیمات بیشتر (More connection settings) ⬅️ VPN شوید.\n"
         "2. علامت + یا سه نقطه بالا را زده و Add VPN Profile را انتخاب کنید.\n"
         "3. نوع (Type) را روی <b>L2TP/IPSec PSK</b> قرار دهید.\n"
         f"4. در Server address مقدار <code>{VPN_SERVER_IP}</code> را بنویسید.\n"
-        f"5. در کادر IPSec pre-shared key GAPGPTMASKTOKEN2398mm480nbX8X <code>{IPSEC_SECRET}</code> را وارد کنید.\n"
+        f"5. در کادر IPSec pre-shared key مقدار <code>{IPSEC_SECRET}</code> را وارد کنید.\n"
         "6. ذخیره کرده و هنگام اتصال یوزرنیم و پسورد خود را بزنید.\n\n"
         "💻 <b>۳. راهنمای اتصال در ویندوز (Windows 10 / 11):</b>\n"
         "1. وارد Settings ⬅️ Network & Internet ⬅️ VPN شده و Add VPN را بزنید.\n"
         "2. VPN Provider را روی Windows (built-in) بگذارید.\n"
         "3. VPN Type را روی <b>L2TP/IPsec with pre-shared key</b> تنظیم کنید.\n"
         f"4. در Server name or address مقدار <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-        f"5. در Pre-shared key GAPGPTMASKTOKEN2398mm480nbX9X <code>{IPSEC_SECRET}</code> را بنویسید.\n"
+        f"5. در Pre-shared key مقدار <code>{IPSEC_SECRET}</code> را بنویسید.\n"
         "6. یوزرنیم و پسورد اکانت را وارد کرده و Save و Connect را بزنید.\n\n"
         "🍏 <b>۴. راهنمای اتصال در مک‌بوک (macOS):</b>\n"
         "1. وارد System Settings ⬅️ Network شوید.\n"
         "2. روی علامت سه نقطه/افزودن کلیک کرده و Add VPN Configuration ⬅️ <b>L2TP over IPSec</b> را انتخاب کنید.\n"
         f"3. در Server Address مقدار <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
         "4. Account Name را یوزرنیم خود وارد کرده و در Authentication Settings:\n"
-        f"   - Password: GAPGPTMASKTOKEN2398mm480nbX10X عبور شما\n"
-        f"   - Shared Secret: GAPGPTMASKTOKEN2398mm480nbX11X <code>{IPSEC_SECRET}</code>\n"
+        f"   - Password: رمز عبور شما\n"
+        f"   - Shared Secret: مقدار <code>{IPSEC_SECRET}</code>\n"
         "5. Apply را زده و متصل شوید.\n\n"
         "📶 <b>۵. راهنمای تنظیم روی انواع مودم و روتر (Router / Modem):</b>\n"
         "1. وارد پنل وب مودم (معمولاً 192.168.1.1 یا 192.168.8.1) شوید.\n"
