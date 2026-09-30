@@ -21,11 +21,11 @@ from aiohttp import web
 # ==================== تنظیمات و لاگ ====================
 logging.basicConfig(level=logging.INFO)
 
-GAPGPTMASKTOKENqx4e9066bjgX0X = os.getenv("GAPGPTMASKTOKENqx4e9066bjgX1X", "GAPGPTMASKTOKENqx4e9066bjgX2X").strip()
+BOT_TOKEN = os.getenv("BOT_TOKEN", "7718919615:AAGZomG_h_n2mG58z0Z43213wR03X9v8YQo").strip()
 
-ADMIN_ID_RAW = os.getenv("ADMIN_ID", "6278859256").strip()
+ADMIN_ID_RAW = os.getenv("ADMIN_ID", "02786850266").strip()
 clean_admin_id = ADMIN_ID_RAW.lstrip('0')
-ADMIN_ID = int(clean_admin_id) if clean_admin_id.isdigit() else 6278859256
+ADMIN_ID = int(clean_admin_id) if clean_admin_id.isdigit() else 2786850266
 
 SUPPORT_ID = os.getenv("SUPPORT_ID", "L2tp1Support").strip().replace("@", "")
 SUPPORT_URL = f"https://t.me/{SUPPORT_ID}"
@@ -37,12 +37,12 @@ CARD_HOLDER = os.getenv("PAYMENT_NAME", "رحیمی").strip()
 IBSNG_PANEL_URL = os.getenv("IBSNG_PANEL_URL", "http://94.184.45.58:48201/IBSng/user/").strip()
 
 VPN_SERVER_IP = "94.184.43.106"
-IPSEC_SECRET = "GAPGPTMASKTOKENqx4e9066bjgX3X"
+IPSEC_SECRET = ".12345678"
 
 CARD_IMAGE_PATH = "شماره کارت1.jpg"
 TARIFF_IMAGE_PATH = "تعرفه.jpg"
 
-bot = Bot(token=GAPGPTMASKTOKENqx4e9066bjgX4X, parse_mode="HTML")
+bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
 
 # ==================== دیتابیس ====================
@@ -103,7 +103,7 @@ PLANS = {
 }
 
 # ==================== توابع کمکی ====================
-def generate_credentials(prefix="user"):
+def generate_credentials(prefix="arshavin"):
     rand_num = random.randint(1000, 9999)
     chars = string.ascii_lowercase + string.digits
     rand_pass = ''.join(random.choice(chars) for _ in range(6))
@@ -115,6 +115,21 @@ def gregorian_to_jalali(gy, gm, gd):
     gy -= 621 if gy <= 1600 else 1600
     gy2 = gy + 1 if gm > 2 else gy
     days = (365 * gy) + ((gy2 + 3) // 4) - ((gy2 + 99) // 100) + ((gy2 + 399) // 400) - 80 + gd + g_d_m[gm - 1]
+    jy += 33 * (days // 12053)
+    days %= 12053
+    jy += 4 * (days // 1461)
+    days %= 1461
+    jy += (days - 1) // 365
+    if days > 0:
+        days = (days - 1) % 365
+    jm = (days // 31) + 1 if days < 186 else 7 + ((days - 186) // 30)
+    jd = 1 + (days % 31 if days < 186 else (days - 186) % 30)
+    return jy, jm, jd
+
+def get_persian_datetime():
+    tehran_tz = pytz.timezone("Asia/Tehran")
+    now = datetime.now(tehran_tz)
+    time_str = now.strftime("%H:%M:%S") gy) + ((gy2 + 3) // 4) - ((gy2 + 99) // 100) + ((gy2 + 399) // 400) - 80 + gd + g_d_m[gm - 1]
     jy += 33 * (days // 12053)
     days %= 12053
     jy += 4 * (days // 1461)
@@ -141,47 +156,18 @@ BTN_BACK = "🔙 برگشت به منوی اصلی"
 
 def get_main_keyboard():
     kb = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    kb.add(KeyboardButton("🛒 خرید اشتراک"))
-    kb.add(KeyboardButton("📊 اطلاعات حساب"), KeyboardButton("🌐 پنل کاربری IBSng"))
-    kb.add(KeyboardButton("💰 شارژ حساب"), KeyboardButton("👥 پشتیبانی"))
-    kb.add(KeyboardButton("❓ سوالات متداول"), KeyboardButton("⚙️ کانفیگ‌ها و آموزش اتصال"))
-    return kb
+    kb.add(KeyboardButton(" 24/7</b> خوش آمدید.\n"
+        "لطفاً جهت استفاده از امکانات ربات، از منوی زیر گزینه‌ای را انتخاب فرمایید:"
+    )
 
-def get_back_keyboard():
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add(KeyboardButton(BTN_BACK))
-    return kb
-
-def get_welcome_text(user):
-    date_str, time_str, day_name = get_persian_gorian_to_jalali(now.year, now.month, now.day)
-    days_fa = {5: "شنبه", 6: "یک‌شنبه", 0: "دوشنبه", 1: "سه‌شنبه", 2: "چهارشنبه", 3: "پنج‌شنبه", 4: "جمعه"}
-    day_name = days_fa.get(now.weekday(), "")
-    date_str = f"{jy}/{jm:02d}/{jd:02d}"
-    return date_str, time_str, day_name
-
-# ==================== کیبوردها ====================
-BTN_BACK = "🔙 برگشت به منوی اصلی"
-
-def get_main_keyboard():
-    kb = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    kb.add(KeyboardButton("🛒 خرید اشتراک"))
-    kb.add(KeyboardButton("📊 اطلاعات حساب"), KeyboardButton("🌐 پنل کاربری IBSng"))
-    kb.add(KeyboardButton("💰 شارژ حساب"), KeyboardButton("👥 پشتیبانی"))
-    kb.add(KeyboardButton("❓ سوالات متداول"), KeyboardButton("⚙️ کانفیگ‌ها و آموزش اتصال"))
-    return kb
-
-def get_back_keyboard():
-    kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.add(KeyboardButton(BTN_BACK))
-    return kb
-
-def get_welcome_text(user):
-    date_str, time_str, day_name = get_persian_datetime()
-    return (
-        f"سلام <b>{user.first_name}</b> عزیز، خیلی خوش آمدید! 🌹\n\n"
-        f"📅 <b>روز:</b> {day_name}\n"
-        f"📆 <b>تاریخ:</b> <code>{date_str}</code> | ⏰ <b>ساعت:</b> <code>{time_str}</code>\n"
-        f"🆔 شناسه کاربری: <code>{)
+# ==================== دستورات اصلی ====================
+@dp.message_handler(commands=['start'], state="*")
+@dp.message_handler(lambda m: m.text == BTN_BACK, state="*")
+async def cmd_start(message: types.Message, state: FSMContext):
+    await state.finish()
+    add_user_to_db(message.from_user)
+    
+    quick_kb = InlineKeyboardMarkup(row_width=2)
     quick_kb.row(
         InlineKeyboardButton("📢 کانال اطلاع‌رسانی", url=CHANNEL_URL),
         InlineKeyboardButton("💬 پشتیبانی", url=SUPPORT_URL)
@@ -226,13 +212,14 @@ async def handle_buy(message: types.Message, state: FSMContext):
         "▫️ سه‌ماهه تک‌کاربره: <b>550,000 تومان</b>\n"
         "▫️ سه‌ماهه دو‌کاربره: <b>600,000 تومان</b>\n\n"
         "👇 پلن مورد نظر خود را برای صدور فاکتور انتخاب نمایید:"
-    )photo=InputFile(TARIFF_IMAGE_PATH), caption=caption, reply_markup=kb)
+    )
+    if os.path.exists(TARIFF_IMAGE_PATH):
+        await message.reply_photo(photo=InputFile(TARIFF_IMAGE_PATH), caption=caption, reply_markup=kb)
     else:
         await message.reply(caption, reply_markup=kb)
 
 # ==================== اطلاعات حساب ====================
 @dp.message_handler(lambda m: m.text == "📊 اطلاعات حساب", state="*")
-async def handle__handler(lambda m: m.text == "📊 اطلاعات حساب", state="*")
 async def handle_account(message: types.Message, state: FSMContext):
     await state.finish()
     text = (
@@ -256,7 +243,7 @@ async def handle_ibsng_panel(message: types.Message, state: FSMContext):
         f"🔗 <b>لینک ورود به پنل:</b>\n{IBSNG_PANEL_URL}\n\n"
         "⚠️ <b>نکته مهم:</b> برای ارتباط بهتر با پنل لطفاً وی‌پی‌ان خود را خاموش کنید و بعد از اتمام دوباره روشن کنید.\n\n"
         "⚠️ <b>نکته بسیار مهم امنیتی:</b>\n"
-        "<b>«حتماً و الزاماً در اولین ورود به پنل کاربری، GAPGPTMASKTOKENqx4e9066bjgX5X عبور (پسورد) خود را تغییر دهید تا از هرگونه سوءاستفاده جلوگیری شود.»</b>\n\n"
+        "<b>«حتماً و الزاماً در اولین ورود به پنل کاربری، رمز عبور (پسورد) خود را تغییر دهید تا از هرگونه سوءاستفاده جلوگیری شود.»</b>\n\n"
         "▫️ مشاهده مانده حجم دقیق و ترافیک مصرفی\n"
         "▫️ مشاهده تاریخ انقضای دقیق اشتراک\n"
         "▫️ امکان تغییر پسورد اکانت اتصال"
@@ -335,7 +322,7 @@ async def process_support_input(message: types.Message, state: FSMContext):
     )
     await state.finish()
 
-# ==================== سوالات متداول و راهنمای جامع اتصال ====================
+# ==================== سوالات متداول و راهنمای اتصال ====================
 @dp.message_handler(lambda m: m.text == "❓ سوالات متداول", state="*")
 async def handle_faq(message: types.Message, state: FSMContext):
     await state.finish()
@@ -350,271 +337,14 @@ async def handle_faq(message: types.Message, state: FSMContext):
         "2. گزینه Add VPN Configuration را لمس کنید.\n"
         "3. نوع (Type) را روی <b>L2TP</b> قرار دهید.\n"
         f"4. در بخش Server آدرس <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-        "5. نام کاربری (Account) و GAPGPTMASKTOKENqx4e9066bjgX6X عبور (Password) خود را وارد کنید.\n"
-        f"6. در کادر Secret GAPGPTMASKTOKENqx4e9066bjgX7X <code>{IPSEC_SECRET}</code> را وارد و Save را بزنید.\n\n"
+        "5. نام کاربری (Account) و رمز عبور (Password) خود را وارد کنید.\n"
+        f"6. در کادر Secret مقدار <code>{IPSEC_SECRET}</code> را وارد و Save را بزنید.\n\n"
         "🤖 <b>۲. راهنمای اتصال در اندروید (Android):</b>\n"
         "1. وارد تنظیمات گوشی ⬅️ اتصالات (Connections) ⬅️ تنظیمات بیشتر (More connection settings) ⬅️ VPN شوید.\n"
         "2. علامت + یا سه نقطه بالا را زده و Add VPN Profile را انتخاب کنید.\n"
         "3. نوع (Type) را روی <b>L2TP/IPSec PSK</b> قرار دهید.\n"
-        f"4. در Server address GAPGPTMASKTOKENqx4e9066bjgX8X <code>{VPN_SERVER_IP}</code> را بنویسید.\n"
-        f"5. در کادر IPSec pre-shared key GAPGPTMASKTOKENqx4e9066bjgX9X <code>{IPSEC_SECRET}</code> را وارد کنید.\n"
+        f"4. در Server address مقدار <code>{VPN_SERVER_IP}</code> را بنویسید.\n"
+        f"5. در کادر IPSec pre-shared key مقدار <code>{IPSEC_SECRET}</code> را وارد کنید.\n"
         "6. ذخیره کرده و هنگام اتصال یوزرنیم و پسورد خود را بزنید.\n\n"
         "💻 <b>۳. راهنمای اتصال در ویندوز (Windows 10 / 11):</b>\n"
-        "1. وارد Settings ⬅️ Network & Internet ⬅️ VPN شده و Add VPN را بزنید.\n"
-        "2. VPN Provider را روی Windows (built-in) بگذارید.\n"
-        "3. VPN Type را روی <b>L2TP/IPsec with pre-shared key</b> تنظیم کنید.\n"
-        f"4. در Server name or address GAPGPTMASKTOKENqx4e9066bjgX10X <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-        f"5. در Pre-shared key GAPGPTMASKTOKENqx4e9066bjgX11X <code>{IPSEC_SECRET}</code> را بنویسید.\n"
-        "6. یوزرنیم و پسورد اکانت را وارد کرده و Save و Connect را بزنید.\n\n"
-        "🍏 <b>۴. راهنمای اتصال در مک‌بوک (macOS):</b>\n"
-        "1. وارد System Settings ⬅️ Network شوید.\n"
-        "2. روی علامت سه نقطه/افزودن کلیک کرده و Add VPN Configuration ⬅️ <b>L2TP over IPSec</b> را انتخاب کنید.\n"
-        f"3. در Server Address GAPGPTMASKTOKENqx4e9066bjgX12X <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-        "4. Account Name را یوزرنیم خود وارد کرده و در Authentication Settings:\n"
-        f"   - Password: GAPGPTMASKTOKENqx4e9066bjgX13X عبور شما\n"
-        f"   - Shared Secret: GAPGPTMASKTOKENqx4e9066bjgX14X <code>{IPSEC_SECRET}</code>\n"
-        "5. Apply را زده و متصل شوید.\n\n"
-        "📶 <b>۵. راهنمای تنظیم روی انواع مودم و روتر (Router / Modem):</b>\n"
-        "1. وارد پنل وب مودم (معمولاً 192.168.1.1 یا 192.168.8.1) شوید.\n"
-        "2. به منوی VPN ⬅️ L2TP Client بروید.\n"
-        "3. وضعیت را Enabled کرده، Protocol را روی L2TP قرار دهید.\n"
-        f"4. در فیلد LNS Address / Server آدرس <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-        "5. یوزرنیم و پسورد اکانت را وارد کرده و ذخیره نمایید.\n\n"
-        "━━━━━━━━━━━━━━━━━━━\n"
-        "🔐 <b>تغییر پسورد در اولین ورود:</b> حتماً در اولین ورود به پنل IBSng پسورد خود را تغییر دهید.\n"
-        "🔄 <b>طرح جبرانی مشترکین قدیمی:</b> با ارسال یوزرنیم و فیش قبلی، اکانت با دوره کامل و ۱۰ گیگ هدیه فعال می‌گردد."
-    )
-    await message.reply(text, reply_markup=get_back_keyboard())
-
-# ==================== آموزش اتصال ====================
-@dp.message_handler(lambda m: m.text == "⚙️ کانفیگ‌ها و آموزش اتصال", state="*")
-async def handle_configs(message: types.Message, state: FSMContext):
-    await state.finish()
-    kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(InlineKeyboardButton("📢 ورود به کانال آموزش‌ها و کانفیگ‌ها", url=CHANNEL_URL))
-    
-    text = (
-        "⚙️ <b>آموزش اتصال به پروتکل L2TP/IPSec:</b>\n\n"
-        f"🌐 <b>Server:</b> <code>{VPN_SERVER_IP}</code>\n"
-        f"🔑 <b>Secret / Pre-Shared Key:</b> <code>{IPSEC_SECRET}</code>\n\n"
-        "📱 <b>آیفون و اندروید:</b> وارد تنظیمات VPN شده، نوع L2TP را انتخاب و اطلاعات بالا را وارد نمایید.\n"
-        "💻 <b>ویندوز و مودم:</b> نوع اتصال را L2TP with Pre-Shared Key تنظیم فرمایید.\n\n"
-        "فایل‌های کامل و ویدیوهای آموزشی در کانال رسمی قرار دارند:"
-    )
-    await message.reply(text, reply_markup=kb)
-    await message.answer("جهت برگشت به منو دکمه زیر را بزنید:", reply_markup=get_back_keyboard())
-
-# ==================== خرید و تایید/رد فیش توسط ادمین ====================
-@dp.callback_query_handler(lambda c: c.data.startswith("buy_"), state="*")
-async def callback_buy_plan(query: types.CallbackQuery, state: FSMContext):
-    plan_key = query.data.split("buy_")[1]
-    plan = PLANS.get(plan_key)
-    if not plan:
-        await query.answer("پلن یافت نشد.", show_alert=True)
-        return
-    
-    await state.update_data(plan_name=plan["name"], plan_price=plan["price"], plan_key=plan_key)
-    await OrderState.waiting_for_receipt.set()
-    
-    caption = (
-        "🧾 <b>پیش‌فاکتور صدور اکانت L2TP VPN 24/7</b>\n\n"
-        f"📦 پلن انتخابی: <b>{plan['name']}</b>\n"
-        f"💵 مبلغ قابل پرداخت: <b>{plan['price']}</b>\n\n"
-        f"💳 شماره کارت:\n<code>{CARD_NUMBER}</code>\n"
-        f"👤 به نام: <b>{CARD_HOLDER}</b>\n\n"
-        "لطفاً پس از کارت به کارت، <b>تصویر فیش واریزی</b> را همین‌جا ارسال نمایید:"
-    )
-    await query.message.delete()
-    if os.path.exists(CARD_IMAGE_PATH):
-        await bot.send_photo(query.message.chat.id, photo=InputFile(CARD_IMAGE_PATH), caption=caption, reply_markup=get_back_keyboard())
-    else:
-        await bot.send_message(query.message.chat.id, caption, reply_markup=get_back_keyboard())
-    await query.answer()
-
-@dp.message_handler(content_types=['photo'], state=OrderState.waiting_for_receipt)
-async def handle_order_receipt(message: types.Message, state: FSMContext):
-    data = await state.get_data()
-    plan_name = data.get("plan_name", "خرید اشتراک")
-    plan_price = data.get("plan_price", "نامشخص")
-    plan_key = data.get("plan_key", "1m_1u")
-    
-    user = message.from_user
-    
-    # دکمه‌های تایید و رد فیش برای ادمین
-    admin_kb = InlineKeyboardMarkup(row_width=2)
-    admin_kb.row(
-        InlineKeyboardButton("✅ تایید و تحویل اکانت", callback_data=f"approve_buy:{user.id}:{plan_key}"),
-        InlineKeyboardButton("❌ رد واریزی (نامعتبر)", callback_data=f"reject_buy:{user.id}")
-    )
-    
-    caption = (
-        "🔔 <b>فیش واریزی جدید (خرید اشتراک)</b>\n\n"
-        f"👤 خریدار: <b>{user.full_name}</b>\n"
-        f"🆔 شناسه: <code>{user.id}</code>\n"
-        f"🔗 آیدی: @{user.username or 'ندارد'}\n"
-        f"📦 پلن: <b>{plan_name}</b>\n"
-        f"💰 مبلغ: <b>{plan_price}</b>\n\n"
-        "👇 وضعیت فیش را مشخص کنید:"
-    )
-    if ADMIN_ID != 0:
-        await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=caption, reply_markup=admin_kb)
-    
-    await message.reply(
-        "✅ <b>فیش واریزی شما دریافت شد و در صف تایید مدیریت قرار گرفت.</b>\n"
-        "به محض تایید، مشخصات اکانت به صورت خودکار برای شما ارسال خواهد شد ⏳",
-        reply_markup=get_main_keyboard()
-    )
-    await state.finish()
-
-# ==================== هندلر دکمه‌های تایید / رد توسط ادمین ====================
-@dp.callback_query_handler(lambda c: c.data.startswith("approve_buy:"), state="*")
-async def admin_approve_buy(query: types.CallbackQuery):
-    if query.from_user.id != ADMIN_ID:
-        await query.answer("شما دسترسی ادمین ندارید!", show_alert=True)
-        return
-    
-    _, target_user_id, plan_key = query.data.split(":")
-    target_user_id = int(target_user_id)
-    plan_info = PLANS.get(plan_key, {"name": "اشتراک ویژه", "price": ""})
-    
-    # تولید نام کاربری و پسورد تصادفی
-    acc_user, acc_pass = generate_credentials("arshavin")
-    
-    user_msg = (
-        "🎉 <b>تراکنش شما تایید شد و اکانت اختصاصی شما آماده است!</b>\n\n"
-        f"📦 <b>پلن:</b> {plan_info['name']}\n"
-        "━━━━━━━━━━━━━━━━━━━\n"
-        "🔑 <b>مشخصات اتصال اختصاصی:</b>\n"
-        f"▫️ <b>Server IP:</b> <code>{VPN_SERVER_IP}</code>\n"
-        f"▫️ <b>Username:</b> <code>{acc_user}</code>\n"
-        f"▫️ <b>Password:</b> <code>{acc_pass}</code>\n"
-        f"▫️ <b>IPsec Secret:</b> <code>{IPSEC_SECRET}</code>\n"
-        "━━━━━━━━━━━━━━━━━━━\n"
-        "🌐 <b>پنل کاربری IBSng جهت مشاهده حجم و تمدید:</b>\n"
-        f"{IBSNG_PANEL_URL}\n\n"
-        "⚠️ <i>لطفاً پس از اولین ورود به پنل، حتماً پسورد خود را تغییر دهید.</i>\n\n"
-        f"💬 پشتیبانی ۲۴ ساعته: {SUPPORT_USERNAME}\n"
-        "از اعتماد شما سپاسگزاریم! 🌹"
-    )
-    
-    try:
-        await bot.send_message(target_user_id, user_msg)
-        await query.message.edit_caption(
-            query.message.caption + f"\n\n✅ <b>تایید شد و اکانت ارسال گردید:</b>\n👤 یوزر: <code>{acc_user}</code> | 🔑 پسورد: <code>{acc_pass}</code>",
-            reply_markup=None
-        )
-        await query.answer("اکانت برای کاربر ارسال شد ✅")
-    except Exception as e:
-        await query.answer(f"خطا در ارسال به کاربر: {e}", show_alert=True)
-
-@dp.callback_query_handler(lambda c: c.data.startswith("reject_buy:"), state="*")
-async def admin_reject_buy(query: types.CallbackQuery):
-    if query.from_user.id != ADMIN_ID:
-        await query.answer("شما دسترسی ادمین ندارید!", show_alert=True)
-        return
-    
-    _, target_user_id = query.data.split(":")
-    target_user_id = int(target_user_id)
-    
-    user_msg = (
-        "❌ <b>واریزی شما تایید نشد!</b>\n\n"
-        "متاسفانه فیش ارسالی توسط بخش مالی تایید نشد (مبلغ نادرست، فیش تکراری یا ناخوانا).\n\n"
-        f"💬 در صورت بروز هرگونه اشتباه لطفاً با پشتیبانی ارتباط برقرار کنید:\n{SUPPORT_USERNAME}"
-    )
-    
-    try:
-        await bot.send_message(target_user_id, user_msg)
-        await query.message.edit_caption(
-            query.message.caption + "\n\n❌ <b>فیش توسط ادمین رد شد و پیام خطا برای کاربر رفت.</b>",
-            reply_markup=None
-        )
-        await query.answer("واریزی رد شد ❌")
-    except Exception as e:
-        await query.answer(f"خطا در ارسال پیام: {e}", show_alert=True)
-
-# ==================== شارژ و تمدید حساب ====================
-@dp.message_handler(content_types=['photo'], state=ChargeState.waiting_for_receipt)
-async def handle_charge_receipt(message: types.Message, state: FSMContext):
-    await state.update_data(receipt_file_id=message.photo[-1].file_id)
-    await ChargeState.waiting_for_username.set()
-    await message.reply(
-        "✅ فیش واریزی دریافت شد.\n\n"
-        "✍️ اکنون لطفاً <b>نام کاربری (Username)</b> اکانت VPN خود را وارد نمایید تا برای تمدید ارسال گردد:",
-        reply_markup=get_back_keyboard()
-    )
-
-@dp.message_handler(state=ChargeState.waiting_for_username)
-async def handle_charge_username(message: types.Message, state: FSMContext):
-    username_val = message.text.strip()
-    data = await state.get_data()
-    file_id = data.get("receipt_file_id")
-    user = message.from_user
-    
-    admin_kb = InlineKeyboardMarkup(row_width=2)
-    admin_kb.row(
-        InlineKeyboardButton("✅ تایید تمدید", callback_data=f"approve_charge:{user.id}:{username_val}"),
-        InlineKeyboardButton("❌ رد تمدید", callback_data=f"reject_buy:{user.id}")
-    )
-    
-    caption = (
-        "💰 <b>درخواست شارژ / تمدید حساب</b>\n\n"
-        f"👤 خریدار: <b>{user.full_name}</b>\n"
-        f"🆔 شناسه: <code>{user.id}</code>\n"
-        f"🔗 آیدی: @{user.username or 'ندارد'}\n"
-        f"🔑 <b>نام کاربری مورد نظر:</b> <code>{username_val}</code>"
-    )
-    if ADMIN_ID != 0 and file_id:
-        await bot.send_photo(ADMIN_ID, file_id, caption=caption, reply_markup=admin_kb)
-    
-    await message.reply(
-        f"✅ <b>درخواست شارژ برای اکانت {username_val} با موفقیت ثبت گردید.</b>\n"
-        "پس از بررسی و تایید مدیریت، پیام تایید برای شما ارسال خواهد شد.",
-        reply_markup=get_main_keyboard()
-    )
-    await state.finish()
-
-@dp.callback_query_handler(lambda c: c.data.startswith("approve_charge:"), state="*")
-async def admin_approve_charge(query: types.CallbackQuery):
-    if query.from_user.id != ADMIN_ID:
-        await query.answer("دسترسی ندارید!", show_alert=True)
-        return
-    
-    _, target_user_id, username_val = query.data.split(":")
-    target_user_id = int(target_user_id)
-    
-    user_msg = (
-        f"✅ <b>اشتراک اکانت {username_val} با موفقیت تمدید و شارژ شد!</b>\n\n"
-        "🎁 ۱۰ گیگابایت ترافیک هدیه نیز به حساب شما منظور گردید.\n"
-        f"🌐 پنل IBSng جهت بررسی مانده حجم:\n{IBSNG_PANEL_URL}\n\n"
-        "از همراهی شما متشکریم 🌹"
-    )
-    try:
-        await bot.send_message(target_user_id, user_msg)
-        await query.message.edit_caption(query.message.caption + f"\n\n✅ <b>شارژ اکانت {username_val} تایید شد.</b>", reply_markup=None)
-        await query.answer("پیام تمدید برای کاربر ارسال شد.")
-    except Exception as e:
-        await query.answer(f"خطا: {e}", show_alert=True)
-
-# پیام‌های متفرقه
-@dp.message_handler(state="*")
-async def handle_other_messages(message: types.Message):
-    await message.reply("لطفاً از دکمه‌های منوی زیر استفاده نمایید 👇", reply_markup=get_main_keyboard())
-
-# ==================== وب سرور رندر و اجرای ربات ====================
-async def run_server():
-    app = web.Application()
-    app.router.add_get("/", lambda r: web.Response(text="L2TP VPN Bot is running cleanly."))
-    runner = web.AppRunner(app)
-    await runner.setup()
-    port = int(os.getenv("PORT", 10000))
-    site = web.TCPSite(runner, "0.0.0.0", port)
-    await site.start()
-    logging.info(f"Render health check server started on port {port}")
-
-async def main():
-    await bot.delete_webhook(drop_pending_updates=True)
-    await run_server()
-    await dp.start_polling()
-
-if __name__ == "__main__":
-    asyncio.run(main())
+        "1. وارد Settings ⬅️ Network & Internet 
