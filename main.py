@@ -19,7 +19,7 @@ from aiohttp import web
 # ==================== تنظیمات و لاگ ====================
 logging.basicConfig(level=logging.INFO)
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "7963098522:AAHVtM20G7kR82k1n4p4y8_example").strip()
+BOT_TOKEN = os.getenv("BOT_TOKEN", "7718029969:AAF-cQ3i8nN6o6Vb0rG13Jd6yZ_v2g9_p0w").strip()
 
 # رفع خطای اعداد با پیشوند صفر
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "6278859256").strip()
@@ -36,11 +36,10 @@ CARD_HOLDER = os.getenv("PAYMENT_NAME", "رحیمی").strip()
 IBSNG_PANEL_URL = os.getenv("IBSNG_PANEL_URL", "http://94.184.45.58:48201/IBSng/user/").strip()
 
 VPN_SERVER_IP = "94.184.43.106"
-IPSEC_SECRET = "GAPGPTMASKTOKENifkfxzj28aX0X"
+IPSEC_SECRET = "12345678."
 
 CARD_IMAGE_PATH = "شماره کارت1.jpg"
 TARIFF_IMAGE_PATH = "تعرفه.jpg"
-OVPN_FILE_PATH = "files/openvpn/client.ovpn"
 
 bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
@@ -138,37 +137,13 @@ def get_main_keyboard():
     kb.add(KeyboardButton("🛒 خرید اشتراک"))
     kb.add(KeyboardButton("📊 اطلاعات حساب"), KeyboardButton("🌐 پنل کاربری IBSng"))
     kb.add(KeyboardButton("💰 شارژ حساب"), KeyboardButton("👥 پشتیبانی"))
-    kb.add(KeyboardButton("❓ سوالات متداول و آموزش"), KeyboardButton("⚙️ کانفیگ‌ها و دانلود OpenVPN"))
+    kb.add(KeyboardButton("❓ سوالات متداول"), KeyboardButton("⚙️ کانفیگ‌ها و آموزش اتصال"))
     return kb
 
 def get_back_keyboard():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add(KeyboardButton(BTN_BACK))
     return kb
-
-def get_faq_inline_keyboard():
-    ikb = InlineKeyboardMarkup(row_width=2)
-    ikb.row(
-        InlineKeyboardButton("🍏 راهنمای آیفون / آیپد", callback_data="faq_ios"),
-        InlineKeyboardButton("🤖 راهنمای اندروید", callback_data="faq_android")
-    )
-    ikb.row(
-        InlineKeyboardButton("💻 راهنمای ویندوز", callback_data="faq_windows"),
-        InlineKeyboardButton("🍏 راهنمای مک‌بوک", callback_data="faq_mac")
-    )
-    ikb.row(
-        InlineKeyboardButton("📶 تنظیم روی مودم و روتر", callback_data="faq_router")
-    )
-    ikb.row(
-        InlineKeyboardButton("🔐 تغییر پسورد و نکات امنیتی", callback_data="faq_security"),
-        InlineKeyboardButton("🔄 طرح جبرانی مشترکین", callback_data="faq_plan")
-    )
-    return ikb
-
-def get_faq_back_keyboard():
-    ikb = InlineKeyboardMarkup(row_width=1)
-    ikb.add(InlineKeyboardButton("🔙 بازگشت به لیست سوالات", callback_data="faq_home"))
-    return ikb
 
 def get_welcome_text(user):
     date_str, time_str, day_name = get_persian_datetime()
@@ -271,7 +246,7 @@ async def handle_ibsng_panel(message: types.Message, state: FSMContext):
         f"🔗 <b>لینک ورود به پنل:</b>\n{IBSNG_PANEL_URL}\n\n"
         "⚠️ <b>نکته مهم:</b> برای ارتباط بهتر با پنل لطفاً وی‌پی‌ان خود را خاموش کنید و بعد از اتمام دوباره روشن کنید.\n\n"
         "⚠️ <b>نکته بسیار مهم امنیتی:</b>\n"
-        "<b>«حتماً و الزاماً در اولین ورود به پنل کاربری، رمز عبور خود را تغییر دهید تا از هرگونه سوءاستفاده جلوگیری شود.»</b>\n\n"
+        "<b>«حتماً و الزاماً در اولین ورود به پنل کاربری، رمز عبور (پسورد) خود را تغییر دهید تا از هرگونه سوءاستفاده جلوگیری شود.»</b>\n\n"
         "▫️ مشاهده مانده حجم دقیق و ترافیک مصرفی\n"
         "▫️ مشاهده تاریخ انقضای دقیق اشتراک\n"
         "▫️ امکان تغییر پسورد اکانت اتصال"
@@ -350,132 +325,74 @@ async def process_support_input(message: types.Message, state: FSMContext):
     )
     await state.finish()
 
-# ==================== سوالات متداول تفکیک شده ====================
-FAQ_MAIN_TEXT = (
-    "❓ <b>مرکز راهنما، آموزش‌ها و سوالات متداول</b>\n\n"
-    f"⚡️ <b>اطلاعات اتصال عمومی:</b>\n"
-    f"▫️ آدرس سرور: <code>{VPN_SERVER_IP}</code>\n"
-    f"▫️ کلید امنیتی (IPsec Secret): <code>{IPSEC_SECRET}</code>\n\n"
-    "👇 <b>لطفاً دستگاه یا موضوع مورد نظرتان را برای مشاهده راهنما انتخاب کنید:</b>"
-)
-
-@dp.message_handler(lambda m: m.text in ["❓ سوالات متداول", "❓ سوالات متداول و آموزش"], state="*")
+# ==================== سوالات متداول و راهنمای جامع اتصال ====================
+@dp.message_handler(lambda m: m.text == "❓ سوالات متداول", state="*")
 async def handle_faq(message: types.Message, state: FSMContext):
     await state.finish()
-    await message.reply(FAQ_MAIN_TEXT, reply_markup=get_faq_inline_keyboard())
+    text = (
+        "❓ <b>پاسخ به سوالات متداول و راهنمای جامع اتصال L2TP/IPSec</b>\n\n"
+        "⚡️ <b>مشخصات عمومی سرور:</b>\n"
+        f"▫️ آدرس سرور (Server Address): <code>{VPN_SERVER_IP}</code>\n"
+        f"▫️ کلید امنیتی (IPsec Secret / Pre-Shared Key): <code>{IPSEC_SECRET}</code>\n\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        "📱 <b>۱. راهنمای اتصال در آیفون و آیپد (Apple iOS):</b>\n"
+        "1. وارد Settings ⬅️ General ⬅️ VPN & Device Management ⬅️ VPN شوید.\n"
+        "2. گزینه Add VPN Configuration را لمس کنید.\n"
+        "3. نوع (Type) را روی <b>L2TP</b> قرار دهید.\n"
+        f"4. در بخش Server آدرس <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
+        "5. نام کاربری (Account) و رمز عبور (Password) خود را وارد کنید.\n"
+        f"6. در کادر Secret مقدار <code>{IPSEC_SECRET}</code> را وارد و Save را بزنید.\n\n"
+        "🤖 <b>۲. راهنمای اتصال در اندروید (Android):</b>\n"
+        "1. وارد تنظیمات گوشی ⬅️ اتصالات (Connections) ⬅️ تنظیمات بیشتر (More connection settings) ⬅️ VPN شوید.\n"
+        "2. علامت + یا سه نقطه بالا را زده و Add VPN Profile را انتخاب کنید.\n"
+        "3. نوع (Type) را روی <b>L2TP/IPSec PSK</b> قرار دهید.\n"
+        f"4. در Server address مقدار <code>{VPN_SERVER_IP}</code> را بنویسید.\n"
+        f"5. در کادر IPSec pre-shared key مقدار <code>{IPSEC_SECRET}</code> را وارد کنید.\n"
+        "6. ذخیره کرده و هنگام اتصال یوزرنیم و پسورد خود را بزنید.\n\n"
+        "💻 <b>۳. راهنمای اتصال در ویندوز (Windows 10 / 11):</b>\n"
+        "1. وارد Settings ⬅️ Network & Internet ⬅️ VPN شده و Add VPN را بزنید.\n"
+        "2. VPN Provider را روی Windows (built-in) بگذارید.\n"
+        "3. VPN Type را روی <b>L2TP/IPsec with pre-shared key</b> تنظیم کنید.\n"
+        f"4. در Server name or address مقدار <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
+        f"5. در Pre-shared key مقدار <code>{IPSEC_SECRET}</code> را بنویسید.\n"
+        "6. یوزرنیم و پسورد اکانت را وارد کرده و Save و Connect را بزنید.\n\n"
+        "🍏 <b>۴. راهنمای اتصال در مک‌بوک (macOS):</b>\n"
+        "1. وارد System Settings ⬅️ Network شوید.\n"
+        "2. روی علامت سه نقطه/افزودن کلیک کرده و Add VPN Configuration ⬅️ <b>L2TP over IPSec</b> را انتخاب کنید.\n"
+        f"3. در Server Address مقدار <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
+        "4. Account Name را یوزرنیم خود وارد کرده و در Authentication Settings:\n"
+        f"   - Password: رمز عبور شما\n"
+        f"   - Shared Secret: مقدار <code>{IPSEC_SECRET}</code>\n"
+        "5. Apply را زده و متصل شوید.\n\n"
+        "📶 <b>۵. راهنمای تنظیم روی انواع مودم و روتر (Router / Modem):</b>\n"
+        "1. وارد پنل وب مودم (معمولاً 192.168.1.1 یا 192.168.8.1) شوید.\n"
+        "2. به منوی VPN ⬅️ L2TP Client بروید.\n"
+        "3. وضعیت را Enabled کرده، Protocol را روی L2TP قرار دهید.\n"
+        f"4. در فیلد LNS Address / Server آدرس <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
+        "5. یوزرنیم و پسورد اکانت را وارد کرده و ذخیره نمایید.\n\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        "🔐 <b>تغییر پسورد در اولین ورود:</b> حتماً در اولین ورود به پنل IBSng پسورد خود را تغییر دهید.\n"
+        "🔄 <b>طرح جبرانی مشترکین قدیمی:</b> با ارسال یوزرنیم و فیش قبلی، اکانت با دوره کامل و ۱۰ گیگ هدیه فعال می‌گردد."
+    )
+    await message.reply(text, reply_markup=get_back_keyboard())
 
-@dp.callback_query_handler(lambda c: c.data.startswith("faq_"), state="*")
-async def process_faq_callbacks(query: types.CallbackQuery):
-    action = query.data
-    
-    if action == "faq_home":
-        await query.message.edit_text(FAQ_MAIN_TEXT, reply_markup=get_faq_inline_keyboard())
-        await query.answer()
-        return
-
-    faq_texts = {
-        "faq_ios": (
-            "📱 <b>راهنمای اتصال در آیفون و آیپد (iOS):</b>\n\n"
-            "1. وارد <b>Settings</b> ⬅️ <b>General</b> ⬅️ <b>VPN & Device Management</b> ⬅️ <b>VPN</b> شوید.\n"
-            "2. گزینه <b>Add VPN Configuration</b> را بزنید.\n"
-            "3. نوع (Type) را روی <b>L2TP</b> قرار دهید.\n"
-            f"4. در کادر Description نام دلخواه و در Server مقدار <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-            "5. در کادر Account نام کاربری و در Password رمز عبور خود را وارد کنید.\n"
-            f"6. در کادر Secret مقدار <code>{IPSEC_SECRET}</code> را بنویسید.\n"
-            "7. دکمه Done را بزنید و وصل شوید."
-        ),
-        "faq_android": (
-            "🤖 <b>راهنمای اتصال در گوشی‌های اندروید (Android):</b>\n\n"
-            "1. وارد تنظیمات (Settings) ⬅️ اتصالات (Connections) ⬅️ تنظیمات بیشتر ⬅️ <b>VPN</b> شوید.\n"
-            "2. روی علامت + یا سه نقطه بالا بزنید و Add VPN Profile را انتخاب کنید.\n"
-            "3. نوع (Type) را روی <b>L2TP/IPSec PSK</b> تنظیم کنید.\n"
-            f"4. در قسمت Server address آدرس <code>{VPN_SERVER_IP}</code> را بنویسید.\n"
-            f"5. در کادر IPSec pre-shared key مقدار <code>{IPSEC_SECRET}</code> را وارد کنید.\n"
-            "6. ذخیره (Save) را زده، سپس روی کانکشن ساخته شده کلیک و یوزرنیم و پسوردتان را وارد نمایید."
-        ),
-        "faq_windows": (
-            "💻 <b>راهنمای اتصال در ویندوز (Windows 10 / 11):</b>\n\n"
-            "1. وارد Settings ⬅️ Network & Internet ⬅️ <b>VPN</b> شوید و <b>Add VPN</b> را بزنید.\n"
-            "2. گزینه VPN Provider را روی <b>Windows (built-in)</b> بگذارید.\n"
-            "3. VPN Type را روی <b>L2TP/IPsec with pre-shared key</b> تنظیم کنید.\n"
-            f"4. در Server name or address مقدار <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-            f"5. در Pre-shared key مقدار <code>{IPSEC_SECRET}</code> را تایپ کنید.\n"
-            "6. یوزرنیم و پسورد اکانت را وارد کرده و Save و Connect را بزنید."
-        ),
-        "faq_mac": (
-            "🍏 <b>راهنمای اتصال در مک‌بوک (macOS):</b>\n\n"
-            "1. وارد <b>System Settings</b> ⬅️ <b>Network</b> شوید.\n"
-            "2. روی آیکون سه نقطه / افزودن کلیک کرده و <b>Add VPN Configuration ⬅️ L2TP over IPSec</b> را انتخاب کنید.\n"
-            f"3. در Server Address آدرس <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-            "4. Account Name را یوزرنیم خود بگذارید.\n"
-            f"5. در Authentication Settings پسورد و Shared Secret (<code>{IPSEC_SECRET}</code>) را وارد نموده و Apply کنید."
-        ),
-        "faq_router": (
-            "📶 <b>راهنمای تنظیم روی انواع مودم و روتر (Router / Modem):</b>\n\n"
-            "1. وارد کنسول وب مودم شوید (آدرس 192.168.1.1 یا 192.168.8.1).\n"
-            "2. به منوی <b>VPN ⬅️ L2TP Client</b> مراجعه کنید.\n"
-            "3. گزینه را فعال (Enabled) و پروتکل را روی L2TP قرار دهید.\n"
-            f"4. در کادر LNS Address / Server آدرس <code>{VPN_SERVER_IP}</code> را بنویسید.\n"
-            "5. نام کاربری و رمز عبور اشتراک خود را ثبت و ذخیره (Save/Apply) نمایید."
-        ),
-        "faq_security": (
-            "🔐 <b>نکات مهم امنیتی و تغییر رمز:</b>\n\n"
-            "▫️ حتماً در اولین ورود به پنل کاربری IBSng، رمز عبور پیش‌فرض خود را تغییر دهید.\n"
-            "▫️ اشتراک‌های تک‌کاربره نباید همزمان روی دو دستگاه روشن باشند تا قطع نشوند.\n"
-            "▫️ جهت تست پایداری از خاموش بودن سایر فیلترشکن‌ها حین اتصال مطمئن شوید."
-        ),
-        "faq_plan": (
-            "🔄 <b>طرح جبرانی و پشتیبانی مشترکین:</b>\n\n"
-            "▫️ در صورت بروز هرگونه اختلال یا انتقال سرور، مدت زمان قطعی به دوره اشتراک شما اضافه خواهد شد.\n"
-            "▫️ با ارسال یوزرنیم و فیش قبلی به پشتیبانی، اشتراک با دوره کامل و ۱۰ گیگ هدیه فعال می‌شود."
-        )
-    }
-    
-    text_to_show = faq_texts.get(action, "اطلاعات مورد نظر یافت نشد.")
-    await query.message.edit_text(text_to_show, reply_markup=get_faq_back_keyboard())
-    await query.answer()
-
-# ==================== کانفیگ‌ها و دانلود OpenVPN ====================
-@dp.message_handler(lambda m: m.text in ["⚙️ کانفیگ‌ها و آموزش اتصال", "⚙️ کانفیگ‌ها و دانلود OpenVPN"], state="*")
+# ==================== آموزش اتصال ====================
+@dp.message_handler(lambda m: m.text == "⚙️ کانفیگ‌ها و آموزش اتصال", state="*")
 async def handle_configs(message: types.Message, state: FSMContext):
     await state.finish()
-    
     kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(
-        InlineKeyboardButton("📥 دریافت و دانلود فایل کانفیگ OpenVPN (.ovpn)", callback_data="download_ovpn"),
-        InlineKeyboardButton("📢 عضویت در کانال رسمی آموزش‌ها", url=CHANNEL_URL)
-    )
+    kb.add(InlineKeyboardButton("📢 ورود به کانال آموزش‌ها و کانفیگ‌ها", url=CHANNEL_URL))
     
     text = (
-        "⚙️ <b>مشخصات و دانلود کانفیگ‌های اتصال VPN:</b>\n\n"
-        f"🌐 <b>آدرس سرور (Server):</b> <code>{VPN_SERVER_IP}</code>\n"
-        f"🔑 <b>کلید مشترک (Pre-Shared Key):</b> <code>{IPSEC_SECRET}</code>\n\n"
-        "▫️ <b>پروتکل L2TP/IPSec:</b> بدون نیاز به نصب هیچ برنامه‌ای در آیفون، اندروید و ویندوز قابل اتصال است.\n"
-        "▫️ <b>پروتکل OpenVPN:</b> برای اتصال امن از طریق نرم‌افزار رسمی OpenVPN Connect.\n\n"
-        "👇 <b>جهت دریافت مستقیم فایل کانفیگ OpenVPN دکمه زیر را لمس کنید:</b>"
+        "⚙️ <b>آموزش اتصال به پروتکل L2TP/IPSec:</b>\n\n"
+        f"🌐 <b>Server:</b> <code>{VPN_SERVER_IP}</code>\n"
+        f"🔑 <b>Secret / Pre-Shared Key:</b> <code>{IPSEC_SECRET}</code>\n\n"
+        "📱 <b>آیفون و اندروید:</b> وارد تنظیمات VPN شده، نوع L2TP را انتخاب و اطلاعات بالا را وارد نمایید.\n"
+        "💻 <b>ویندوز و مودم:</b> نوع اتصال را L2TP with Pre-Shared Key تنظیم فرمایید.\n\n"
+        "فایل‌های کامل و ویدیوهای آموزشی در کانال رسمی قرار دارند:"
     )
     await message.reply(text, reply_markup=kb)
-
-@dp.callback_query_handler(lambda c: c.data == "download_ovpn", state="*")
-async def send_ovpn_file_callback(query: types.CallbackQuery):
-    if os.path.exists(OVPN_FILE_PATH):
-        caption = (
-            "📥 <b>فایل کانفیگ اختصاصی OpenVPN</b>\n\n"
-            f"🌐 سرور: <code>{VPN_SERVER_IP}</code>\n"
-            "🔐 پروتکل: <b>OpenVPN Client Config</b>\n\n"
-            "📖 <b>راهنمای سریع استفاده:</b>\n"
-            "1. اپلیکیشن <b>OpenVPN Connect</b> را از اپ‌استور یا گوگل‌پلی نصب کنید.\n"
-            "2. این فایل را دانلود و در برنامه Import نمایید.\n"
-            "3. نام کاربری و رمز عبور اشتراک خود را وارد کرده و متصل شوید."
-        )
-        await bot.send_document(
-            chat_id=query.message.chat.id,
-            document=InputFile(OVPN_FILE_PATH),
-            caption=caption
-        )
-        await query.answer("✅ فایل کانفیگ OpenVPN با موفقیت ارسال شد.")
-    else:
-        await query.answer("❌ فایل کانفیگ یافت نشد. لطفاً به پشتیبانی پیام دهید.", show_alert=True)
+    await message.answer("جهت برگشت به منو دکمه زیر را بزنید:", reply_markup=get_back_keyboard())
 
 # ==================== کال‌بک خرید و دریافت فیش ====================
 @dp.callback_query_handler(lambda c: c.data.startswith("buy_"), state="*")
@@ -501,8 +418,7 @@ async def callback_buy_plan(query: types.CallbackQuery, state: FSMContext):
     if os.path.exists(CARD_IMAGE_PATH):
         await bot.send_photo(query.message.chat.id, photo=InputFile(CARD_IMAGE_PATH), caption=caption, reply_markup=get_back_keyboard())
     else:
-        await state.get_data()
-    plan_name = data.get("plan_name", "خرید اشتkeyboard())
+        await bot.send_message(query.message.chat.id, caption, reply_markup=get_back_keyboard())
     await query.answer()
 
 @dp.message_handler(content_types=['photo'], state=OrderState.waiting_for_receipt)
@@ -554,4 +470,35 @@ async def handle_charge_username(message: types.Message, state: FSMContext):
         f"🔑 نام کاربری ارسالی: <code>{username_val}</code>"
     )
     if ADMIN_ID != 0 and file_id:
-        await 
+        await bot.send_photo(ADMIN_ID, file_id, caption=caption)
+    
+    await message.reply(
+        f"✅ <b>درخواست شارژ برای اکانت {username_val} با موفقیت ثبت گردید.</b>\n"
+        "پس از بررسی، شارژ سرویس شما اعمال می‌شود.",
+        reply_markup=get_main_keyboard()
+    )
+    await state.finish()
+
+# پیام‌های متفرقه
+@dp.message_handler(state="*")
+async def handle_other_messages(message: types.Message):
+    await message.reply("لطفاً از دکمه‌های منوی زیر استفاده نمایید 👇", reply_markup=get_main_keyboard())
+
+# ==================== وب سرور رندر و اجرای ربات ====================
+async def run_server():
+    app = web.Application()
+    app.router.add_get("/", lambda r: web.Response(text="L2TP VPN Bot is running cleanly."))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.getenv("PORT", 10000))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    logging.info(f"Render health check server started on port {port}")
+
+async def main():
+    await bot.delete_webhook(drop_pending_updates=True)
+    await run_server()
+    await dp.start_polling()
+
+if __name__ == "__main__":
+    asyncio.run(main())
