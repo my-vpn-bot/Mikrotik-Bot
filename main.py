@@ -41,7 +41,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# تعرفه‌های رسمی تأیید شده
+# تعرفه‌های رسمی
 PLANS = {
     "1m_1u": {"title": "یک‌ماهه تک‌کاربره", "days": 30, "users": 1, "price": 200_000},
     "1m_2u": {"title": "یک‌ماهه دو‌کاربره", "days": 30, "users": 2, "price": 250_000},
@@ -109,7 +109,6 @@ def init_db():
             """
         )
 
-        # Migration ایمن برای دیتابیس‌های ایجاد شده از قبل
         cursor = conn.execute("PRAGMA table_info(orders);")
         columns = [row["name"] for row in cursor.fetchall()]
         if "expires_at" not in columns:
@@ -267,7 +266,6 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         days = plan.get("days", 30)
 
         if action == "adm_appr":
-            # تخصیص اتمیک اکانت از استخر
             acc = conn.execute(
                 """
                 SELECT * FROM accounts 
@@ -303,7 +301,6 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 (acc["id"], now_iso, exp_iso, order_id),
             )
 
-            # ارسال مشخصات سرویس به کاربر
             user_msg = (
                 "🎉 <b>سفارش شما با موفقیت تأیید و اکانت فعال شد!</b>\n\n"
                 f"🔹 پلن: <b>{plan.get('title')}</b>\n"
@@ -342,47 +339,6 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def addpool_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """افزودن دسته‌ای اکانت به استخر:
-    /addpool 1m_1u
-    user1|pass1
-    user2|pass2
-    """
-    if not is_admin(update.effective_user.id):
-        return
-
-    text = update.effective_message.text.strip()
-    lines = text.split("\n")
-    if len(lines) < 2:
-        await update.effective_message.reply_text("فرمت صحیح:\n/addpool <plan_code>\nuser1|pass1\nuser2|pass2")
-        return
-
-    first_line_parts = lines[0].split()
-    if lenفایل کانفیگ اختصاصی OpenVPN 🔒",
-                        )
-            except TelegramError as e:
-                logger.error(f"خطا در تحویل اکانت به کاربر {order['user_id']}: {e}")
-
-            await query.edit_message_caption(f"✅ سفارش شماره {order_id} تأیید شد و اکانت به کاربر تحویل گردید.")
-
-        elif action == "adm_rejc":
-            conn.execute("UPDATE orders SET status = 'rejected' WHERE id = ?", (order_id,))
-            try:
-                await context.bot.send_message(
-                    order["user_id"],
-                    "❌ متأسفانه رسید ارسالی شما مورد تأیید قرار نگرفت. جهت بررسی با پشتیبانی در ارتباط باشید.",
-                )
-            except TelegramError as e:
-                logger.error(f"خطا در ارسال پیام رد به کاربر: {e}")
-
-            await query.edit_message_caption(f"❌ سفارش شماره {order_id} رد شد.")
-
-
-async def addpool_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """افزودن دسته‌ای اکانت به استخر:
-    /addpool 1m_1u
-    user1|pass1
-    user2|pass2
-    """
     if not is_admin(update.effective_user.id):
         return
 
@@ -403,7 +359,42 @@ async def addpool_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     rows = []
-        if not stats:
+    for line in lines[1:]:
+        line = line.strip()
+        if not line or "|" not in line:
+            continue
+        u, p = line.split("|", 1)
+        rows.append((plan_code, u.strip(), p.strip()))
+
+    if not rows:
+        await update.effective_message.reply_text("هیچ اکانت معتبری برای افزودن یافت نشد.")
+        return
+
+    with connect_db() as conn:
+        conn.executemany(
+            "INSERT INTO accounts (plan_code, username, password) VALUES (?, ?, ?)",
+            rows,
+        )
+
+    await update.effective_message.reply_text(f"✅ تعداد {len(rows)} اکانت با موفقیت به پلن {plan_code} اضافه شد.")
+
+
+async def pool_inventory_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+
+    with connect_db() as conn:
+        stats = conn.execute(
+            """
+            SELECT plan_code,
+                   SUM(CASE WHEN status = 'available' THEN 1 ELSE 0 END) as avail_cnt,
+                   SUM(CASE WHEN status = 'assigned' THEN 1 ELSE 0 END) as used_cnt
+            FROM accounts
+            GROUP BY plan_code
+            """
+        ).fetchall()
+
+    if not stats:
         await update.effective_message.reply_text("استخر اکانت‌ها در حال حاضر خالی است.")
         return
 
@@ -416,11 +407,7 @@ async def addpool_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.effective_message.reply_text(msg, parse_mode=ParseMode.HTML)
 
 
-# ==========================================
-# سیستم هشدار خودکار انقضا (Background Task)
-# ==========================================
 async def check_expirations_job(context: ContextTypes.DEFAULT_TYPE):
-    """بررسی دوره‌ای موعد انقضای سفارش‌ها و ارسال پیام یادآوری"""
     now = datetime.now(timezone.utc)
     logger.info("در حال اسکن انقضای اکانت‌ها...")
 
@@ -452,7 +439,6 @@ async def check_expirations_job(context: ContextTypes.DEFAULT_TYPE):
                 [[InlineKeyboardButton("⚡️ شارژ و تمدید فوری", callback_data=f"plan:{o['plan_code']}")]]
             )
 
-            # ۱. هشدار ۳ روز مانده
             if 0 < days_left <= 3 and not o["notif_3d"]:
                 msg = (
                     "⏳ <b>یادآوری تمدید اشتراک VPN</b>\n\n"
@@ -466,7 +452,6 @@ async def check_expirations_job(context: ContextTypes.DEFAULT_TYPE):
                 except TelegramError as e:
                     logger.warning(f"عدم ارسال هشدار ۳ روزه به {o['user_id']}: {e}")
 
-            # ۲. هشدار ۱ روز مانده
             elif 0 < days_left <= 1 and not o["notif_1d"]:
                 msg = (
                     "⚠️ <b>هشدار انقضای اشتراک!</b>\n\n"
@@ -480,7 +465,6 @@ async def check_expirations_job(context: ContextTypes.DEFAULT_TYPE):
                 except TelegramError as e:
                     logger.warning(f"عدم ارسال هشدار ۱ روزه به {o['user_id']}: {e}")
 
-            # ۳. روز پایان انقضا
             elif days_left <= 0 and not o["notif_0d"]:
                 msg = (
                     "🚫 <b>اشتراک شما به پایان رسید!</b>\n\n"
@@ -497,31 +481,27 @@ async def check_expirations_job(context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     if not BOT_TOKEN:
-        logger.error("BOT_TOKEN در محیط یا فایل .env تنظیم نشده است.")
+        logger.error("BOT_TOKEN تنظیم نشده است.")
         return
 
     init_db()
 
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # ثبت تسک بررسی انقضا (هر ۲ ساعت یک‌بار اجرا می‌شود)
     job_queue = app.job_queue
     if job_queue:
         job_queue.run_repeating(check_expirations_job, interval=7200, first=10)
 
-    # دستورات
     app.add_handler(CommandHandler("start", start_handler))
     app.add_handler(CommandHandler("addpool", addpool_handler))
     app.add_handler(CommandHandler("pool", pool_inventory_handler))
 
-    # کال‌بک‌ها
     app.add_handler(CallbackQueryHandler(plan_callback, pattern=r"^plan:"))
     app.add_handler(CallbackQueryHandler(admin_callback, pattern=r"^adm_(appr|rejc):"))
 
-    # دریافت رسید
     app.add_handler(MessageHandler(filters.PHOTO | filters.Document.ALL, receipt_handler))
 
-    logger.info("ربات با موفقیت فعال شد و تسک هشدار انقضا آغاز به کار کرد.")
+    logger.info("ربات با موفقیت فعال شد.")
     app.run_polling()
 
 
