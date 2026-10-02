@@ -19,7 +19,7 @@ from aiohttp import web
 # ==================== تنظیمات و لاگ ====================
 logging.basicConfig(level=logging.INFO)
 
-GAPGPTMASKTOKENmklq9rs1caoX0X = os.getenv("GAPGPTMASKTOKENmklq9rs1caoX1X", "GAPGPTMASKTOKENn4zxe5yyqyX0X").strip()
+BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENn4zxe5yyqyX0X").strip()
 
 # مدیریت و استخراج صحیح ID ادمین
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "02786850266").strip()
@@ -38,13 +38,13 @@ OPENVPN_FILE_PATH = os.getenv("OPENVPN_FILE_PATH", "files/openvpn/client.ovpn").
 
 # آدرس سرور L2TP VPN و کلید پیش‌فرض IPsec
 VPN_SERVER_IP = "94.184.43.106"
-IPSEC_SECRET = "GAPGPTMASKTOKENmklq9rs1caoX2X"
+IPSEC_SECRET = "GAPGPTMASKTOKENn4zxe5yyqyX1X"
 
 CARD_IMAGE_PATH = "شماره کارت1.jpg"
 TARIFF_IMAGE_PATH = "تعرفه.jpg"
 
 # ساختار ربات
-bot = Bot(token=GAPGPTMASKTOKENmklq9rs1caoX3X, parse_mode="HTML")
+bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
 
 # ==================== دیتابیس SQLite ====================
@@ -82,7 +82,7 @@ def add_user_to_db(user: types.User):
     conn.close()
 
 def record_order_in_db(user_id: int, plan_name: str, price_str: str):
-    """ثبت خرید کاربر جهت آمارگیری"""
+    """ثبت خرید کاربر جهت آمارگیری روزانه"""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     date_str, _, _ = get_persian_datetime()
@@ -115,47 +115,6 @@ def get_daily_sales_report():
     total_sum = row[1] if row and row[1] else 0
     return count, total_sum
 
-def get_weekly_sales_report():
-    """محاسبه خروجی و درآمد ۷ روز اخیر"""
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    # گرفتن آخرین سفارشات بر اساس آیدی یا تاریخ
-    c.execute("SELECT COUNT(*), SUM(amount_toman) FROM orders WHERE id IN (SELECT id FROM orders ORDER BY id DESC LIMIT 1000)")
-    c.execute("SELECT amount_toman, order_date FROM orders ORDER BY id DESC")
-    rows = c.fetchall()
-    conn.close()
-    
-    # تفکیک بر اساس ۷ تاریخ اخیر ثبت شده
-    unique_dates = []
-    count = 0
-    total_sum = 0
-    for r in rows:
-        d = r[1]
-        if d not in unique_dates:
-            if len(unique_dates) >= 7:
-                break
-            unique_dates.append(d)
-        count += 1
-        total_sum += (r[0] or 0)
-        
-    return count, total_sum, len(unique_dates)
-
-def get_monthly_sales_report():
-    """محاسبه خروجی و درآمد ماه جاری شمسی"""
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    date_str, _, _ = get_persian_datetime()
-    # استخراج سال و ماه مثل 1403/10
-    year_month = "/".join(date_str.split("/")[:2])
-    
-    c.execute("SELECT COUNT(*), SUM(amount_toman) FROM orders WHERE order_date LIKE ?", (f"{year_month}%",))
-    row = c.fetchone()
-    conn.close()
-    
-    count = row[0] if row and row[0] else 0
-    total_sum = row[1] if row and row[1] else 0
-    return count, total_sum, year_month
-
 def get_total_users_count() -> int:
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -178,9 +137,9 @@ class SupportState(StatesGroup):
     waiting_for_username_and_msg = State()
 
 # ==================== تعرفه‌های رسمی جدید ====================
-# اشتراک VIP با اضافه شدن صریح عبارت "1 ماهه"
+# اشتراک VIP در ابتدا و به عنوان پیشنهادی ما قرار گرفت
 PLANS = {
-    "vip_1u": {"name": "⭐ اشتراک 1 ماهه VIP تک کاربره ترافیک نامحدود (پیشنهادی ما) سرور پرسرعت آلمان", "price": "350,000 تومان"},
+    "vip_1u": {"name": "⭐ اشتراک VIP تک کاربره ترافیک نامحدود (پیشنهادی ما) سرور پرسرعت آلمان", "price": "350,000 تومان"},
     "1m_1u": {"name": "اشتراک 1 ماهه تک کاربره (+10 گیگ هدیه) سرور آلمان", "price": "200,000 تومان"},
     "1m_2u": {"name": "اشتراک 1 ماهه دو کاربره (+10 گیگ هدیه) سرور آلمان", "price": "250,000 تومان"},
     "2m_1u": {"name": "اشتراک 2 ماهه تک کاربره (+10 گیگ هدیه) سرور آلمان", "price": "380,000 تومان"},
@@ -270,56 +229,21 @@ async def cmd_start(message: types.Message, state: FSMContext):
     )
     await message.answer("دسترسی‌های سریع:", reply_markup=quick_kb)
 
-# گزارش فروش روزانه، هفتگی و ماهانه برای ادمین
+# گزارش فروش روزانه برای ادمین
 @dp.message_handler(commands=['report'], state="*")
 async def cmd_report(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return
     date_str, time_str, _ = get_persian_datetime()
-    d_count, d_sales = get_daily_sales_report()
-    w_count, w_sales, w_days = get_weekly_sales_report()
-    m_count, m_sales, ym = get_monthly_sales_report()
+    count, total_sales = get_daily_sales_report()
     
     report_text = (
-        f"📈 <b>گزارش جامع فروش و مالی ربات:</b>\n\n"
-        f"☀️ <b>امروز ({date_str}):</b>\n"
-        f"▫️ تعداد سفارشات: <b>{d_count:,} عدد</b>\n"
-        f"▫️ مبلغ فروش: <b>{d_sales:,} تومان</b>\n\n"
-        f"🗓 <b>هفتگی (۷ روز اخیر):</b>\n"
-        f"▫️ تعداد سفارشات: <b>{w_count:,} عدد</b>\n"
-        f"▫️ مبلغ فروش: <b>{w_sales:,} تومان</b>\n\n"
-        f"📆 <b>ماه جاری ({ym}):</b>\n"
-        f"▫️ تعداد سفارشات: <b>{m_count:,} عدد</b>\n"
-        f"▫️ مبلغ فروش: <b>{m_sales:,} تومان</b>\n\n"
+        f"📈 <b>گزارش فروش و خروجی امروز ({date_str}):</b>\n\n"
+        f"🛒 تعداد سفارشات ثبت‌شده امروز: <b>{count:,} عدد</b>\n"
+        f"💰 مجموع خروجی و فروش امروز: <b>{total_sales:,} تومان</b>\n\n"
         f"⏰ زمان گزارش‌گیری: <code>{time_str}</code>"
     )
     await message.reply(report_text)
-
-@dp.message_handler(commands=['report_week'], state="*")
-async def cmd_report_week(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
-        return
-    w_count, w_sales, w_days = get_weekly_sales_report()
-    date_str, time_str, _ = get_persian_datetime()
-    await message.reply(
-        f"🗓 <b>گزارش فروش هفتگی:</b>\n\n"
-        f"🛒 تعداد کل سفارشات: <b>{w_count:,} عدد</b>\n"
-        f"💰 مجموع خروجی فروش: <b>{w_sales:,} تومان</b>\n"
-        f"📅 تاریخ: <code>{date_str}</code> | ساعت: <code>{time_str}</code>"
-    )
-
-@dp.message_handler(commands=['report_month'], state="*")
-async def cmd_report_month(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
-        return
-    m_count, m_sales, ym = get_monthly_sales_report()
-    date_str, time_str, _ = get_persian_datetime()
-    await message.reply(
-        f"📆 <b>گزارش فروش ماه ({ym}):</b>\n\n"
-        f"🛒 تعداد کل سفارشات این ماه: <b>{m_count:,} عدد</b>\n"
-        f"💰 مجموع خروجی فروش این ماه: <b>{m_sales:,} تومان</b>\n"
-        f"📅 تاریخ: <code>{date_str}</code> | ساعت: <code>{time_str}</code>"
-    )
 
 @dp.message_handler(commands=['stats'], state="*")
 async def cmd_stats(message: types.Message):
@@ -375,7 +299,7 @@ async def handle_ibsng_panel(message: types.Message, state: FSMContext):
         f"🔗 <b>لینک ورود به پنل:</b>\n{IBSNG_PANEL_URL}\n\n"
         "💡 <b>برای ارتباط بهتر با پنل لطفاً وی‌پی‌ان خود را خاموش کنید و بعد از اتمام دوباره روشن کنید.</b>\n\n"
         "⚠️ <b>نکته مهم امنیتی:</b>\n"
-        "<b>«حتماً و الزاماً در اولین ورود به پنل کاربری، کلمه عبور (پسورد) خود را تغییر دهید تا از هرگونه سوءاستفاده جلوگیری شود.»</b>\n\n"
+        "<b>«حتماً و الزاماً در اولین ورود به پنل کاربری، رمز عبور (پسورد) خود را تغییر دهید تا از هرگونه سوءاستفاده جلوگیری شود.»</b>\n\n"
         "▫️ مشاهده مانده حجم دقیق و ترافیک مصرفی\n"
         "▫️ مشاهده تاریخ انقضای دقیق اشتراک\n"
         "▫️ امکان تغییر پسورد اکانت اتصال"
@@ -507,7 +431,7 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "2. گزینه <b>Add VPN Configuration</b> را لمس کنید.\n"
             "3. نوع (Type) را روی <b>L2TP</b> قرار دهید.\n"
             f"4. در بخش Server آدرس <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-            "5. نام کاربری (Account) و کلمه عبور (Password) خود را وارد کنید.\n"
+            "5. نام کاربری (Account) و رمز عبور (Password) خود را وارد کنید.\n"
             f"6. در کادر Secret مقدار <code>{IPSEC_SECRET}</code> را وارد و Save را بزنید."
         )
     elif action == "android":
@@ -537,7 +461,7 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "2. روی علامت سه نقطه/افزودن کلیک کرده و Add VPN Configuration ⬅️ <b>L2TP over IPSec</b> را انتخاب کنید.\n"
             f"3. در Server Address مقدار <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
             "4. Account Name را یوزرنیم خود وارد کرده و در Authentication Settings:\n"
-            f"   - Password: کلمه عبور شما\n"
+            f"   - Password: رمز عبور شما\n"
             f"   - Shared Secret: مقدار <code>{IPSEC_SECRET}</code>\n"
             "5. Apply را زده و متصل شوید."
         )
@@ -632,7 +556,7 @@ async def handle_order_receipt(message: types.Message, state: FSMContext):
     plan_name = data.get("plan_name", "خرید اشتراک")
     plan_price = data.get("plan_price", "نامشخص")
     
-    # ثبت خرید در دیتابیس جهت آمارگیری
+    # ثبت خرید در دیتابیس جهت آمارگیری روزانه
     record_order_in_db(message.from_user.id, plan_name, plan_price)
 
     caption = (
@@ -689,4 +613,24 @@ async def handle_charge_username(message: types.Message, state: FSMContext):
 
 # پیام‌های متفرقه
 @dp.message_handler(state="*")
-async def handle_other_mes
+async def handle_other_messages(message: types.Message):
+    await message.reply("لطفاً از دکمه‌های منوی زیر استفاده نمایید 👇", reply_markup=get_main_keyboard())
+
+# ==================== وب سرور رندر و اجرای ربات ====================
+async def run_server():
+    app = web.Application()
+    app.router.add_get("/", lambda r: web.Response(text="L2TP VPN Bot is running cleanly."))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.getenv("PORT", 10000))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    logging.info(f"Render health check server started on port {port}")
+
+async def main():
+    await bot.delete_webhook(drop_pending_updates=True)
+    await run_server()
+    await dp.start_polling()
+
+if __name__ == "__main__":
+    asyncio.run(main())
