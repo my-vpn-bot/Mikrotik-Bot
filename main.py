@@ -19,7 +19,7 @@ from aiohttp import web
 # ==================== تنظیمات و لاگ ====================
 logging.basicConfig(level=logging.INFO)
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENt3x0nkzs2eX0X").strip()
+BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENn4zxe5yyqyX0X").strip()
 
 # مدیریت و استخراج صحیح ID ادمین
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "02786850266").strip()
@@ -38,12 +38,12 @@ OPENVPN_FILE_PATH = os.getenv("OPENVPN_FILE_PATH", "files/openvpn/client.ovpn").
 
 # آدرس سرور L2TP VPN و کلید پیش‌فرض IPsec
 VPN_SERVER_IP = "94.184.43.106"
-IPSEC_SECRET = "GAPGPTMASKTOKENt3x0nkzs2eX1X"
+IPSEC_SECRET = "GAPGPTMASKTOKENn4zxe5yyqyX1X"
 
 CARD_IMAGE_PATH = "شماره کارت1.jpg"
 TARIFF_IMAGE_PATH = "تعرفه.jpg"
 
-# ساختار صحیح و بدون SyntaxError برای aiogram
+# ساختار ربات
 bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
 
@@ -137,14 +137,15 @@ class SupportState(StatesGroup):
     waiting_for_username_and_msg = State()
 
 # ==================== تعرفه‌های رسمی جدید ====================
+# اشتراک VIP در ابتدا و به عنوان پیشنهادی ما قرار گرفت
 PLANS = {
+    "vip_1u": {"name": "⭐ اشتراک VIP تک کاربره ترافیک نامحدود (پیشنهادی ما) سرور پرسرعت آلمان", "price": "350,000 تومان"},
     "1m_1u": {"name": "اشتراک 1 ماهه تک کاربره (+10 گیگ هدیه) سرور آلمان", "price": "200,000 تومان"},
     "1m_2u": {"name": "اشتراک 1 ماهه دو کاربره (+10 گیگ هدیه) سرور آلمان", "price": "250,000 تومان"},
     "2m_1u": {"name": "اشتراک 2 ماهه تک کاربره (+10 گیگ هدیه) سرور آلمان", "price": "380,000 تومان"},
     "2m_2u": {"name": "اشتراک 2 ماهه دو کاربره (+10 گیگ هدیه) سرور آلمان", "price": "430,000 تومان"},
     "3m_1u": {"name": "اشتراک 3 ماهه تک کاربره (+10 گیگ هدیه) سرور آلمان", "price": "550,000 تومان"},
     "3m_2u": {"name": "اشتراک 3 ماهه دو کاربره (+10 گیگ هدیه) سرور آلمان", "price": "600,000 تومان"},
-    "vip_1u": {"name": "اشتراک VIP تک کاربره ترافیک نامحدود سرور پرسرعت آلمان", "price": "300,000 تومان"},
 }
 
 # ==================== تاریخ شمسی ====================
@@ -265,20 +266,8 @@ async def handle_buy(message: types.Message, state: FSMContext):
         kb.add(InlineKeyboardButton(f"🔹 {info['name']} — {info['price']}", callback_data=f"buy_{p_id}"))
     
     caption = (
-        "🛍 <b>لیست تعرفه‌های رسمی اشتراک L2TP VPN 24/7 (سرور پرسرعت آلمان 🇩🇪)</b>\n\n"
-        "🎁 <i>(تمامی پلن‌های حجمی شامل 10 گیگابایت ترافیک هدیه هستند)</i>\n\n"
-        "🔹 <b>پلن‌های یک‌ماهه:</b>\n"
-        "▫️ یک‌ماهه تک‌کاربره: <b>200,000 تومان</b>\n"
-        "▫️ یک‌ماهه دو‌کاربره: <b>250,000 تومان</b>\n\n"
-        "🔹 <b>پلن‌های دو‌ماهه:</b>\n"
-        "▫️ دو‌ماهه تک‌کاربره: <b>380,000 تومان</b>\n"
-        "▫️ دو‌ماهه دو‌کاربره: <b>430,000 تومان</b>\n\n"
-        "🔹 <b>پلن‌های سه‌ماهه:</b>\n"
-        "▫️ سه‌ماهه تک‌کاربره: <b>550,000 تومان</b>\n"
-        "▫️ سه‌ماهه دو‌کاربره: <b>600,000 تومان</b>\n\n"
-        "⭐ <b>پلن ویژه VIP:</b>\n"
-        "▫️ تک‌کاربره ترافیک نامحدود: <b>300,000 تومان</b>\n\n"
-        "👇 پلن مورد نظر خود را برای صدور فاکتور انتخاب نمایید:"
+        "🛒 <b>خرید اشتراک L2TP VPN 24/7 (سرور پرسرعت آلمان 🇩🇪)</b>\n\n"
+        "👇 <b>لطفاً پلن مورد نظر خود را از دکمه‌های زیر انتخاب نمایید:</b>"
     )
     if os.path.exists(TARIFF_IMAGE_PATH):
         await message.reply_photo(photo=InputFile(TARIFF_IMAGE_PATH), caption=caption, reply_markup=kb)
@@ -325,17 +314,9 @@ async def handle_charge(message: types.Message, state: FSMContext):
     
     caption = (
         "💰 <b>شارژ و تمدید حساب کاربری (سرور پرسرعت آلمان 🇩🇪)</b>\n\n"
-        "📋 <b>تعرفه‌های رسمی تمدید و شارژ:</b>\n"
-        "▫️ 1 ماهه تک کاربره (+10 گیگ هدیه): <b>200,000 تومان</b>\n"
-        "▫️ 1 ماهه دو کاربره (+10 گیگ هدیه): <b>250,000 تومان</b>\n"
-        "▫️ 2 ماهه تک کاربره (+10 گیگ هدیه): <b>380,000 تومان</b>\n"
-        "▫️ 2 ماهه دو کاربره (+10 گیگ هدیه): <b>430,000 تومان</b>\n"
-        "▫️ 3 ماهه تک کاربره (+10 گیگ هدیه): <b>550,000 تومان</b>\n"
-        "▫️ 3 ماهه دو کاربره (+10 گیگ هدیه): <b>600,000 تومان</b>\n"
-        "⭐ VIP تک کاربره نامحدود: <b>300,000 تومان</b>\n\n"
         f"💳 شماره کارت جهت واریز:\n<code>{CARD_NUMBER}</code>\n"
         f"👤 به نام: <b>{CARD_HOLDER}</b>\n\n"
-        "📸 لطفاً ابتدا مبلغ مورد نظر را واریز نموده و <b>تصویر فیش واریزی</b> را همین‌جا ارسال نمایید:"
+        "📸 لطفاً مبلغ اشتراک را واریز نموده و <b>تصویر فیش واریزی</b> را همین‌جا ارسال نمایید:"
     )
     if os.path.exists(CARD_IMAGE_PATH):
         await message.reply_photo(photo=InputFile(CARD_IMAGE_PATH), caption=caption, reply_markup=get_back_keyboard())
