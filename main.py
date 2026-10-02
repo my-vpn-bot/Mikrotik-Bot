@@ -8,15 +8,15 @@ from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 
-# تنظیمات لاگینگ برای ردیابی دقیق
+# تنظیمات دقیق لاگینگ
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
-# خواندن ایمن و دقیق متغیرهای محیطی از Render
-BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENoy4cm5g646bX0X")
+# خواندن متغیرهای محیطی از Render
+BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENjgv03a5lnarX0X")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "6278059256"))
 CHANNEL_URL = os.getenv("CHANNEL_URL", "https://t.me/L2tp_vpn402")
 SUPPORT_ID = os.getenv("SUPPORT_ID", "@L2tp1Support")
@@ -25,18 +25,15 @@ PAYMENT_CARD = os.getenv("PAYMENT_CARD", "6104338904607443")
 PAYMENT_NAME = os.getenv("PAYMENT_NAME", "رحیمی")
 PORT = int(os.getenv("PORT", "10000"))
 
-# راه‌اندازی ربات و دیسپچر
-bot = Bot(token=BOT_TOKEN)
+bot = Bot(token=GAPGPTMASKTOKENjgv03a5lnarX1X
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 
-# استیت‌های مربوط به خرید و ارسال فیش
 class BuyState(StatesGroup):
     waiting_for_plan = State()
     waiting_for_receipt = State()
 
-# --- کیبوردهای ربات ---
-
+# --- کیبورد اصلی (پایین صفحه) ---
 def get_main_keyboard():
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     keyboard.add(
@@ -53,6 +50,24 @@ def get_main_keyboard():
     )
     return keyboard
 
+# --- منوی اینلاین راهنمای اتصال سیستم‌عامل‌ها (دقیقاً مثل تصویر) ---
+def get_guide_inline_keyboard():
+    keyboard = InlineKeyboardMarkup(row_width=2)
+    keyboard.add(
+        InlineKeyboardButton("📱 آیفون و آیپد (iOS)", callback_data="guide_ios"),
+        InlineKeyboardButton("🤖 اندروید (Android)", callback_data="guide_android")
+    )
+    keyboard.add(
+        InlineKeyboardButton("💻 ویندوز (Windows)", callback_data="guide_windows"),
+        InlineKeyboardButton("🍏 مک‌بوک (macOS)", callback_data="guide_mac")
+    )
+    keyboard.add(
+        InlineKeyboardButton("📟 مودم و روتر", callback_data="guide_modem"),
+        InlineKeyboardButton("🛡️ آموزش OpenVPN", callback_data="guide_ovpn")
+    )
+    return keyboard
+
+# --- لیست تعرفه‌ها ---
 def get_plans_inline_keyboard():
     keyboard = InlineKeyboardMarkup(row_width=1)
     keyboard.add(
@@ -66,7 +81,6 @@ def get_plans_inline_keyboard():
     )
     return keyboard
 
-# دیکشنری مشخصات پلن‌ها
 PLANS_DATA = {
     "buy_vip_unlimited": {"title": "پلن ویژه VIP نامحدود (۱ ماهه - ۱ کاربره)", "price": "۳۵۰,۰۰۰ تومان"},
     "buy_1m_1u": {"title": "۱ ماهه تک کاربره", "price": "۲۰۰,۰۰۰ تومان"},
@@ -77,8 +91,7 @@ PLANS_DATA = {
     "buy_3m_2u": {"title": "۳ ماهه دو کاربره", "price": "۶۰۰,۰۰۰ تومان"},
 }
 
-# --- هندلرهای دستورات و پیام‌ها ---
-
+# --- پیام شروع ---
 @dp.message_handler(commands=['start'], state='*')
 async def start_cmd(message: types.Message, state: FSMContext):
     await state.finish()
@@ -90,6 +103,7 @@ async def start_cmd(message: types.Message, state: FSMContext):
     )
     await message.answer(welcome_text, reply_markup=get_main_keyboard())
 
+# --- لیست تعرفه‌ها ---
 @dp.message_handler(lambda msg: msg.text == "🚀 لیست تعرفه‌ها و امکانات", state='*')
 async def show_tariffs(message: types.Message, state: FSMContext):
     await state.finish()
@@ -102,10 +116,11 @@ async def show_tariffs(message: types.Message, state: FSMContext):
         "🔹 **۲ ماهه دو کاربره:** ۴۳۰,۰۰۰ تومان\n\n"
         "🔹 **۳ ماهه تک کاربره:** ۵۵۰,۰۰۰ تومان\n"
         "🔹 **۳ ماهه دو کاربره:** ۶۰۰,۰۰۰ تومان\n\n"
-        "🌐 سرورهای اختصاصی مستقر در کشور آلمان با بالاترین کیفیت و اتصال پایدار و بدون قطعی."
+        "🌐 سرورهای اختصاصی مستقر در کشور آلمان با بالاترین پایداری و بدون قطعی."
     )
     await message.answer(text, parse_mode="Markdown", reply_markup=get_plans_inline_keyboard())
 
+# --- خرید و پرداخت ---
 @dp.message_handler(lambda msg: msg.text == "💎 خرید و تمدید اشتراک", state='*')
 async def buy_subscription(message: types.Message, state: FSMContext):
     await state.finish()
@@ -153,7 +168,6 @@ async def process_receipt(message: types.Message, state: FSMContext):
         f"💰 مبلغ: {price}"
     )
 
-    # ارسال به ادمین
     admin_caption = f"🧾 **فیش واریزی جدید دریافت شد!**\n\n{user_info}"
     try:
         if message.photo:
@@ -168,11 +182,12 @@ async def process_receipt(message: types.Message, state: FSMContext):
     await message.answer(
         "✅ فیش واریزی شما با موفقیت برای مدیریت ارسال شد.\n"
         "⏳ اطلاعات اکانت شما پس از بررسی در سریع‌ترین زمان ممکن ارسال خواهد شد.\n\n"
-        "از شکیبایی شما سپاسگزاریم. 🙏",
+        "از صبوری شما سپاسگزاریم. 🙏",
         reply_markup=get_main_keyboard()
     )
     await state.finish()
 
+# --- پنل کاربری IBSng ---
 @dp.message_handler(lambda msg: msg.text == "📊 پنل کاربری IBSng", state='*')
 async def ibsng_panel(message: types.Message, state: FSMContext):
     await state.finish()
@@ -186,27 +201,81 @@ async def ibsng_panel(message: types.Message, state: FSMContext):
     keyboard.add(InlineKeyboardButton("🌐 ورود مستقیم به پنل", url=IBSNG_PANEL_URL))
     await message.answer(text, parse_mode="Markdown", reply_markup=keyboard)
 
+# --- راهنمای جامع اتصال و انتخاب دیوایس ---
 @dp.message_handler(lambda msg: msg.text == "📱 راهنمای اتصال", state='*')
-async def connection_guide(message: types.Message, state: FSMContext):
+async def connection_guide_menu(message: types.Message, state: FSMContext):
     await state.finish()
-    guide_text = (
-        "📚 **راهنمای جامع اتصال به سرویس‌های L2TP:**\n\n"
-        "این پروتکل به صورت پیش‌فرض و نیتیو (بدون نیاز به نصب نرم‌افزار اضافی) در انواع سیستم‌عامل‌ها پشتیبانی می‌شود:\n\n"
-        "🔹 **ویندوز و لپ‌تاپ:** از مسیر Settings > Network & Internet > VPN اقدام به ساخت کانکشن L2TP/IPsec با پیش‌کلید (Preshared Key) نمایید.\n"
-        "🔹 **گوشی‌های موبایل (iOS و Android):** در بخش تنظیمات VPN، پروتکل L2TP یا IKEv2 را انتخاب و اطلاعات ارسال‌شده را وارد کنید.\n"
-        "🔹 **مودم‌ها و روترها:** در کنسول مدیریتی مودم، در بخش VPN Client تنظیمات L2TP را وارد کرده تا تمام اینترنت منزل/محل‌کار از سرور اختصاصی آلمان عبور کند.\n\n"
-        f"در صورت نیاز به راهنمایی گام‌به‌گام با پشتیبانی در ارتباط باشید: {SUPPORT_ID}"
+    text = (
+        "📱 **راهنمای جامع اتصال به سرویس‌ها:**\n\n"
+        "لطفاً دستگاه یا سیستم‌عامل مورد نظر خود را برای مشاهده آموزش گام‌به‌گام انتخاب کنید:"
     )
-    await message.answer(guide_text, parse_mode="Markdown")
+    await message.answer(text, parse_mode="Markdown", reply_markup=get_guide_inline_keyboard())
 
+# دکمه‌های اینلاین راهنما
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith("guide_"), state='*')
+async def process_guides(callback: types.CallbackQuery):
+    action = callback.data
+    
+    if action == "guide_ios":
+        guide_msg = (
+            "📱 **آموزش اتصال در آیفون و آیپد (iOS):**\n\n"
+            "۱. وارد `Settings` و سپس بخش `VPN & Device Management` شوید.\n"
+            "۲. گزینه `Add VPN Configuration` را انتخاب کنید.\n"
+            "۳. نوع اتصال (`Type`) را روی **L2TP** بگذارید.\n"
+            "۴. مشخصات (Server، Username، Password و Secret) ارسال‌شده را وارد کرده و Save کنید.\n"
+            "۵. دکمه اتصال را روشن نمایید."
+        )
+    elif action == "guide_android":
+        guide_msg = (
+            "🤖 **آموزش اتصال در اندروید (Android):**\n\n"
+            "۱. به تنظیمات گوشی (Settings) و بخش اتصالات (Connections > More connection settings > VPN) بروید.\n"
+            "۲. افزودن VPN جدید را بزنید و نوع اتصال را **L2TP/IPSec PSK** انتخاب کنید.\n"
+            "۳. آدرس سرور و پیش‌کلید (Preshared Key) را وارد کنید.\n"
+            "۴. نام کاربری و پسورد خود را ثبت و متصل شوید."
+        )
+    elif action == "guide_windows":
+        guide_msg = (
+            "💻 **آموزش اتصال در ویندوز (Windows):**\n\n"
+            "۱. وارد Settings > Network & Internet > VPN شوید.\n"
+            "۲. گزینه Add a VPN connection را بزنید.\n"
+            "۳. VPN Provider را روی Windows (built-in) و نوع را روی **L2TP/IPsec with pre-shared key** قرار دهید.\n"
+            "۴. مشخصات دریافتی را وارد کرده و ذخیره نمایید."
+        )
+    elif action == "guide_mac":
+        guide_msg = (
+            "🍏 **آموزش اتصال در مک‌بوک (macOS):**\n\n"
+            "۱. وارد System Settings > Network شوید.\n"
+            "۲. روی علامت سه نقطه/افزودن کلیک کرده و Add VPN Configuration > L2TP over IPSec را بزنید.\n"
+            "۳. آدرس سرور، نام کاربری و در بخش Authentication Settings پسورد و Shared Secret را درج نمایید."
+        )
+    elif action == "guide_modem":
+        guide_msg = (
+            "📟 **آموزش تنظیم روی مودم و روتر:**\n\n"
+            "۱. وارد صفحه کنسول مدیریتی مودم (معمولاً 192.168.1.1) شوید.\n"
+            "۲. به بخش VPN یا VPN Client بروید.\n"
+            "۳. پروتکل L2TP را انتخاب و آدرس سرور اختصاصی و اطلاعات اکانت را وارد کرده و فعال کنید تا تمام اینترنت شبکه شما تانل شود."
+        )
+    elif action == "guide_ovpn":
+        guide_msg = (
+            "🛡️ **آموزش اتصال با OpenVPN:**\n\n"
+            "۱. اپلیکیشن رسمی OpenVPN Connect را دانلود و نصب کنید.\n"
+            "۲. فایل کانفیگ اختصاصی ارسالی را در برنامه Import کنید.\n"
+            "۳. یوزرنیم و پسورد خود را وارد کرده و متصل شوید."
+        )
+    else:
+        guide_msg = "اطلاعات راهنما در دسترس نیست."
+
+    await callback.message.answer(guide_msg, parse_mode="Markdown")
+    await callback.answer()
+
+# --- پشتیبانی و کانال ---
 @dp.message_handler(lambda msg: msg.text == "💬 پشتیبانی و ارتباط با ما", state='*')
 async def support_info(message: types.Message, state: FSMContext):
     await state.finish()
     text = (
         "👨‍💻 **مرکز پشتیبانی و ارتباط مستقیم:**\n\n"
-        f"جهت طرح هرگونه سوال، مشاوره یا رفع اشکال با آیدی پشتیبانی در ارتباط باشید:\n"
-        f"👉 {SUPPORT_ID}\n\n"
-        "پاسخگویی در کوتاه‌ترین زمان ممکن صورت می‌گیرد."
+        f"جهت طرح هرگونه سوال، راهنمایی یا پیگیری با آیدی پشتیبانی در ارتباط باشید:\n"
+        f"👉 {SUPPORT_ID}"
     )
     keyboard = InlineKeyboardMarkup()
     keyboard.add(InlineKeyboardButton("ارسال پیام به پشتیبانی", url=f"https://t.me/{SUPPORT_ID.replace('@', '')}"))
@@ -216,14 +285,14 @@ async def support_info(message: types.Message, state: FSMContext):
 async def channel_info(message: types.Message, state: FSMContext):
     await state.finish()
     text = (
-        "📢 برای دریافت آخرین اخبار، وضعیت سرورها و اطلاعیه‌ها در کانال رسمی ما عضو شوید:\n\n"
+        "📢 برای دریافت آخرین وضعیت سرورها، اخبار و تخفیف‌ها در کانال رسمی ما عضو شوید:\n\n"
         f"🔗 [کانال رسمی اطلاع‌رسانی]({CHANNEL_URL})"
     )
     keyboard = InlineKeyboardMarkup()
     keyboard.add(InlineKeyboardButton("عضویت در کانال", url=CHANNEL_URL))
     await message.answer(text, reply_markup=keyboard)
 
-# سرور وب برای زنده نگه داشتن سرویس روی Render (Health Check)
+# سرور وب برای Health Check در Render
 async def handle_ping(request):
     return web.Response(text="Bot is running smoothly on German Servers!")
 
