@@ -37,7 +37,7 @@ IBSNG_PANEL_URL = os.getenv("IBSNG_PANEL_URL", "http://94.184.45.58:48201/IBSng/
 OPENVPN_FILE_PATH = os.getenv("OPENVPN_FILE_PATH", "files/openvpn/client.ovpn").strip()
 
 VPN_SERVER_IP = "94.184.43.106"
-IPSEC_SECRET = "12345678."
+IPSEC_SECRET = "GAPGPTMASKTOKENjwwyfjutqycX0X"
 
 CARD_IMAGE_PATH = "شماره کارت1.jpg"
 TARIFF_IMAGE_PATH = "تعرفه.jpg"
@@ -95,8 +95,9 @@ class CompensationState(StatesGroup):
 class SupportState(StatesGroup):
     waiting_for_username_and_msg = State()
 
-# ==================== تعرفه‌های رسمی جدید ====================
+# ==================== تعرفه‌های رسمی جدید (شامل پلن VIP) ====================
 PLANS = {
+    "vip_unlimited": {"name": "اشتراک ویژه نامحدود VIP (1 ماهه تک کاربره)", "price": "350,000 تومان"},
     "1m_1u": {"name": "اشتراک 1 ماهه (تک کاربره + 10 گیگ هدیه)", "price": "200,000 تومان"},
     "1m_2u": {"name": "اشتراک 1 ماهه (دو کاربره + 10 گیگ هدیه)", "price": "250,000 تومان"},
     "2m_1u": {"name": "اشتراک 2 ماهه (تک کاربره + 10 گیگ هدیه)", "price": "380,000 تومان"},
