@@ -22,9 +22,9 @@ logging.basicConfig(level=logging.INFO)
 BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN").strip()
 
 # رفع خطای اعداد با پیشوند صفر
-ADMIN_ID_RAW = os.getenv("ADMIN_ID", "6278859256").strip()
+ADMIN_ID_RAW = os.getenv("ADMIN_ID", "02786850266").strip()
 clean_admin_id = ADMIN_ID_RAW.lstrip('0')
-ADMIN_ID = int(clean_admin_id) if clean_admin_id.isdigit() else 6278859256
+ADMIN_ID = int(clean_admin_id) if clean_admin_id.isdigit() else 2786850266
 
 SUPPORT_ID = os.getenv("SUPPORT_ID", "L2tp1Support").strip().replace("@", "")
 SUPPORT_URL = f"https://t.me/{SUPPORT_ID}"
@@ -34,9 +34,10 @@ CHANNEL_URL = os.getenv("CHANNEL_URL", "https://t.me/L2tp_vpn402").strip()
 CARD_NUMBER = os.getenv("PAYMENT_CARD", "6104338904607443").strip()
 CARD_HOLDER = os.getenv("PAYMENT_NAME", "رحیمی").strip()
 IBSNG_PANEL_URL = os.getenv("IBSNG_PANEL_URL", "http://94.184.45.58:48201/IBSng/user/").strip()
+OPENVPN_FILE_PATH = os.getenv("OPENVPN_FILE_PATH", "files/openvpn/client.ovpn").strip()
 
 VPN_SERVER_IP = "94.184.43.106"
-IPSEC_SECRET = "123456789"
+IPSEC_SECRET = "12345678."
 
 CARD_IMAGE_PATH = "شماره کارت1.jpg"
 TARIFF_IMAGE_PATH = "تعرفه.jpg"
@@ -93,6 +94,7 @@ class SupportState(StatesGroup):
 
 # ==================== تعرفه‌ها ====================
 PLANS = {
+    "vip_unlimited": {"name": "🌟 پیشنهاد طلایی: 1 ماهه نامحدود (تک کاربره)", "price": "350,000 تومان"},
     "1m_1u": {"name": "اشتراک 1 ماهه (تک کاربره + 10 گیگ هدیه)", "price": "200,000 تومان"},
     "1m_2u": {"name": "اشتراک 1 ماهه (دو کاربره + 10 گیگ هدیه)", "price": "250,000 تومان"},
     "2m_1u": {"name": "اشتراک 2 ماهه (تک کاربره + 10 گیگ هدیه)", "price": "380,000 تومان"},
@@ -203,8 +205,10 @@ async def handle_buy(message: types.Message, state: FSMContext):
         kb.add(InlineKeyboardButton(f"🔹 {info['name']} — {info['price']}", callback_data=f"buy_{p_id}"))
     
     caption = (
-        "🛍 <b>لیست تعرفه‌های رسمی اشتراک L2TP VPN 24/7</b>\n"
-        "🎁 <i>(تمامی پلن‌ها شامل 10 گیگابایت ترافیک هدیه هستند)</i>\n\n"
+        "🛍 <b>لیست تعرفه‌های رسمی اشتراک L2TP VPN 24/7</b>\n\n"
+        "🔥 <b>پیشنهاد طلایی (ظرفیت بسیار محدود):</b>\n"
+        "🌟 <b>یک‌ماهه نامحدود VIP (تک کاربره):</b> <b>350,000 تومان</b>\n\n"
+        "🎁 <i>(سایر پلن‌ها شامل 10 گیگابایت ترافیک هدیه هستند)</i>\n\n"
         "🔹 <b>پلن‌های یک‌ماهه:</b>\n"
         "▫️ یک‌ماهه تک‌کاربره: <b>200,000 تومان</b>\n"
         "▫️ یک‌ماهه دو‌کاربره: <b>250,000 تومان</b>\n\n"
@@ -261,13 +265,14 @@ async def handle_charge(message: types.Message, state: FSMContext):
     
     caption = (
         "💰 <b>شارژ و تمدید حساب کاربری</b>\n\n"
-        "📋 <b>تعرفه‌های رسمی تمدید و شارژ (شامل 10 گیگ هدیه):</b>\n"
-        "▫️ 1 ماهه تک کاربره: <b>200,000 تومان</b>\n"
-        "▫️ 1 ماهه دو کاربره: <b>250,000 تومان</b>\n"
-        "▫️ 2 ماهه تک کاربره: <b>380,000 تومان</b>\n"
-        "▫️ 2 ماهه دو کاربره: <b>430,000 تومان</b>\n"
-        "▫️ 3 ماهه تک کاربره: <b>550,000 تومان</b>\n"
-        "▫️ 3 ماهه دو کاربره: <b>600,000 تومان</b>\n\n"
+        "📋 <b>تعرفه‌های رسمی تمدید و شارژ:</b>\n"
+        "🌟 پیشنهاد طلایی نامحدود (تک‌کاربره): <b>350,000 تومان</b>\n"
+        "▫️ 1 ماهه تک کاربره (+10G هدیه): <b>200,000 تومان</b>\n"
+        "▫️ 1 ماهه دو کاربره (+10G هدیه): <b>250,000 تومان</b>\n"
+        "▫️ 2 ماهه تک کاربره (+10G هدیه): <b>380,000 تومان</b>\n"
+        "▫️ 2 ماهه دو کاربره (+10G هدیه): <b>430,000 تومان</b>\n"
+        "▫️ 3 ماهه تک کاربره (+10G هدیه): <b>550,000 تومان</b>\n"
+        "▫️ 3 ماهه دو کاربره (+10G هدیه): <b>600,000 تومان</b>\n\n"
         f"💳 شماره کارت جهت واریز:\n<code>{CARD_NUMBER}</code>\n"
         f"👤 به نام: <b>{CARD_HOLDER}</b>\n\n"
         "📸 لطفاً ابتدا مبلغ مورد نظر را واریز نموده و <b>تصویر فیش واریزی</b> را همین‌جا ارسال نمایید:"
@@ -338,12 +343,18 @@ def get_faq_main_kb():
     )
     ikb.row(
         InlineKeyboardButton("📶 مودم و روتر", callback_data="faq_router"),
-        InlineKeyboardButton("🛡 فایل و آموزش OpenVPN", callback_data="faq_openvpn")
+        InlineKeyboardButton("🛡 آموزش و دانلود OpenVPN", callback_data="faq_openvpn")
     )
     return ikb
 
 def get_faq_sub_kb():
     ikb = InlineKeyboardMarkup(row_width=1)
+    ikb.add(InlineKeyboardButton("🔙 بازگشت به منوی سوالات متداول", callback_data="faq_home"))
+    return ikb
+
+def get_openvpn_kb():
+    ikb = InlineKeyboardMarkup(row_width=1)
+    ikb.add(InlineKeyboardButton("📥 دانلود مستقیم فایل کانفیگ (client.ovpn)", callback_data="dl_openvpn"))
     ikb.add(InlineKeyboardButton("🔙 بازگشت به منوی سوالات متداول", callback_data="faq_home"))
     return ikb
 
@@ -370,6 +381,8 @@ async def callback_faq_navigation(query: types.CallbackQuery):
         return
 
     text = ""
+    reply_markup = get_faq_sub_kb()
+
     if action == "ios":
         text = (
             "📱 <b>راهنمای اتصال در آیفون و آیپد (Apple iOS):</b>\n\n"
@@ -378,7 +391,7 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "3. نوع (Type) را روی <b>L2TP</b> قرار دهید.\n"
             f"4. در بخش Server آدرس <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
             "5. نام کاربری (Account) و رمز عبور (Password) خود را وارد کنید.\n"
-            f"6. در کادر Secret مقدار <code>{IPSEC_SECRET}</code> را وارد و Save را بزنید."
+            f"6. در کادر Secret عبارت <code>{IPSEC_SECRET}</code> را وارد و Save را بزنید."
         )
     elif action == "android":
         text = (
@@ -386,8 +399,8 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "1. وارد تنظیمات گوشی ⬅️ اتصالات (Connections) ⬅️ تنظیمات بیشتر ⬅️ VPN شوید.\n"
             "2. علامت + یا سه نقطه بالا را زده و <b>Add VPN Profile</b> را انتخاب کنید.\n"
             "3. نوع (Type) را روی <b>L2TP/IPSec PSK</b> قرار دهید.\n"
-            f"4. در Server address مقدار <code>{VPN_SERVER_IP}</code> را بنویسید.\n"
-            f"5. در کادر IPSec pre-shared key مقدار <code>{IPSEC_SECRET}</code> را وارد کنید.\n"
+            f"4. در Server address عبارت <code>{VPN_SERVER_IP}</code> را بنویسید.\n"
+            f"5. در کادر IPSec pre-shared key عبارت <code>{IPSEC_SECRET}</code> را وارد کنید.\n"
             "6. ذخیره کرده و هنگام اتصال یوزرنیم و پسورد خود را بزنید."
         )
     elif action == "windows":
@@ -396,8 +409,8 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "1. وارد Settings ⬅️ Network & Internet ⬅️ VPN شده و Add VPN را بزنید.\n"
             "2. VPN Provider را روی <b>Windows (built-in)</b> بگذارید.\n"
             "3. VPN Type را روی <b>L2TP/IPsec with pre-shared key</b> تنظیم کنید.\n"
-            f"4. در Server name or address مقدار <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-            f"5. در Pre-shared key مقدار <code>{IPSEC_SECRET}</code> را بنویسید.\n"
+            f"4. در Server name or address عبارت <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
+            f"5. در Pre-shared key عبارت <code>{IPSEC_SECRET}</code> را بنویسید.\n"
             "6. یوزرنیم و پسورد اکانت را وارد کرده و Save و Connect را بزنید."
         )
     elif action == "mac":
@@ -405,10 +418,10 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "🍏 <b>راهنمای اتصال در مک‌بوک (macOS):</b>\n\n"
             "1. وارد System Settings ⬅️ Network شوید.\n"
             "2. روی علامت سه نقطه/افزودن کلیک کرده و Add VPN Configuration ⬅️ <b>L2TP over IPSec</b> را انتخاب کنید.\n"
-            f"3. در Server Address مقدار <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
+            f"3. در Server Address عبارت <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
             "4. Account Name را یوزرنیم خود وارد کرده و در Authentication Settings:\n"
             f"   - Password: رمز عبور شما\n"
-            f"   - Shared Secret: مقدار <code>{IPSEC_SECRET}</code>\n"
+            f"   - Shared Secret: عبارت <code>{IPSEC_SECRET}</code>\n"
             "5. Apply را زده و متصل شوید."
         )
     elif action == "router":
@@ -423,32 +436,51 @@ async def callback_faq_navigation(query: types.CallbackQuery):
     elif action == "openvpn":
         text = (
             "🛡 <b>راهنما و فایل کانفیگ OpenVPN:</b>\n\n"
-            "1. برنامه <b>OpenVPN Connect</b> یا <b>OpenVPN for Android</b> را نصب کنید.\n"
-            "2. فایل کانفیگ رسمی <code>.ovpn</code> را از کانال رسمی ما دانلود و در برنامه وارد (Import) نمایید.\n"
-            "3. نام کاربری و رمز عبور اشتراک خود را وارد کرده و متصل شوید.\n\n"
-            f"📢 جهت دانلود آخرین نسخه فایل کانفیگ وارد کانال شوید:\n{CHANNEL_URL}"
+            "1. برنامه <b>OpenVPN Connect</b> را از استور گوشی یا سایت رسمی نصب کنید.\n"
+            "2. روی دکمه زیر کلیک کرده و فایل کانفیگ رسمی <code>client.ovpn</code> را دانلود کنید.\n"
+            "3. فایل را در برنامه OpenVPN وارد (Import) نمایید.\n"
+            "4. یوزرنیم و پسورد اکانت خود را وارد کرده و متصل شوید."
         )
+        reply_markup = get_openvpn_kb()
 
-    await query.message.edit_text(text, reply_markup=get_faq_sub_kb())
+    await query.message.edit_text(text, reply_markup=reply_markup)
     await query.answer()
+
+# ==================== ارسال فایل کانفیگ OpenVPN ====================
+@dp.callback_query_handler(lambda c: c.data == "dl_openvpn", state="*")
+async def callback_download_openvpn(query: types.CallbackQuery):
+    if os.path.exists(OPENVPN_FILE_PATH):
+        await query.answer("در حال ارسال فایل کانفیگ OpenVPN...")
+        caption = (
+            "📥 <b>فایل کانفیگ اختصاصی OpenVPN</b>\n\n"
+            "▫️ فایل بالا را دانلود کرده و با برنامه <b>OpenVPN Connect</b> باز کنید.\n"
+            "▫️ سپس یوزرنیم و پسورد اشتراک خود را وارد کرده و متصل شوید.\n\n"
+            f"📢 کانال رسمی: {CHANNEL_URL}"
+        )
+        await bot.send_document(
+            chat_id=query.message.chat.id,
+            document=InputFile(OPENVPN_FILE_PATH),
+            caption=caption
+        )
+    else:
+        await query.answer("⚠️ فایل کانفیگ در سرور یافت نشد. لطفاً به پشتیبانی پیام دهید.", show_alert=True)
 
 # ==================== آموزش اتصال ====================
 @dp.message_handler(lambda m: m.text == "⚙️ کانفیگ‌ها و آموزش اتصال", state="*")
 async def handle_configs(message: types.Message, state: FSMContext):
     await state.finish()
     kb = InlineKeyboardMarkup(row_width=1)
+    kb.add(InlineKeyboardButton("📥 دانلود مستقیم فایل کانفیگ OpenVPN", callback_data="dl_openvpn"))
     kb.add(InlineKeyboardButton("📢 ورود به کانال آموزش‌ها و کانفیگ‌ها", url=CHANNEL_URL))
     
     text = (
-        "⚙️ <b>آموزش اتصال به پروتکل L2TP/IPSec:</b>\n\n"
-        f"🌐 <b>Server:</b> <code>{VPN_SERVER_IP}</code>\n"
-        f"🔑 <b>Secret / Pre-Shared Key:</b> <code>{IPSEC_SECRET}</code>\n\n"
-        "📱 <b>آیفون و اندروید:</b> وارد تنظیمات VPN شده، نوع L2TP را انتخاب و اطلاعات بالا را وارد نمایید.\n"
-        "💻 <b>ویندوز و مودم:</b> نوع اتصال را L2TP with Pre-Shared Key تنظیم فرمایید.\n\n"
-        "فایل‌های کامل و ویدیوهای آموزشی در کانال رسمی قرار دارند:"
+        "⚙️ <b>مشخصات و آموزش اتصال:</b>\n\n"
+        f"🌐 <b>Server Address:</b> <code>{VPN_SERVER_IP}</code>\n"
+        f"🔑 <b>IPSec Secret / PSK:</b> <code>{IPSEC_SECRET}</code>\n\n"
+        "📱 <b>پروتکل L2TP/IPSec:</b> بدون نیاز به نصب نرم‌افزار روی تمامی سیستم‌عامل‌ها و مودم‌ها.\n"
+        "🛡 <b>پروتکل OpenVPN:</b> جهت دریافت آنی فایل تنظیمات دکمه زیر را بزنید:\n"
     )
     await message.reply(text, reply_markup=kb)
-    await message.answer("جهت برگشت به منو دکمه زیر را بزنید:", reply_markup=get_back_keyboard())
 
 # ==================== کال‌بک خرید و دریافت فیش ====================
 @dp.callback_query_handler(lambda c: c.data.startswith("buy_"), state="*")
