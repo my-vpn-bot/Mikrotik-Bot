@@ -19,7 +19,7 @@ from aiohttp import web
 # ==================== تنظیمات و لاگ ====================
 logging.basicConfig(level=logging.INFO)
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "7718029969:AAF-cQ3i8nN6o6Vb0rG13Jd6yZ_v2g9_p0w").strip()
+BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN").strip()
 
 # رفع خطای اعداد با پیشوند صفر
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "6278859256").strip()
@@ -36,7 +36,7 @@ CARD_HOLDER = os.getenv("PAYMENT_NAME", "رحیمی").strip()
 IBSNG_PANEL_URL = os.getenv("IBSNG_PANEL_URL", "http://94.184.45.58:48201/IBSng/user/").strip()
 
 VPN_SERVER_IP = "94.184.43.106"
-IPSEC_SECRET = "12345678."
+IPSEC_SECRET = "123456789"
 
 CARD_IMAGE_PATH = "شماره کارت1.jpg"
 TARIFF_IMAGE_PATH = "تعرفه.jpg"
@@ -325,56 +325,112 @@ async def process_support_input(message: types.Message, state: FSMContext):
     )
     await state.finish()
 
-# ==================== سوالات متداول و راهنمای جامع اتصال ====================
+# ==================== سوالات متداول شیشه‌ای (Inline FAQ) ====================
+def get_faq_main_kb():
+    ikb = InlineKeyboardMarkup(row_width=2)
+    ikb.row(
+        InlineKeyboardButton("📱 آیفون و آیپد (iOS)", callback_data="faq_ios"),
+        InlineKeyboardButton("🤖 اندروید (Android)", callback_data="faq_android")
+    )
+    ikb.row(
+        InlineKeyboardButton("💻 ویندوز (Windows)", callback_data="faq_windows"),
+        InlineKeyboardButton("🍏 مک‌بوک (macOS)", callback_data="faq_mac")
+    )
+    ikb.row(
+        InlineKeyboardButton("📶 مودم و روتر", callback_data="faq_router"),
+        InlineKeyboardButton("🛡 فایل و آموزش OpenVPN", callback_data="faq_openvpn")
+    )
+    return ikb
+
+def get_faq_sub_kb():
+    ikb = InlineKeyboardMarkup(row_width=1)
+    ikb.add(InlineKeyboardButton("🔙 بازگشت به منوی سوالات متداول", callback_data="faq_home"))
+    return ikb
+
+FAQ_MAIN_TEXT = (
+    "❓ <b>پاسخ به سوالات متداول و راهنمای جامع اتصال L2TP/IPSec</b>\n\n"
+    "⚡️ <b>مشخصات عمومی سرور:</b>\n"
+    f"▫️ آدرس سرور (Server Address): <code>{VPN_SERVER_IP}</code>\n"
+    f"▫️ کلید امنیتی (IPsec Secret / Pre-Shared Key): <code>{IPSEC_SECRET}</code>\n\n"
+    "👇 <b>سیستم‌عامل یا موضوع مورد نظر خود را انتخاب نمایید:</b>"
+)
+
 @dp.message_handler(lambda m: m.text == "❓ سوالات متداول", state="*")
 async def handle_faq(message: types.Message, state: FSMContext):
     await state.finish()
-    text = (
-        "❓ <b>پاسخ به سوالات متداول و راهنمای جامع اتصال L2TP/IPSec</b>\n\n"
-        "⚡️ <b>مشخصات عمومی سرور:</b>\n"
-        f"▫️ آدرس سرور (Server Address): <code>{VPN_SERVER_IP}</code>\n"
-        f"▫️ کلید امنیتی (IPsec Secret / Pre-Shared Key): <code>{IPSEC_SECRET}</code>\n\n"
-        "━━━━━━━━━━━━━━━━━━━\n"
-        "📱 <b>۱. راهنمای اتصال در آیفون و آیپد (Apple iOS):</b>\n"
-        "1. وارد Settings ⬅️ General ⬅️ VPN & Device Management ⬅️ VPN شوید.\n"
-        "2. گزینه Add VPN Configuration را لمس کنید.\n"
-        "3. نوع (Type) را روی <b>L2TP</b> قرار دهید.\n"
-        f"4. در بخش Server آدرس <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-        "5. نام کاربری (Account) و رمز عبور (Password) خود را وارد کنید.\n"
-        f"6. در کادر Secret مقدار <code>{IPSEC_SECRET}</code> را وارد و Save را بزنید.\n\n"
-        "🤖 <b>۲. راهنمای اتصال در اندروید (Android):</b>\n"
-        "1. وارد تنظیمات گوشی ⬅️ اتصالات (Connections) ⬅️ تنظیمات بیشتر (More connection settings) ⬅️ VPN شوید.\n"
-        "2. علامت + یا سه نقطه بالا را زده و Add VPN Profile را انتخاب کنید.\n"
-        "3. نوع (Type) را روی <b>L2TP/IPSec PSK</b> قرار دهید.\n"
-        f"4. در Server address مقدار <code>{VPN_SERVER_IP}</code> را بنویسید.\n"
-        f"5. در کادر IPSec pre-shared key مقدار <code>{IPSEC_SECRET}</code> را وارد کنید.\n"
-        "6. ذخیره کرده و هنگام اتصال یوزرنیم و پسورد خود را بزنید.\n\n"
-        "💻 <b>۳. راهنمای اتصال در ویندوز (Windows 10 / 11):</b>\n"
-        "1. وارد Settings ⬅️ Network & Internet ⬅️ VPN شده و Add VPN را بزنید.\n"
-        "2. VPN Provider را روی Windows (built-in) بگذارید.\n"
-        "3. VPN Type را روی <b>L2TP/IPsec with pre-shared key</b> تنظیم کنید.\n"
-        f"4. در Server name or address مقدار <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-        f"5. در Pre-shared key مقدار <code>{IPSEC_SECRET}</code> را بنویسید.\n"
-        "6. یوزرنیم و پسورد اکانت را وارد کرده و Save و Connect را بزنید.\n\n"
-        "🍏 <b>۴. راهنمای اتصال در مک‌بوک (macOS):</b>\n"
-        "1. وارد System Settings ⬅️ Network شوید.\n"
-        "2. روی علامت سه نقطه/افزودن کلیک کرده و Add VPN Configuration ⬅️ <b>L2TP over IPSec</b> را انتخاب کنید.\n"
-        f"3. در Server Address مقدار <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-        "4. Account Name را یوزرنیم خود وارد کرده و در Authentication Settings:\n"
-        f"   - Password: رمز عبور شما\n"
-        f"   - Shared Secret: مقدار <code>{IPSEC_SECRET}</code>\n"
-        "5. Apply را زده و متصل شوید.\n\n"
-        "📶 <b>۵. راهنمای تنظیم روی انواع مودم و روتر (Router / Modem):</b>\n"
-        "1. وارد پنل وب مودم (معمولاً 192.168.1.1 یا 192.168.8.1) شوید.\n"
-        "2. به منوی VPN ⬅️ L2TP Client بروید.\n"
-        "3. وضعیت را Enabled کرده، Protocol را روی L2TP قرار دهید.\n"
-        f"4. در فیلد LNS Address / Server آدرس <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-        "5. یوزرنیم و پسورد اکانت را وارد کرده و ذخیره نمایید.\n\n"
-        "━━━━━━━━━━━━━━━━━━━\n"
-        "🔐 <b>تغییر پسورد در اولین ورود:</b> حتماً در اولین ورود به پنل IBSng پسورد خود را تغییر دهید.\n"
-        "🔄 <b>طرح جبرانی مشترکین قدیمی:</b> با ارسال یوزرنیم و فیش قبلی، اکانت با دوره کامل و ۱۰ گیگ هدیه فعال می‌گردد."
-    )
-    await message.reply(text, reply_markup=get_back_keyboard())
+    await message.reply(FAQ_MAIN_TEXT, reply_markup=get_faq_main_kb())
+
+@dp.callback_query_handler(lambda c: c.data.startswith("faq_"), state="*")
+async def callback_faq_navigation(query: types.CallbackQuery):
+    action = query.data.replace("faq_", "")
+    
+    if action == "home":
+        await query.message.edit_text(FAQ_MAIN_TEXT, reply_markup=get_faq_main_kb())
+        await query.answer()
+        return
+
+    text = ""
+    if action == "ios":
+        text = (
+            "📱 <b>راهنمای اتصال در آیفون و آیپد (Apple iOS):</b>\n\n"
+            "1. وارد Settings ⬅️ General ⬅️ VPN & Device Management ⬅️ VPN شوید.\n"
+            "2. گزینه <b>Add VPN Configuration</b> را لمس کنید.\n"
+            "3. نوع (Type) را روی <b>L2TP</b> قرار دهید.\n"
+            f"4. در بخش Server آدرس <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
+            "5. نام کاربری (Account) و رمز عبور (Password) خود را وارد کنید.\n"
+            f"6. در کادر Secret مقدار <code>{IPSEC_SECRET}</code> را وارد و Save را بزنید."
+        )
+    elif action == "android":
+        text = (
+            "🤖 <b>راهنمای اتصال در اندروید (Android):</b>\n\n"
+            "1. وارد تنظیمات گوشی ⬅️ اتصالات (Connections) ⬅️ تنظیمات بیشتر ⬅️ VPN شوید.\n"
+            "2. علامت + یا سه نقطه بالا را زده و <b>Add VPN Profile</b> را انتخاب کنید.\n"
+            "3. نوع (Type) را روی <b>L2TP/IPSec PSK</b> قرار دهید.\n"
+            f"4. در Server address مقدار <code>{VPN_SERVER_IP}</code> را بنویسید.\n"
+            f"5. در کادر IPSec pre-shared key مقدار <code>{IPSEC_SECRET}</code> را وارد کنید.\n"
+            "6. ذخیره کرده و هنگام اتصال یوزرنیم و پسورد خود را بزنید."
+        )
+    elif action == "windows":
+        text = (
+            "💻 <b>راهنمای اتصال در ویندوز (Windows 10 / 11):</b>\n\n"
+            "1. وارد Settings ⬅️ Network & Internet ⬅️ VPN شده و Add VPN را بزنید.\n"
+            "2. VPN Provider را روی <b>Windows (built-in)</b> بگذارید.\n"
+            "3. VPN Type را روی <b>L2TP/IPsec with pre-shared key</b> تنظیم کنید.\n"
+            f"4. در Server name or address مقدار <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
+            f"5. در Pre-shared key مقدار <code>{IPSEC_SECRET}</code> را بنویسید.\n"
+            "6. یوزرنیم و پسورد اکانت را وارد کرده و Save و Connect را بزنید."
+        )
+    elif action == "mac":
+        text = (
+            "🍏 <b>راهنمای اتصال در مک‌بوک (macOS):</b>\n\n"
+            "1. وارد System Settings ⬅️ Network شوید.\n"
+            "2. روی علامت سه نقطه/افزودن کلیک کرده و Add VPN Configuration ⬅️ <b>L2TP over IPSec</b> را انتخاب کنید.\n"
+            f"3. در Server Address مقدار <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
+            "4. Account Name را یوزرنیم خود وارد کرده و در Authentication Settings:\n"
+            f"   - Password: رمز عبور شما\n"
+            f"   - Shared Secret: مقدار <code>{IPSEC_SECRET}</code>\n"
+            "5. Apply را زده و متصل شوید."
+        )
+    elif action == "router":
+        text = (
+            "📶 <b>راهنمای تنظیم روی انواع مودم و روتر (Router / Modem):</b>\n\n"
+            "1. وارد پنل وب مودم (معمولاً 192.168.1.1 یا 192.168.8.1) شوید.\n"
+            "2. به منوی VPN ⬅️ L2TP Client بروید.\n"
+            "3. وضعیت را Enabled کرده، Protocol را روی L2TP قرار دهید.\n"
+            f"4. در فیلد LNS Address / Server آدرس <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
+            "5. یوزرنیم و پسورد اکانت را وارد کرده و ذخیره نمایید."
+        )
+    elif action == "openvpn":
+        text = (
+            "🛡 <b>راهنما و فایل کانفیگ OpenVPN:</b>\n\n"
+            "1. برنامه <b>OpenVPN Connect</b> یا <b>OpenVPN for Android</b> را نصب کنید.\n"
+            "2. فایل کانفیگ رسمی <code>.ovpn</code> را از کانال رسمی ما دانلود و در برنامه وارد (Import) نمایید.\n"
+            "3. نام کاربری و رمز عبور اشتراک خود را وارد کرده و متصل شوید.\n\n"
+            f"📢 جهت دانلود آخرین نسخه فایل کانفیگ وارد کانال شوید:\n{CHANNEL_URL}"
+        )
+
+    await query.message.edit_text(text, reply_markup=get_faq_sub_kb())
+    await query.answer()
 
 # ==================== آموزش اتصال ====================
 @dp.message_handler(lambda m: m.text == "⚙️ کانفیگ‌ها و آموزش اتصال", state="*")
