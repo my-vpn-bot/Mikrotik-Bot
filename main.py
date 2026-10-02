@@ -19,7 +19,7 @@ from aiohttp import web
 # ==================== تنظیمات و لاگ ====================
 logging.basicConfig(level=logging.INFO)
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN").strip()
+BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENpntbdxtw7tgX0X").strip()
 
 # رفع خطای اعداد با پیشوند صفر
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "02786850266").strip()
@@ -37,12 +37,12 @@ IBSNG_PANEL_URL = os.getenv("IBSNG_PANEL_URL", "http://94.184.45.58:48201/IBSng/
 OPENVPN_FILE_PATH = os.getenv("OPENVPN_FILE_PATH", "files/openvpn/client.ovpn").strip()
 
 VPN_SERVER_IP = "94.184.43.106"
-IPSEC_SECRET = "12345678."
+IPSEC_SECRET = "GAPGPTMASKTOKENpntbdxtw7tgX1X"
 
 CARD_IMAGE_PATH = "شماره کارت1.jpg"
 TARIFF_IMAGE_PATH = "تعرفه.jpg"
 
-bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
+bot = Bot(token=GAPGPTMASKTOKENpntbdxtw7tgX2X parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
 
 # ==================== دیتابیس ====================
@@ -57,6 +57,14 @@ def init_db():
                     username TEXT,
                     join_date TEXT
                 )''')
+    # جدول گزارش‌گیری سفارشات و خریدهای روزانه
+    c.execute('''CREATE TABLE IF NOT EXISTS orders (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    plan_name TEXT,
+                    amount_toman INTEGER,
+                    order_date TEXT
+                )''')
     conn.commit()
     conn.close()
 
@@ -70,6 +78,41 @@ def add_user_to_db(user: types.User):
     )
     conn.commit()
     conn.close()
+
+def record_order_in_db(user_id: int, plan_name: str, price_str: str):
+    """ثبت خرید کاربر جهت آمارگیری روزانه"""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    date_str, _, _ = get_persian_datetime()
+    
+    # استخراج مبلغ به عدد
+    amount = 0
+    try:
+        clean_price = price_str.replace("تومان", "").replace(",", "").strip()
+        amount = int(''.join(filter(str.isdigit, clean_price)))
+    except Exception:
+        amount = 0
+
+    c.execute(
+        "INSERT INTO orders (user_id, plan_name, amount_toman, order_date) VALUES (?, ?, ?, ?)",
+        (user_id, plan_name, amount, date_str)
+    )
+    conn.commit()
+    conn.close()
+
+def get_daily_sales_report():
+    """محاسبه خروجی و درآمد امروز"""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    date_str, _, _ = get_persian_datetime()
+    
+    c.execute("SELECT COUNT(*), SUM(amount_toman) FROM orders WHERE order_date = ?", (date_str,))
+    row = c.fetchone()
+    conn.close()
+    
+    count = row[0] if row and row[0] else 0
+    total_sum = row[1] if row and row[1] else 0
+    return count, total_sum
 
 def get_total_users_count() -> int:
     conn = sqlite3.connect(DB_FILE)
@@ -154,7 +197,7 @@ def get_welcome_text(user):
         f"📅 <b>روز:</b> {day_name}\n"
         f"📆 <b>تاریخ:</b> <code>{date_str}</code> | ⏰ <b>ساعت:</b> <code>{time_str}</code>\n"
         f"🆔 شناسه کاربری: <code>{user.id}</code>\n\n"
-        f"⚡️ <b>پروتکل‌های پرسرعت و پایدار L2TP VPN 24/7:</b>\n"
+        f"🇩🇪 <b>سرورهای اختصاصی، پرسرعت و پایدار آلمان L2TP VPN 24/7:</b>\n"
         f"▫️ پروتکل امن <b>L2TP / IPSec</b> (بدون نیاز به نرم‌افزار جانبی)\n"
         f"▫️ پروتکل‌های <b>OpenVPN</b> و <b>PPTP</b> سازگار با انواع سیستم‌عامل‌ها و مودم‌ها\n"
         f"🎁 <b>10 گیگابایت ترافیک هدیه</b> روی تمامی پلن‌های جدید\n\n"
@@ -183,6 +226,22 @@ async def cmd_start(message: types.Message, state: FSMContext):
         reply_markup=get_main_keyboard()
     )
     await message.answer("دسترسی‌های سریع:", reply_markup=quick_kb)
+
+# دستور جدید گزارش فروش روزانه برای ادمین
+@dp.message_handler(commands=['report'], state="*")
+async def cmd_report(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    date_str, time_str, _ = get_persian_datetime()
+    count, total_sales = get_daily_sales_report()
+    
+    report_text = (
+        f"📈 <b>گزارش فروش و خروجی امروز ({date_str}):</b>\n\n"
+        f"🛒 تعداد سفارشات ثبت‌شده امروز: <b>{count:,} عدد</b>\n"
+        f"💰 مجموع خروجی و فروش امروز: <b>{total_sales:,} تومان</b>\n\n"
+        f"⏰ زمان گزارش‌گیری: <code>{time_str}</code>"
+    )
+    await message.reply(report_text)
 
 @dp.message_handler(commands=['stats'], state="*")
 async def cmd_stats(message: types.Message):
@@ -250,7 +309,7 @@ async def handle_ibsng_panel(message: types.Message, state: FSMContext):
         f"🔗 <b>لینک ورود به پنل:</b>\n{IBSNG_PANEL_URL}\n\n"
         "⚠️ <b>نکته مهم:</b> برای ارتباط بهتر با پنل لطفاً وی‌پی‌ان خود را خاموش کنید و بعد از اتمام دوباره روشن کنید.\n\n"
         "⚠️ <b>نکته بسیار مهم امنیتی:</b>\n"
-        "<b>«حتماً و الزاماً در اولین ورود به پنل کاربری، رمز عبور (پسورد) خود را تغییر دهید تا از هرگونه سوءاستفاده جلوگیری شود.»</b>\n\n"
+        "<b>«حتماً و الزاماً در اولین ورود به پنل کاربری، GAPGPTMASKTOKENpntbdxtw7tgX3X عبور (پسورد) خود را تغییر دهید تا از هرگونه سوءاستفاده جلوگیری شود.»</b>\n\n"
         "▫️ مشاهده مانده حجم دقیق و ترافیک مصرفی\n"
         "▫️ مشاهده تاریخ انقضای دقیق اشتراک\n"
         "▫️ امکان تغییر پسورد اکانت اتصال"
@@ -390,8 +449,8 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "2. گزینه <b>Add VPN Configuration</b> را لمس کنید.\n"
             "3. نوع (Type) را روی <b>L2TP</b> قرار دهید.\n"
             f"4. در بخش Server آدرس <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-            "5. نام کاربری (Account) و رمز عبور (Password) خود را وارد کنید.\n"
-            f"6. در کادر Secret عبارت <code>{IPSEC_SECRET}</code> را وارد و Save را بزنید."
+            "5. نام کاربری (Account) و GAPGPTMASKTOKENpntbdxtw7tgX4X عبور (Password) خود را وارد کنید.\n"
+            f"6. در کادر Secret GAPGPTMASKTOKENpntbdxtw7tgX5X <code>{IPSEC_SECRET}</code> را وارد و Save را بزنید."
         )
     elif action == "android":
         text = (
@@ -399,8 +458,8 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "1. وارد تنظیمات گوشی ⬅️ اتصالات (Connections) ⬅️ تنظیمات بیشتر ⬅️ VPN شوید.\n"
             "2. علامت + یا سه نقطه بالا را زده و <b>Add VPN Profile</b> را انتخاب کنید.\n"
             "3. نوع (Type) را روی <b>L2TP/IPSec PSK</b> قرار دهید.\n"
-            f"4. در Server address عبارت <code>{VPN_SERVER_IP}</code> را بنویسید.\n"
-            f"5. در کادر IPSec pre-shared key عبارت <code>{IPSEC_SECRET}</code> را وارد کنید.\n"
+            f"4. در Server address GAPGPTMASKTOKENpntbdxtw7tgX6X <code>{VPN_SERVER_IP}</code> را بنویسید.\n"
+            f"5. در کادر IPSec pre-shared key GAPGPTMASKTOKENpntbdxtw7tgX7X <code>{IPSEC_SECRET}</code> را وارد کنید.\n"
             "6. ذخیره کرده و هنگام اتصال یوزرنیم و پسورد خود را بزنید."
         )
     elif action == "windows":
@@ -409,8 +468,8 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "1. وارد Settings ⬅️ Network & Internet ⬅️ VPN شده و Add VPN را بزنید.\n"
             "2. VPN Provider را روی <b>Windows (built-in)</b> بگذارید.\n"
             "3. VPN Type را روی <b>L2TP/IPsec with pre-shared key</b> تنظیم کنید.\n"
-            f"4. در Server name or address عبارت <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-            f"5. در Pre-shared key عبارت <code>{IPSEC_SECRET}</code> را بنویسید.\n"
+            f"4. در Server name or address GAPGPTMASKTOKENpntbdxtw7tgX8X <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
+            f"5. در Pre-shared key GAPGPTMASKTOKENpntbdxtw7tgX9X <code>{IPSEC_SECRET}</code> را بنویسید.\n"
             "6. یوزرنیم و پسورد اکانت را وارد کرده و Save و Connect را بزنید."
         )
     elif action == "mac":
@@ -418,10 +477,10 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "🍏 <b>راهنمای اتصال در مک‌بوک (macOS):</b>\n\n"
             "1. وارد System Settings ⬅️ Network شوید.\n"
             "2. روی علامت سه نقطه/افزودن کلیک کرده و Add VPN Configuration ⬅️ <b>L2TP over IPSec</b> را انتخاب کنید.\n"
-            f"3. در Server Address عبارت <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
+            f"3. در Server Address GAPGPTMASKTOKENpntbdxtw7tgX10X <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
             "4. Account Name را یوزرنیم خود وارد کرده و در Authentication Settings:\n"
-            f"   - Password: رمز عبور شما\n"
-            f"   - Shared Secret: عبارت <code>{IPSEC_SECRET}</code>\n"
+            f"   - Password: GAPGPTMASKTOKENpntbdxtw7tgX11X عبور شما\n"
+            f"   - Shared Secret: GAPGPTMASKTOKENpntbdxtw7tgX12X <code>{IPSEC_SECRET}</code>\n"
             "5. Apply را زده و متصل شوید."
         )
     elif action == "router":
@@ -515,6 +574,9 @@ async def handle_order_receipt(message: types.Message, state: FSMContext):
     plan_name = data.get("plan_name", "خرید اشتراک")
     plan_price = data.get("plan_price", "نامشخص")
     
+    # ثبت خرید در دیتابیس جهت آمارگیری روزانه
+    record_order_in_db(message.from_user.id, plan_name, plan_price)
+
     caption = (
         "🔔 <b>فیش واریزی جدید (خرید اکانت)</b>\n\n"
         f"👤 کاربر: <b>{message.from_user.full_name}</b>\n"
