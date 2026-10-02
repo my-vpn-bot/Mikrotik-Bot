@@ -19,14 +19,14 @@ from aiohttp import web
 # ==================== تنظیمات و لاگ ====================
 logging.basicConfig(level=logging.INFO)
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENpntbdxtw7tgX0X").strip()
+BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENze0vjil0vksX0X").strip()
 
-# رفع خطای اعداد با پیشوند صفر
+# مدیریت و استخراج صحیح ID ادمین
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "02786850266").strip()
 clean_admin_id = ADMIN_ID_RAW.lstrip('0')
 ADMIN_ID = int(clean_admin_id) if clean_admin_id.isdigit() else 2786850266
 
-SUPPORT_ID = os.getenv("SUPPORT_ID", "L2tp1Support").strip().replace("@", "")
+SUPPORT_ID = os.getenv("SUPPORT_ID", "@L2tp1Support").strip().replace("@", "")
 SUPPORT_URL = f"https://t.me/{SUPPORT_ID}"
 SUPPORT_USERNAME = f"@{SUPPORT_ID}"
 
@@ -36,16 +36,18 @@ CARD_HOLDER = os.getenv("PAYMENT_NAME", "رحیمی").strip()
 IBSNG_PANEL_URL = os.getenv("IBSNG_PANEL_URL", "http://94.184.45.58:48201/IBSng/user/").strip()
 OPENVPN_FILE_PATH = os.getenv("OPENVPN_FILE_PATH", "files/openvpn/client.ovpn").strip()
 
+# آدرس سرور L2TP VPN و کلید پیش‌فرض IPsec
 VPN_SERVER_IP = "94.184.43.106"
-IPSEC_SECRET = "GAPGPTMASKTOKENpntbdxtw7tgX1X"
+IPSEC_SECRET = "GAPGPTMASKTOKENb93wwlvx834X1X"
 
 CARD_IMAGE_PATH = "شماره کارت1.jpg"
 TARIFF_IMAGE_PATH = "تعرفه.jpg"
 
-bot = Bot(token=GAPGPTMASKTOKENpntbdxtw7tgX2X parse_mode="HTML")
+# ساختار صحیح و بدون SyntaxError برای aiogram
+bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
 
-# ==================== دیتابیس ====================
+# ==================== دیتابیس SQLite ====================
 DB_FILE = "bot_users.db"
 
 def init_db():
@@ -85,7 +87,6 @@ def record_order_in_db(user_id: int, plan_name: str, price_str: str):
     c = conn.cursor()
     date_str, _, _ = get_persian_datetime()
     
-    # استخراج مبلغ به عدد
     amount = 0
     try:
         clean_price = price_str.replace("تومان", "").replace(",", "").strip()
@@ -135,15 +136,14 @@ class ChargeState(StatesGroup):
 class SupportState(StatesGroup):
     waiting_for_username_and_msg = State()
 
-# ==================== تعرفه‌ها ====================
+# ==================== تعرفه‌های رسمی جدید ====================
 PLANS = {
-    "vip_unlimited": {"name": "🌟 پیشنهاد طلایی: 1 ماهه نامحدود (تک کاربره)", "price": "350,000 تومان"},
-    "1m_1u": {"name": "اشتراک 1 ماهه (تک کاربره + 10 گیگ هدیه)", "price": "200,000 تومان"},
-    "1m_2u": {"name": "اشتراک 1 ماهه (دو کاربره + 10 گیگ هدیه)", "price": "250,000 تومان"},
-    "2m_1u": {"name": "اشتراک 2 ماهه (تک کاربره + 10 گیگ هدیه)", "price": "380,000 تومان"},
-    "2m_2u": {"name": "اشتراک 2 ماهه (دو کاربره + 10 گیگ هدیه)", "price": "430,000 تومان"},
-    "3m_1u": {"name": "اشتراک 3 ماهه (تک کاربره + 10 گیگ هدیه)", "price": "550,000 تومان"},
-    "3m_2u": {"name": "اشتراک 3 ماهه (دو کاربره + 10 گیگ هدیه)", "price": "600,000 تومان"},
+    "1m_1u": {"name": "اشتراک 1 ماهه تک کاربره (+10 گیگ هدیه)", "price": "200,000 تومان"},
+    "1m_2u": {"name": "اشتراک 1 ماهه دو کاربره (+10 گیگ هدیه)", "price": "250,000 تومان"},
+    "2m_1u": {"name": "اشتراک 2 ماهه تک کاربره (+10 گیگ هدیه)", "price": "380,000 تومان"},
+    "2m_2u": {"name": "اشتراک 2 ماهه دو کاربره (+10 گیگ هدیه)", "price": "430,000 تومان"},
+    "3m_1u": {"name": "اشتراک 3 ماهه تک کاربره (+10 گیگ هدیه)", "price": "550,000 تومان"},
+    "3m_2u": {"name": "اشتراک 3 ماهه دو کاربره (+10 گیگ هدیه)", "price": "600,000 تومان"},
 }
 
 # ==================== تاریخ شمسی ====================
@@ -227,7 +227,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
     )
     await message.answer("دسترسی‌های سریع:", reply_markup=quick_kb)
 
-# دستور جدید گزارش فروش روزانه برای ادمین
+# گزارش فروش روزانه برای ادمین
 @dp.message_handler(commands=['report'], state="*")
 async def cmd_report(message: types.Message):
     if message.from_user.id != ADMIN_ID:
@@ -265,9 +265,7 @@ async def handle_buy(message: types.Message, state: FSMContext):
     
     caption = (
         "🛍 <b>لیست تعرفه‌های رسمی اشتراک L2TP VPN 24/7</b>\n\n"
-        "🔥 <b>پیشنهاد طلایی (ظرفیت بسیار محدود):</b>\n"
-        "🌟 <b>یک‌ماهه نامحدود VIP (تک کاربره):</b> <b>350,000 تومان</b>\n\n"
-        "🎁 <i>(سایر پلن‌ها شامل 10 گیگابایت ترافیک هدیه هستند)</i>\n\n"
+        "🎁 <i>(تمامی پلن‌ها شامل 10 گیگابایت ترافیک هدیه هستند)</i>\n\n"
         "🔹 <b>پلن‌های یک‌ماهه:</b>\n"
         "▫️ یک‌ماهه تک‌کاربره: <b>200,000 تومان</b>\n"
         "▫️ یک‌ماهه دو‌کاربره: <b>250,000 تومان</b>\n\n"
@@ -307,9 +305,9 @@ async def handle_ibsng_panel(message: types.Message, state: FSMContext):
     text = (
         "🌐 <b>سامانه اختصاصی مشاهده وضعیت و مدیریت اکانت IBSng</b>\n\n"
         f"🔗 <b>لینک ورود به پنل:</b>\n{IBSNG_PANEL_URL}\n\n"
-        "⚠️ <b>نکته مهم:</b> برای ارتباط بهتر با پنل لطفاً وی‌پی‌ان خود را خاموش کنید و بعد از اتمام دوباره روشن کنید.\n\n"
-        "⚠️ <b>نکته بسیار مهم امنیتی:</b>\n"
-        "<b>«حتماً و الزاماً در اولین ورود به پنل کاربری، GAPGPTMASKTOKENpntbdxtw7tgX3X عبور (پسورد) خود را تغییر دهید تا از هرگونه سوءاستفاده جلوگیری شود.»</b>\n\n"
+        "💡 <b>برای ارتباط بهتر با پنل لطفاً وی‌پی‌ان خود را خاموش کنید و بعد از اتمام دوباره روشن کنید.</b>\n\n"
+        "⚠️ <b>نکته مهم امنیتی:</b>\n"
+        "<b>«حتماً و الزاماً در اولین ورود به پنل کاربری، رمز عبور (پسورد) خود را تغییر دهید تا از هرگونه سوءاستفاده جلوگیری شود.»</b>\n\n"
         "▫️ مشاهده مانده حجم دقیق و ترافیک مصرفی\n"
         "▫️ مشاهده تاریخ انقضای دقیق اشتراک\n"
         "▫️ امکان تغییر پسورد اکانت اتصال"
@@ -324,14 +322,13 @@ async def handle_charge(message: types.Message, state: FSMContext):
     
     caption = (
         "💰 <b>شارژ و تمدید حساب کاربری</b>\n\n"
-        "📋 <b>تعرفه‌های رسمی تمدید و شارژ:</b>\n"
-        "🌟 پیشنهاد طلایی نامحدود (تک‌کاربره): <b>350,000 تومان</b>\n"
-        "▫️ 1 ماهه تک کاربره (+10G هدیه): <b>200,000 تومان</b>\n"
-        "▫️ 1 ماهه دو کاربره (+10G هدیه): <b>250,000 تومان</b>\n"
-        "▫️ 2 ماهه تک کاربره (+10G هدیه): <b>380,000 تومان</b>\n"
-        "▫️ 2 ماهه دو کاربره (+10G هدیه): <b>430,000 تومان</b>\n"
-        "▫️ 3 ماهه تک کاربره (+10G هدیه): <b>550,000 تومان</b>\n"
-        "▫️ 3 ماهه دو کاربره (+10G هدیه): <b>600,000 تومان</b>\n\n"
+        "📋 <b>تعرفه‌های رسمی تمدید و شارژ (همراه ۱۰ گیگ هدیه):</b>\n"
+        "▫️ 1 ماهه تک کاربره: <b>200,000 تومان</b>\n"
+        "▫️ 1 ماهه دو کاربره: <b>250,000 تومان</b>\n"
+        "▫️ 2 ماهه تک کاربره: <b>380,000 تومان</b>\n"
+        "▫️ 2 ماهه دو کاربره: <b>430,000 تومان</b>\n"
+        "▫️ 3 ماهه تک کاربره: <b>550,000 تومان</b>\n"
+        "▫️ 3 ماهه دو کاربره: <b>600,000 تومان</b>\n\n"
         f"💳 شماره کارت جهت واریز:\n<code>{CARD_NUMBER}</code>\n"
         f"👤 به نام: <b>{CARD_HOLDER}</b>\n\n"
         "📸 لطفاً ابتدا مبلغ مورد نظر را واریز نموده و <b>تصویر فیش واریزی</b> را همین‌جا ارسال نمایید:"
@@ -449,8 +446,8 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "2. گزینه <b>Add VPN Configuration</b> را لمس کنید.\n"
             "3. نوع (Type) را روی <b>L2TP</b> قرار دهید.\n"
             f"4. در بخش Server آدرس <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-            "5. نام کاربری (Account) و GAPGPTMASKTOKENpntbdxtw7tgX4X عبور (Password) خود را وارد کنید.\n"
-            f"6. در کادر Secret GAPGPTMASKTOKENpntbdxtw7tgX5X <code>{IPSEC_SECRET}</code> را وارد و Save را بزنید."
+            "5. نام کاربری (Account) و رمز عبور (Password) خود را وارد کنید.\n"
+            f"6. در کادر Secret مقدار <code>{IPSEC_SECRET}</code> را وارد و Save را بزنید."
         )
     elif action == "android":
         text = (
@@ -458,8 +455,8 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "1. وارد تنظیمات گوشی ⬅️ اتصالات (Connections) ⬅️ تنظیمات بیشتر ⬅️ VPN شوید.\n"
             "2. علامت + یا سه نقطه بالا را زده و <b>Add VPN Profile</b> را انتخاب کنید.\n"
             "3. نوع (Type) را روی <b>L2TP/IPSec PSK</b> قرار دهید.\n"
-            f"4. در Server address GAPGPTMASKTOKENpntbdxtw7tgX6X <code>{VPN_SERVER_IP}</code> را بنویسید.\n"
-            f"5. در کادر IPSec pre-shared key GAPGPTMASKTOKENpntbdxtw7tgX7X <code>{IPSEC_SECRET}</code> را وارد کنید.\n"
+            f"4. در Server address آدرس <code>{VPN_SERVER_IP}</code> را بنویسید.\n"
+            f"5. در کادر IPSec pre-shared key مقدار <code>{IPSEC_SECRET}</code> را وارد کنید.\n"
             "6. ذخیره کرده و هنگام اتصال یوزرنیم و پسورد خود را بزنید."
         )
     elif action == "windows":
@@ -468,8 +465,8 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "1. وارد Settings ⬅️ Network & Internet ⬅️ VPN شده و Add VPN را بزنید.\n"
             "2. VPN Provider را روی <b>Windows (built-in)</b> بگذارید.\n"
             "3. VPN Type را روی <b>L2TP/IPsec with pre-shared key</b> تنظیم کنید.\n"
-            f"4. در Server name or address GAPGPTMASKTOKENpntbdxtw7tgX8X <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-            f"5. در Pre-shared key GAPGPTMASKTOKENpntbdxtw7tgX9X <code>{IPSEC_SECRET}</code> را بنویسید.\n"
+            f"4. در Server name or address مقدار <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
+            f"5. در Pre-shared key مقدار <code>{IPSEC_SECRET}</code> را بنویسید.\n"
             "6. یوزرنیم و پسورد اکانت را وارد کرده و Save و Connect را بزنید."
         )
     elif action == "mac":
@@ -477,10 +474,10 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "🍏 <b>راهنمای اتصال در مک‌بوک (macOS):</b>\n\n"
             "1. وارد System Settings ⬅️ Network شوید.\n"
             "2. روی علامت سه نقطه/افزودن کلیک کرده و Add VPN Configuration ⬅️ <b>L2TP over IPSec</b> را انتخاب کنید.\n"
-            f"3. در Server Address GAPGPTMASKTOKENpntbdxtw7tgX10X <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
+            f"3. در Server Address مقدار <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
             "4. Account Name را یوزرنیم خود وارد کرده و در Authentication Settings:\n"
-            f"   - Password: GAPGPTMASKTOKENpntbdxtw7tgX11X عبور شما\n"
-            f"   - Shared Secret: GAPGPTMASKTOKENpntbdxtw7tgX12X <code>{IPSEC_SECRET}</code>\n"
+            f"   - Password: رمز عبور شما\n"
+            f"   - Shared Secret: مقدار <code>{IPSEC_SECRET}</code>\n"
             "5. Apply را زده و متصل شوید."
         )
     elif action == "router":
