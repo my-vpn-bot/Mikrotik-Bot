@@ -19,9 +19,9 @@ from aiohttp import web
 # ==================== تنظیمات و لاگ ====================
 logging.basicConfig(level=logging.INFO)
 
-GAPGPTMASKTOKENo7eebylhhjX0X = os.getenv("GAPGPTMASKTOKENo7eebylhhjX1X", "YOUR_secret-54876b60").strip()
+# خواندن مستقیم متغیرهای محیطی از Render
+BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 
-# رفع خطای اعداد با پیشوند صفر
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "02786850266").strip()
 clean_admin_id = ADMIN_ID_RAW.lstrip('0')
 ADMIN_ID = int(clean_admin_id) if clean_admin_id.isdigit() else 2786850266
@@ -37,12 +37,12 @@ IBSNG_PANEL_URL = os.getenv("IBSNG_PANEL_URL", "http://94.184.45.58:48201/IBSng/
 OPENVPN_FILE_PATH = os.getenv("OPENVPN_FILE_PATH", "files/openvpn/client.ovpn").strip()
 
 VPN_SERVER_IP = "94.184.43.106"
-IPSEC_SECRET = "GAPGPTMASKTOKENo7eebylhhjX2X"
+IPSEC_SECRET = "12345678."
 
 CARD_IMAGE_PATH = "شماره کارت1.jpg"
 TARIFF_IMAGE_PATH = "تعرفه.jpg"
 
-bot = Bot(token=GAPGPTMASKTOKENo7eebylhhjX3X, parse_mode="HTML")
+bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
 
 # ==================== دیتابیس ====================
@@ -89,12 +89,14 @@ class ChargeState(StatesGroup):
     waiting_for_receipt = State()
     waiting_for_username = State()
 
+class CompensationState(StatesGroup):
+    waiting_for_old_receipt_and_username = State()
+
 class SupportState(StatesGroup):
     waiting_for_username_and_msg = State()
 
-# ==================== تعرفه‌ها ====================
+# ==================== تعرفه‌های رسمی جدید ====================
 PLANS = {
-    "vip_unlimited": {"name": "🌟 پیشنهاد طلایی: 1 ماهه نامحدود (تک کاربره)", "price": "350,000 تومان"},
     "1m_1u": {"name": "اشتراک 1 ماهه (تک کاربره + 10 گیگ هدیه)", "price": "200,000 تومان"},
     "1m_2u": {"name": "اشتراک 1 ماهه (دو کاربره + 10 گیگ هدیه)", "price": "250,000 تومان"},
     "2m_1u": {"name": "اشتراک 2 ماهه (تک کاربره + 10 گیگ هدیه)", "price": "380,000 تومان"},
@@ -138,8 +140,9 @@ def get_main_keyboard():
     kb = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     kb.add(KeyboardButton("🛒 خرید اشتراک"))
     kb.add(KeyboardButton("📊 اطلاعات حساب"), KeyboardButton("🌐 پنل کاربری IBSng"))
-    kb.add(KeyboardButton("💰 شارژ حساب"), KeyboardButton("👥 پشتیبانی"))
+    kb.add(KeyboardButton("💰 شارژ حساب"), KeyboardButton("🎁 طرح جبرانی مشترکین"))
     kb.add(KeyboardButton("❓ سوالات متداول"), KeyboardButton("⚙️ کانفیگ‌ها و آموزش اتصال"))
+    kb.add(KeyboardButton("👥 پشتیبانی"))
     return kb
 
 def get_back_keyboard():
@@ -156,9 +159,9 @@ def get_welcome_text(user):
         f"🆔 شناسه کاربری: <code>{user.id}</code>\n\n"
         f"⚡️ <b>پروتکل‌های پرسرعت و پایدار L2TP VPN 24/7:</b>\n"
         f"▫️ پروتکل امن <b>L2TP / IPSec</b> (بدون نیاز به نرم‌افزار جانبی)\n"
-        f"▫️ پروتکل‌های <b>OpenVPN</b> و <b>PPTP</b> سازگار با انواع سیستم‌عامل‌ها و مودم‌ها\n"
-        f"🎁 <b>10 گیگابایت ترافیک هدیه</b> روی تمامی پلن‌های جدید\n\n"
-        "👇 جهت استفاده از امکانات، یکی از گزینه‌های منوی زیر را انتخاب نمایید:"
+        f"▫️ پروتکل‌های <b>OpenVPN</b> و <b>PPTP</b> سازگار با تمامی سیستم‌عامل‌ها و مودم‌ها\n"
+        f"🎁 <b>10 گیگابایت ترافیک هدیه</b> روی تمامی پلن‌ها\n\n"
+        "👇 جهت استفاده از امکانات، یکی از گزینه‌های زیر را انتخاب نمایید:"
     )
 
 # ==================== هندلرهای عمومی ====================
@@ -206,8 +209,8 @@ async def handle_buy(message: types.Message, state: FSMContext):
     
     caption = (
         "🛍 <b>لیست تعرفه‌های رسمی اشتراک L2TP VPN 24/7</b>\n\n"
-        "🔥 <b>لطفاً پلن مورد نظر خود را از دکمه‌های زیر انتخاب نمایید:</b>\n"
-        "<i>(تمامی پلن‌های ماهانه شامل 10 گیگابایت ترافیک هدیه هستند)</i>"
+        "🔥 <b>لطفاً پلن مورد نظر خود را انتخاب نمایید:</b>\n"
+        "<i>(تمامی پلن‌ها شامل ۱۰ گیگابایت هدیه رایگان می‌باشند)</i>"
     )
     if os.path.exists(TARIFF_IMAGE_PATH):
         await message.reply_photo(photo=InputFile(TARIFF_IMAGE_PATH), caption=caption, reply_markup=kb)
@@ -219,11 +222,11 @@ async def handle_buy(message: types.Message, state: FSMContext):
 async def handle_account(message: types.Message, state: FSMContext):
     await state.finish()
     text = (
-        f"📊 <b>مشخصات حساب شما در سیستم:</b>\n\n"
+        f"📊 <b>مشخصات حساب کاربری:</b>\n\n"
         f"👤 نام: <b>{message.from_user.full_name}</b>\n"
-        f"🆔 شناسه عددی تلگرام: <code>{message.from_user.id}</code>\n"
-        f"💎 وضعیت عضویت: <b>کاربر ثبت‌شده</b>\n\n"
-        "💡 جهت مشاهده دقیق تاریخ انقضا و مانده حجم، وارد <b>«🌐 پنل کاربری IBSng»</b> شوید."
+        f"🆔 شناسه تلگرام: <code>{message.from_user.id}</code>\n"
+        f"💎 وضعیت: <b>کاربر ثبت‌شده</b>\n\n"
+        "💡 برای بررسی حجم باقیمانده و تاریخ انقضا به <b>«🌐 پنل کاربری IBSng»</b> مراجعه فرمایید."
     )
     await message.reply(text, reply_markup=get_main_keyboard())
 
@@ -232,17 +235,14 @@ async def handle_account(message: types.Message, state: FSMContext):
 async def handle_ibsng_panel(message: types.Message, state: FSMContext):
     await state.finish()
     ikb = InlineKeyboardMarkup(row_width=1)
-    ikb.add(InlineKeyboardButton("🔗 ورود مستقیم به پنل کاربری IBSng", url=IBSNG_PANEL_URL))
+    ikb.add(InlineKeyboardButton("🔗 ورود مستقیم به پنل IBSng", url=IBSNG_PANEL_URL))
     
     text = (
-        "🌐 <b>سامانه اختصاصی مشاهده وضعیت و مدیریت اکانت IBSng</b>\n\n"
+        "🌐 <b>سامانه مدیریت اکانت IBSng</b>\n\n"
         f"🔗 <b>لینک ورود به پنل:</b>\n{IBSNG_PANEL_URL}\n\n"
-        "⚠️ <b>نکته مهم:</b> برای ارتباط بهتر با پنل لطفاً وی‌پی‌ان خود را خاموش کنید و بعد از اتمام دوباره روشن کنید.\n\n"
-        "⚠️ <b>نکته بسیار مهم امنیتی:</b>\n"
-        "<b>«حتماً و الزاماً در اولین ورود به پنل کاربری، GAPGPTMASKTOKENo7eebylhhjX4X عبور (پسورد) خود را تغییر دهید تا از هرگونه سوءاستفاده جلوگیری شود.»</b>\n\n"
-        "▫️ مشاهده مانده حجم دقیق و ترافیک مصرفی\n"
-        "▫️ مشاهده تاریخ انقضای دقیق اشتراک\n"
-        "▫️ امکان تغییر پسورد اکانت اتصال"
+        "⚠️ <b>برای ارتباط بهتر با پنل لطفاً وی‌پی‌ان خود را خاموش کنید و بعد از اتمام دوباره روشن کنید.</b>\n\n"
+        "▫️ مشاهده مانده حجم ترافیک و تاریخ انقضا\n"
+        "▫️ تغییر کلمه عبور اکانت اتصال"
     )
     await message.reply(text, reply_markup=ikb)
 
@@ -254,15 +254,56 @@ async def handle_charge(message: types.Message, state: FSMContext):
     
     caption = (
         "💰 <b>شارژ و تمدید حساب کاربری</b>\n\n"
-        "📋 <b>تعرفه‌های رسمی تمدید و شارژ (شامل پیشنهاد طلایی و 10G هدیه):</b>\n\n"
         f"💳 شماره کارت جهت واریز:\n<code>{CARD_NUMBER}</code>\n"
-        f"👤 به نام: <b>{CARD_HOLDER}</b>\n\n"
-        "📸 لطفاً ابتدا مبلغ مورد نظر را واریز نموده و <b>تصویر فیش واریزی</b> را همین‌جا ارسال نمایید:"
+        f"👤 به نام: <b>{CARD_HOLDER}</b> (بانک ملت)\n\n"
+        "📸 لطفاً مبلغ پلن مورد نظر را واریز نموده و <b>تصویر فیش واریزی</b> را همین‌جا ارسال نمایید:"
     )
     if os.path.exists(CARD_IMAGE_PATH):
         await message.reply_photo(photo=InputFile(CARD_IMAGE_PATH), caption=caption, reply_markup=get_back_keyboard())
     else:
         await message.reply(caption, reply_markup=get_back_keyboard())
+
+# ==================== طرح جبرانی ====================
+@dp.message_handler(lambda m: m.text == "🎁 طرح جبرانی مشترکین", state="*")
+async def handle_compensation(message: types.Message, state: FSMContext):
+    await state.finish()
+    await CompensationState.waiting_for_old_receipt_and_username.set()
+    text = (
+        "🎁 <b>طرح جبرانی ویژه مشترکین قدیمی (۲ تا ۳ سال گذشته):</b>\n\n"
+        "مشترکین عزیزی که هنگام غیبت و قطعی سرویس، اشتراک فعال داشتند، "
+        "می‌توانند با ارسال <b>نام کاربری قدیمی</b> و <b>فیش واریزی قبلی</b>، "
+        "اکانت خود را با دوره کامل + ۱۰ گیگابایت هدیه از نو فعال نمایند.\n\n"
+        "✍️ لطفاً نام کاربری و تصویر فیش قبلی خود را ارسال فرمایید:"
+    )
+    await message.reply(text, reply_markup=get_back_keyboard())
+
+@dp.message_handler(state=CompensationState.waiting_for_old_receipt_and_username, content_types=types.ContentTypes.ANY)
+async def process_compensation(message: types.Message, state: FSMContext):
+    user = message.from_user
+    user_text = message.text or message.caption or "ارسال فیش بدون متن"
+    
+    admin_alert = (
+        "🎁 <b>درخواست طرح جبرانی مشترکین قدیمی</b>\n\n"
+        f"👤 فرستنده: <b>{user.full_name}</b>\n"
+        f"🆔 شناسه: <code>{user.id}</code>\n"
+        f"🔗 آیدی: @{user.username or 'ندارد'}\n\n"
+        f"📝 <b>اطلاعات ارسالی:</b>\n{user_text}"
+    )
+    if ADMIN_ID != 0:
+        try:
+            if message.photo:
+                await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=admin_alert)
+            else:
+                await bot.send_message(ADMIN_ID, admin_alert)
+        except Exception as e:
+            logging.error(f"Error alerting admin: {e}")
+            
+    await message.reply(
+        "✅ <b>درخواست شما در طرح جبرانی دریافت شد.</b>\n"
+        "پس از تایید ادمین، اکانت شما با دوره کامل و ۱۰ گیگ هدیه فعال و تحویل داده خواهد شد.",
+        reply_markup=get_main_keyboard()
+    )
+    await state.finish()
 
 # ==================== پشتیبانی ====================
 @dp.message_handler(lambda m: m.text == "👥 پشتیبانی", state="*")
@@ -274,27 +315,26 @@ async def handle_support(message: types.Message, state: FSMContext):
     ikb.add(InlineKeyboardButton("💬 پیام مستقیم به پشتیبان تلگرام", url=SUPPORT_URL))
     
     text = (
-        "👥 <b>پشتیبانی آنلاین و هوشمند L2TP VPN 24/7</b>\n\n"
-        "✍️ <b>لطفاً نام کاربری (یوزرنیم) اکانت وی‌پی‌ان خود را به همراه شرح مشکل یا درخواستتان در یک پیام ارسال کنید تا برای بررسی ارجاع شود:</b>\n\n"
-        f"💬 آیدی مستقیم ادمین: {SUPPORT_USERNAME}\n"
-        f"📢 کانال رسمی: @L2tp_vpn402"
+        "👥 <b>پشتیبانی L2TP VPN 24/7</b>\n\n"
+        "✍️ <b>لطفاً نام کاربری (یوزرنیم) اکانت خود را به همراه شرح مشکل یا پیام خود ارسال کنید:</b>\n\n"
+        f"💬 آیدی مستقیم پشتیبان: {SUPPORT_USERNAME}\n"
+        f"📢 کانال اطلاع‌رسانی: @L2tp_vpn402"
     )
     await message.reply(text, reply_markup=get_back_keyboard())
-    await message.answer("ارتباط از طریق تلگرام:", reply_markup=ikb)
+    await message.answer("ارتباط سریع:", reply_markup=ikb)
 
 @dp.message_handler(state=SupportState.waiting_for_username_and_msg, content_types=types.ContentTypes.ANY)
 async def process_support_input(message: types.Message, state: FSMContext):
     user = message.from_user
-    user_text = message.text or message.caption or "ارسال فایل/تصویر بدون متن"
+    user_text = message.text or message.caption or "ارسال فایل بدون متن"
     
     admin_alert = (
-        "🚨 <b>درخواست پشتیبانی و بررسی اکانت</b>\n\n"
-        f"👤 فرستنده: <b>{user.full_name}</b>\n"
+        "🚨 <b>پیام جدید پشتیبانی</b>\n\n"
+        f"👤 کاربر: <b>{user.full_name}</b>\n"
         f"🆔 شناسه: <code>{user.id}</code>\n"
-        f"🔗 یوزرنیم تلگرام: @{user.username or 'ندارد'}\n\n"
-        f"📝 <b>متن / یوزرنیم ارسالی کاربر:</b>\n{user_text}"
+        f"🔗 آیدی: @{user.username or 'ندارد'}\n\n"
+        f"📝 <b>متن ارسالی:</b>\n{user_text}"
     )
-    
     if ADMIN_ID != 0:
         try:
             if message.photo:
@@ -305,14 +345,13 @@ async def process_support_input(message: types.Message, state: FSMContext):
             logging.error(f"Error alerting admin: {e}")
             
     await message.reply(
-        "✅ <b>پشتیبانی درخواست شما را با موفقیت تحویل گرفت.</b>\n\n"
-        "اطلاعات اکانت و پیام شما برای اپراتور ارسال شد و در سریع‌ترین زمان ممکن بررسی و پاسخ داده خواهد شد.\n\n"
-        f"💬 پیگیری مستقیم: {SUPPORT_USERNAME}",
+        "✅ <b>پیام شما با موفقیت به پشتیبانی ارسال شد.</b>\n"
+        "در اسرع وقت پاسخ برای شما ارسال خواهد شد.",
         reply_markup=get_main_keyboard()
     )
     await state.finish()
 
-# ==================== سوالات متداول شیشه‌ای (Inline FAQ) ====================
+# ==================== راهنما و سوالات متداول ====================
 def get_faq_main_kb():
     ikb = InlineKeyboardMarkup(row_width=2)
     ikb.row(
@@ -325,27 +364,27 @@ def get_faq_main_kb():
     )
     ikb.row(
         InlineKeyboardButton("📶 مودم و روتر", callback_data="faq_router"),
-        InlineKeyboardButton("🛡 آموزش و دانلود OpenVPN", callback_data="faq_openvpn")
+        InlineKeyboardButton("🛡 آموزش OpenVPN", callback_data="faq_openvpn")
     )
     return ikb
 
 def get_faq_sub_kb():
     ikb = InlineKeyboardMarkup(row_width=1)
-    ikb.add(InlineKeyboardButton("🔙 بازگشت به منوی سوالات متداول", callback_data="faq_home"))
+    ikb.add(InlineKeyboardButton("🔙 بازگشت به منوی راهنما", callback_data="faq_home"))
     return ikb
 
 def get_openvpn_kb():
     ikb = InlineKeyboardMarkup(row_width=1)
-    ikb.add(InlineKeyboardButton("📥 دانلود مستقیم فایل کانفیگ (client.ovpn)", callback_data="dl_openvpn"))
-    ikb.add(InlineKeyboardButton("🔙 بازگشت به منوی سوالات متداول", callback_data="faq_home"))
+    ikb.add(InlineKeyboardButton("📥 دانلود فایل کانفیگ (client.ovpn)", callback_data="dl_openvpn"))
+    ikb.add(InlineKeyboardButton("🔙 بازگشت به منوی راهنما", callback_data="faq_home"))
     return ikb
 
 FAQ_MAIN_TEXT = (
-    "❓ <b>پاسخ به سوالات متداول و راهنمای جامع اتصال L2TP/IPSec</b>\n\n"
-    "⚡️ <b>مشخصات عمومی سرور:</b>\n"
-    f"▫️ آدرس سرور (Server Address): <code>{VPN_SERVER_IP}</code>\n"
-    f"▫️ کلید امنیتی (IPsec Secret / Pre-Shared Key): <code>{IPSEC_SECRET}</code>\n\n"
-    "👇 <b>سیستم‌عامل یا موضوع مورد نظر خود را انتخاب نمایید:</b>"
+    "❓ <b>راهنمای جامع اتصال به سرور</b>\n\n"
+    "⚡️ <b>مشخصات سرور:</b>\n"
+    f"▫️ آدرس سرور (Server IP): <code>{VPN_SERVER_IP}</code>\n"
+    f"▫️ کلید امنیتی (IPsec Secret): <code>{IPSEC_SECRET}</code>\n\n"
+    "👇 دستگاه مورد نظر خود را انتخاب فرمایید:"
 )
 
 @dp.message_handler(lambda m: m.text == "❓ سوالات متداول", state="*")
@@ -367,104 +406,94 @@ async def callback_faq_navigation(query: types.CallbackQuery):
 
     if action == "ios":
         text = (
-            "📱 <b>راهنمای اتصال در آیفون و آیپد (Apple iOS):</b>\n\n"
-            "1. وارد Settings ⬅️ General ⬅️ VPN & Device Management ⬅️ VPN شوید.\n"
-            "2. گزینه <b>Add VPN Configuration</b> را لمس کنید.\n"
-            "3. نوع (Type) را روی <b>L2TP</b> قرار دهید.\n"
-            f"4. در بخش Server آدرس <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-            "5. نام کاربری (Account) و GAPGPTMASKTOKENo7eebylhhjX5X عبور (Password) خود را وارد کنید.\n"
-            f"6. در کادر Secret GAPGPTMASKTOKENo7eebylhhjX6X <code>{IPSEC_SECRET}</code> را وارد و Save را بزنید."
+            "📱 <b>راهنمای آیفون و آیپد (iOS):</b>\n\n"
+            "1. Settings ➡️ General ➡️ VPN & Device Management ➡️ VPN\n"
+            "2. انتخاب <b>Add VPN Configuration</b>\n"
+            "3. تنظیم Type روی <b>L2TP</b>\n"
+            f"4. فیلد Server: <code>{VPN_SERVER_IP}</code>\n"
+            "5. وارد کردن Account و Password اکانت\n"
+            f"6. فیلد Secret: <code>{IPSEC_SECRET}</code> و ذخیره."
         )
     elif action == "android":
         text = (
-            "🤖 <b>راهنمای اتصال در اندروید (Android):</b>\n\n"
-            "1. وارد تنظیمات گوشی ⬅️ اتصالات (Connections) ⬅️ تنظیمات بیشتر ⬅️ VPN شوید.\n"
-            "2. علامت + یا سه نقطه بالا را زده و <b>Add VPN Profile</b> را انتخاب کنید.\n"
-            "3. نوع (Type) را روی <b>L2TP/IPSec PSK</b> قرار دهید.\n"
-            f"4. در Server address GAPGPTMASKTOKENo7eebylhhjX7X <code>{VPN_SERVER_IP}</code> را بنویسید.\n"
-            f"5. در کادر IPSec pre-shared key GAPGPTMASKTOKENo7eebylhhjX8X <code>{IPSEC_SECRET}</code> را وارد کنید.\n"
-            "6. ذخیره کرده و هنگام اتصال یوزرنیم و پسورد خود را بزنید."
+            "🤖 <b>راهنمای اندروید (Android):</b>\n\n"
+            "1. تنظیمات گوشی ➡️ Connections ➡️ More connection settings ➡️ VPN\n"
+            "2. افزودن پروفایل جدید (+)\n"
+            "3. نوع اتصال (Type): <b>L2TP/IPSec PSK</b>\n"
+            f"4. فیلد Server address: <code>{VPN_SERVER_IP}</code>\n"
+            f"5. فیلد IPSec pre-shared key: <code>{IPSEC_SECRET}</code>\n"
+            "6. ذخیره و اتصال با یوزرنیم و پسورد."
         )
     elif action == "windows":
         text = (
-            "💻 <b>راهنمای اتصال در ویندوز (Windows 10 / 11):</b>\n\n"
-            "1. وارد Settings ⬅️ Network & Internet ⬅️ VPN شده و Add VPN را بزنید.\n"
-            "2. VPN Provider را روی <b>Windows (built-in)</b> بگذارید.\n"
-            "3. VPN Type را روی <b>L2TP/IPsec with pre-shared key</b> تنظیم کنید.\n"
-            f"4. در Server name or address GAPGPTMASKTOKENo7eebylhhjX9X <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-            f"5. در Pre-shared key GAPGPTMASKTOKENo7eebylhhjX10X <code>{IPSEC_SECRET}</code> را بنویسید.\n"
-            "6. یوزرنیم و پسورد اکانت را وارد کرده و Save و Connect را بزنید."
+            "💻 <b>راهنمای ویندوز (Windows):</b>\n\n"
+            "1. Settings ➡️ Network & Internet ➡️ VPN ➡️ Add VPN\n"
+            "2. VPN Provider: <b>Windows (built-in)</b>\n"
+            "3. VPN Type: <b>L2TP/IPsec with pre-shared key</b>\n"
+            f"4. Server address: <code>{VPN_SERVER_IP}</code>\n"
+            f"5. Pre-shared key: <code>{IPSEC_SECRET}</code>\n"
+            "6. وارد کردن یوزرنیم/پسورد و ذخیره."
         )
     elif action == "mac":
         text = (
-            "🍏 <b>راهنمای اتصال در مک‌بوک (macOS):</b>\n\n"
-            "1. وارد System Settings ⬅️ Network شوید.\n"
-            "2. روی علامت سه نقطه/افزودن کلیک کرده و Add VPN Configuration ⬅️ <b>L2TP over IPSec</b> را انتخاب کنید.\n"
-            f"3. در Server Address GAPGPTMASKTOKENo7eebylhhjX11X <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-            "4. Account Name را یوزرنیم خود وارد کرده و در Authentication Settings:\n"
-            f"   - Password: GAPGPTMASKTOKENo7eebylhhjX12X عبور شما\n"
-            f"   - Shared Secret: GAPGPTMASKTOKENo7eebylhhjX13X <code>{IPSEC_SECRET}</code>\n"
-            "5. Apply را زده و متصل شوید."
+            "🍏 <b>راهنمای مک‌بوک (macOS):</b>\n\n"
+            "1. System Settings ➡️ Network ➡️ Add VPN Configuration ➡️ <b>L2TP over IPSec</b>\n"
+            f"2. Server Address: <code>{VPN_SERVER_IP}</code>\n"
+            "3. Account Name: نام کاربری شما\n"
+            f"4. Shared Secret: <code>{IPSEC_SECRET}</code>"
         )
     elif action == "router":
         text = (
-            "📶 <b>راهنمای تنظیم روی انواع مودم و روتر (Router / Modem):</b>\n\n"
-            "1. وارد پنل وب مودم (معمولاً 192.168.1.1 یا 192.168.8.1) شوید.\n"
-            "2. به منوی VPN ⬅️ L2TP Client بروید.\n"
-            "3. وضعیت را Enabled کرده، Protocol را روی L2TP قرار دهید.\n"
-            f"4. در فیلد LNS Address / Server آدرس <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-            "5. یوزرنیم و پسورد اکانت را وارد کرده و ذخیره نمایید."
+            "📶 <b>راهنمای مودم و روتر:</b>\n\n"
+            "1. ورود به پنل وب مودم (192.168.1.1 یا 192.168.8.1)\n"
+            "2. منوی VPN ➡️ L2TP Client\n"
+            "3. فعال‌سازی (Enable) و نوع پروتکل L2TP\n"
+            f"4. فیلد LNS Address: <code>{VPN_SERVER_IP}</code>\n"
+            "5. وارد کردن مشخصات اکانت و ذخیره."
         )
     elif action == "openvpn":
         text = (
-            "🛡 <b>راهنما و فایل کانفیگ OpenVPN:</b>\n\n"
-            "1. برنامه <b>OpenVPN Connect</b> را از استور گوشی یا سایت رسمی نصب کنید.\n"
-            "2. روی دکمه زیر کلیک کرده و فایل کانفیگ رسمی <code>client.ovpn</code> را دانلود کنید.\n"
-            "3. فایل را در برنامه OpenVPN وارد (Import) نمایید.\n"
-            "4. یوزرنیم و پسورد اکانت خود را وارد کرده و متصل شوید."
+            "🛡 <b>راهنمای OpenVPN:</b>\n\n"
+            "1. نصب نرم‌افزار <b>OpenVPN Connect</b>\n"
+            "2. دانلود فایل کانفیگ از دکمه زیر و Import در نرم‌افزار\n"
+            "3. وارد کردن مشخصات اکانت و اتصال."
         )
         reply_markup = get_openvpn_kb()
 
     await query.message.edit_text(text, reply_markup=reply_markup)
     await query.answer()
 
-# ==================== ارسال فایل کانفیگ OpenVPN ====================
+# ==================== دانلود OpenVPN ====================
 @dp.callback_query_handler(lambda c: c.data == "dl_openvpn", state="*")
 async def callback_download_openvpn(query: types.CallbackQuery):
     if os.path.exists(OPENVPN_FILE_PATH):
-        await query.answer("در حال ارسال فایل کانفیگ OpenVPN...")
-        caption = (
-            "📥 <b>فایل کانفیگ اختصاصی OpenVPN</b>\n\n"
-            "▫️ فایل بالا را دانلود کرده و با برنامه <b>OpenVPN Connect</b> باز کنید.\n"
-            "▫️ سپس یوزرنیم و پسورد اشتراک خود را وارد کرده و متصل شوید.\n\n"
-            f"📢 کانال رسمی: {CHANNEL_URL}"
-        )
+        await query.answer("در حال ارسال فایل کانفیگ...")
         await bot.send_document(
             chat_id=query.message.chat.id,
             document=InputFile(OPENVPN_FILE_PATH),
-            caption=caption
+            caption=f"📥 فایل کانفیگ رسمی OpenVPN\n📢 کانال: {CHANNEL_URL}"
         )
     else:
-        await query.answer("⚠️ فایل کانفیگ در سرور یافت نشد. لطفاً به پشتیبانی پیام دهید.", show_alert=True)
+        await query.answer("⚠️ فایل در مسیر سرور یافت نشد. به پشتیبانی پیام دهید.", show_alert=True)
 
 # ==================== آموزش اتصال ====================
 @dp.message_handler(lambda m: m.text == "⚙️ کانفیگ‌ها و آموزش اتصال", state="*")
 async def handle_configs(message: types.Message, state: FSMContext):
     await state.finish()
     kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(InlineKeyboardButton("📥 دانلود مستقیم فایل کانفیگ OpenVPN", callback_data="dl_openvpn"))
-    kb.add(InlineKeyboardButton("📢 ورود به کانال آموزش‌ها و کانفیگ‌ها", url=CHANNEL_URL))
+    kb.add(InlineKeyboardButton("📥 دانلود فایل کانفیگ OpenVPN", callback_data="dl_openvpn"))
+    kb.add(InlineKeyboardButton("📢 کانال آموزش‌ها", url=CHANNEL_URL))
     
     text = (
-        "⚙️ <b>مشخصات و آموزش اتصال:</b>\n\n"
-        f"🌐 <b>Server Address:</b> <code>{VPN_SERVER_IP}</code>\n"
-        f"🔑 <b>IPSec Secret / PSK:</b> <code>{IPSEC_SECRET}</code>\n\n"
-        "📱 <b>پروتکل L2TP/IPSec:</b> بدون نیاز به نصب نرم‌افزار روی تمامی سیستم‌عامل‌ها و مودم‌ها.\n"
-        "🛡 <b>پروتکل OpenVPN:</b> جهت دریافت آنی فایل تنظیمات دکمه زیر را بزنید:\n"
+        "⚙️ <b>مشخصات اتصال سریع:</b>\n\n"
+        f"🌐 <b>Server:</b> <code>{VPN_SERVER_IP}</code>\n"
+        f"🔑 <b>Secret / PSK:</b> <code>{IPSEC_SECRET}</code>\n\n"
+        "▫️ پروتکل L2TP بدون نیاز به نرم‌افزار جانبی\n"
+        "▫️ پروتکل OpenVPN با استفاده از فایل کانفیگ:"
     )
     await message.reply(text, reply_markup=kb)
 
-# ==================== کال‌بک خرید و دریافت فیش ====================
+# ==================== پردازش خرید ====================
 @dp.callback_query_handler(lambda c: c.data.startswith("buy_"), state="*")
 async def callback_buy_plan(query: types.CallbackQuery, state: FSMContext):
     plan_key = query.data.split("buy_")[1]
@@ -477,12 +506,12 @@ async def callback_buy_plan(query: types.CallbackQuery, state: FSMContext):
     await OrderState.waiting_for_receipt.set()
     
     caption = (
-        "🧾 <b>پیش‌فاکتور صدور اکانت L2TP VPN 24/7</b>\n\n"
+        "🧾 <b>پیش‌فاکتور خرید اشتراک</b>\n\n"
         f"📦 پلن انتخابی: <b>{plan['name']}</b>\n"
-        f"💵 مبلغ قابل پرداخت: <b>{plan['price']}</b>\n\n"
+        f"💵 مبلغ: <b>{plan['price']}</b>\n\n"
         f"💳 شماره کارت:\n<code>{CARD_NUMBER}</code>\n"
-        f"👤 به نام: <b>{CARD_HOLDER}</b>\n\n"
-        "لطفاً پس از کارت به کارت، <b>تصویر فیش واریزی</b> را همین‌جا ارسال نمایید:"
+        f"👤 به نام: <b>{CARD_HOLDER}</b> (بانک ملت)\n\n"
+        "لطفاً پس از واریز، <b>تصویر فیش</b> را همین‌جا ارسال فرمایید:"
     )
     await query.message.delete()
     if os.path.exists(CARD_IMAGE_PATH):
@@ -498,7 +527,7 @@ async def handle_order_receipt(message: types.Message, state: FSMContext):
     plan_price = data.get("plan_price", "نامشخص")
     
     caption = (
-        "🔔 <b>فیش واریزی جدید (خرید اکانت)</b>\n\n"
+        "🔔 <b>فیش خرید اشتراک جدید</b>\n\n"
         f"👤 کاربر: <b>{message.from_user.full_name}</b>\n"
         f"🆔 شناسه: <code>{message.from_user.id}</code>\n"
         f"🔗 آیدی: @{message.from_user.username or 'ندارد'}\n"
@@ -509,20 +538,20 @@ async def handle_order_receipt(message: types.Message, state: FSMContext):
         await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=caption)
     
     await message.reply(
-        "✅ <b>فیش شما با موفقیت دریافت شد و برای مدیریت ارسال گردید.</b>\n"
-        "مشخصات اکانت شما پس از تایید تحویل داده می‌شود.",
+        "✅ <b>فیش شما با موفقیت ثبت شد و برای مدیریت ارسال گردید.</b>\n"
+        "اکانت شما به زودی صادر خواهد شد.",
         reply_markup=get_main_keyboard()
     )
     await state.finish()
 
-# ==================== شارژ و تمدید حساب ====================
+# ==================== پردازش شارژ ====================
 @dp.message_handler(content_types=['photo'], state=ChargeState.waiting_for_receipt)
 async def handle_charge_receipt(message: types.Message, state: FSMContext):
     await state.update_data(receipt_file_id=message.photo[-1].file_id)
     await ChargeState.waiting_for_username.set()
     await message.reply(
         "✅ فیش واریزی دریافت شد.\n\n"
-        "✍️ اکنون لطفاً <b>نام کاربری (Username)</b> اکانت VPN خود را وارد نمایید تا برای تمدید ارسال گردد:",
+        "✍️ اکنون لطفاً <b>نام کاربری (Username)</b> اکانت خود را وارد نمایید:",
         reply_markup=get_back_keyboard()
     )
 
@@ -537,33 +566,32 @@ async def handle_charge_username(message: types.Message, state: FSMContext):
         f"👤 کاربر: <b>{message.from_user.full_name}</b>\n"
         f"🆔 شناسه: <code>{message.from_user.id}</code>\n"
         f"🔗 آیدی: @{message.from_user.username or 'ندارد'}\n"
-        f"🔑 نام کاربری ارسالی: <code>{username_val}</code>"
+        f"🔑 نام کاربری: <code>{username_val}</code>"
     )
     if ADMIN_ID != 0 and file_id:
         await bot.send_photo(ADMIN_ID, file_id, caption=caption)
     
     await message.reply(
-        f"✅ <b>درخواست شارژ برای اکانت {username_val} با موفقیت ثبت گردید.</b>\n"
-        "پس از بررسی، شارژ سرویس شما اعمال می‌شود.",
+        f"✅ <b>درخواست شارژ برای اکانت {username_val} ثبت شد.</b>\n"
+        "به زودی اعمال خواهد شد.",
         reply_markup=get_main_keyboard()
     )
     await state.finish()
 
-# پیام‌های متفرقه
 @dp.message_handler(state="*")
 async def handle_other_messages(message: types.Message):
-    await message.reply("لطفاً از دکمه‌های منوی زیر استفاده نمایید 👇", reply_markup=get_main_keyboard())
+    await message.reply("لطفاً از منوی زیر استفاده فرمایید 👇", reply_markup=get_main_keyboard())
 
-# ==================== وب سرور رندر و اجرای ربات ====================
+# ==================== وب‌سرور Render و اجرای اصلی ====================
 async def run_server():
     app = web.Application()
-    app.router.add_get("/", lambda r: web.Response(text="L2TP VPN Bot is running cleanly."))
+    app.router.add_get("/", lambda r: web.Response(text="L2TP VPN Bot is active."))
     runner = web.AppRunner(app)
     await runner.setup()
     port = int(os.getenv("PORT", 10000))
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
-    logging.info(f"Render health check server started on port {port}")
+    logging.info(f"Health check server running on port {port}")
 
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
