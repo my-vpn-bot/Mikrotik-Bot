@@ -20,7 +20,7 @@ import pytz
 # ==================== تنظیمات و لاگ ====================
 logging.basicConfig(level=logging.INFO)
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENtd3q3cr87X0X").strip()
+GAPGPTMASKTOKENi2m5lykwxfX0X = os.getenv("GAPGPTMASKTOKENi2m5lykwxfX1X", "GAPGPTMASKTOKENi2m5lykwxfX2X").strip()
 
 # مدیریت و استخراج صحیح ID ادمین
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "02786850266").strip()
@@ -43,13 +43,13 @@ OPENVPN_FILE_PATH = os.getenv(
 
 # آدرس سرور L2TP VPN و کلید پیش‌فرض IPsec
 VPN_SERVER_IP = "94.184.43.106"
-IPSEC_SECRET = "GAPGPTMASKTOKENtd3q3cr87X1X"
+IPSEC_SECRET = "GAPGPTMASKTOKENi2m5lykwxfX3X"
 
 CARD_IMAGE_PATH = "شماره کارت1.jpg"
 TARIFF_IMAGE_PATH = "تعرفه.jpg"
 
 # ساختار ربات
-bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
+bot = Bot(token=GAPGPTMASKTOKENi2m5lykwxfX4X, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
 
 # ==================== دیتابیس SQLite ====================
@@ -65,7 +65,6 @@ def init_db():
                     username TEXT,
                     join_date TEXT
                 )""")
-  # جدول گزارش‌گیری سفارشات و خریدهای روزانه
   c.execute("""CREATE TABLE IF NOT EXISTS orders (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER,
@@ -91,7 +90,6 @@ def add_user_to_db(user: types.User):
 
 
 def record_order_in_db(user_id: int, plan_name: str, price_str: str):
-  """ثبت خرید کاربر جهت آمارگیری روزانه"""
   conn = sqlite3.connect(DB_FILE)
   c = conn.cursor()
   date_str, _, _ = get_persian_datetime()
@@ -113,7 +111,6 @@ def record_order_in_db(user_id: int, plan_name: str, price_str: str):
 
 
 def get_daily_sales_report():
-  """محاسبه خروجی و درآمد امروز"""
   conn = sqlite3.connect(DB_FILE)
   c = conn.cursor()
   date_str, _, _ = get_persian_datetime()
@@ -386,7 +383,7 @@ async def handle_ibsng_panel(message: types.Message, state: FSMContext):
       "💡 <b>برای ارتباط بهتر با پنل لطفاً وی‌پی‌ان خود را خاموش کنید و بعد از"
       " اتمام دوباره روشن کنید.</b>\n\n"
       "⚠️ <b>نکته مهم امنیتی:</b>\n"
-      "<b>«حتماً و الزاماً در اولین ورود به پنل کاربری، کلمه عبور (پسورد) خود را"
+      "<b>«حتماً و الزاماً در اولین ورود به پنل کاربری، GAPGPTMASKTOKENi2m5lykwxfX5X عبور (پسورد) خود را"
       " تغییر دهید تا از هرگونه سوءاستفاده جلوگیری شود.»</b>\n\n"
       "▫️ مشاهده مانده حجم دقیق و ترافیک مصرفی\n"
       "▫️ مشاهده تاریخ انقضای دقیق اشتراک\n"
@@ -558,8 +555,8 @@ async def callback_faq_navigation(query: types.CallbackQuery):
         "2. گزینه <b>Add VPN Configuration</b> را لمس کنید.\n"
         "3. نوع (Type) را روی <b>L2TP</b> قرار دهید.\n"
         f"4. در بخش Server آدرس <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-        "5. نام کاربری (Account) و کلمه عبور (Password) خود را وارد کنید.\n"
-        f"6. در کادر Secret مقدار <code>{IPSEC_SECRET}</code> را وارد و Save را"
+        "5. نام کاربری (Account) و GAPGPTMASKTOKENi2m5lykwxfX6X عبور (Password) خود را وارد کنید.\n"
+        f"6. در کادر Secret GAPGPTMASKTOKENi2m5lykwxfX7X <code>{IPSEC_SECRET}</code> را وارد و Save را"
         " بزنید."
     )
   elif action == "android":
@@ -571,7 +568,7 @@ async def callback_faq_navigation(query: types.CallbackQuery):
         " کنید.\n"
         "3. نوع (Type) را روی <b>L2TP/IPSec PSK</b> قرار دهید.\n"
         f"4. در Server address آدرس <code>{VPN_SERVER_IP}</code> را بنویسید.\n"
-        f"5. در کادر IPSec pre-shared key مقدار <code>{IPSEC_SECRET}</code> را"
+        f"5. در کادر IPSec pre-shared key GAPGPTMASKTOKENi2m5lykwxfX8X <code>{IPSEC_SECRET}</code> را"
         " وارد کنید.\n"
         "6. ذخیره کرده و هنگام اتصال یوزرنیم و پسورد خود را بزنید."
     )
@@ -583,9 +580,9 @@ async def callback_faq_navigation(query: types.CallbackQuery):
         "2. VPN Provider را روی <b>Windows (built-in)</b> بگذارید.\n"
         "3. VPN Type را روی <b>L2TP/IPsec with pre-shared key</b> تنظیم"
         " کنید.\n"
-        f"4. در Server name or address مقدار <code>{VPN_SERVER_IP}</code> را"
+        f"4. در Server name or address GAPGPTMASKTOKENi2m5lykwxfX9X <code>{VPN_SERVER_IP}</code> را"
         " وارد کنید.\n"
-        f"5. در Pre-shared key مقدار <code>{IPSEC_SECRET}</code> را بنویسید.\n"
+        f"5. در Pre-shared key GAPGPTMASKTOKENi2m5lykwxfX10X <code>{IPSEC_SECRET}</code> را بنویسید.\n"
         "6. یوزرنیم و پسورد اکانت را وارد کرده و Save و Connect را بزنید."
     )
   elif action == "mac":
@@ -594,12 +591,12 @@ async def callback_faq_navigation(query: types.CallbackQuery):
         "1. وارد System Settings ⬅️ Network شوید.\n"
         "2. روی علامت سه نقطه/افزودن کلیک کرده و Add VPN Configuration ⬅️"
         " <b>L2TP over IPSec</b> را انتخاب کنید.\n"
-        f"3. در Server Address مقدار <code>{VPN_SERVER_IP}</code> را وارد"
+        f"3. در Server Address GAPGPTMASKTOKENi2m5lykwxfX11X <code>{VPN_SERVER_IP}</code> را وارد"
         " کنید.\n"
         "4. Account Name را یوزرنیم خود وارد کرده و در Authentication"
         " Settings:\n"
-        "   - Password: کلمه عبور شما\n"
-        f"   - Shared Secret: مقدار <code>{IPSEC_SECRET}</code>\n"
+        "   - Password: GAPGPTMASKTOKENi2m5lykwxfX12X عبور شما\n"
+        f"   - Shared Secret: GAPGPTMASKTOKENi2m5lykwxfX13X <code>{IPSEC_SECRET}</code>\n"
         "5. Apply را زده و متصل شوید."
     )
   elif action == "router":
@@ -689,4 +686,133 @@ async def callback_buy_plan(query: types.CallbackQuery, state: FSMContext):
     await query.answer("پلن یافت نشد.", show_alert=True)
     return
 
-  await state
+  await state.update_data(plan_name=plan["name"], plan_price=plan["price"])
+  await OrderState.waiting_for_receipt.set()
+
+  caption = (
+      "🧾 <b>پیش‌فاکتور صدور اکانت L2TP VPN 24/7</b>\n\n"
+      f"📦 پلن انتخابی: <b>{plan['name']}</b>\n"
+      f"💵 مبلغ قابل پرداخت: <b>{plan['price']}</b>\n\n"
+      f"💳 شماره کارت:\n<code>{CARD_NUMBER}</code>\n"
+      f"👤 به نام: <b>{CARD_HOLDER}</b>\n\n"
+      "لطفاً پس از کارت به کارت، <b>تصویر فیش واریزی</b> را همین‌جا ارسال"
+      " نمایید:"
+  )
+  await query.message.delete()
+  if os.path.exists(CARD_IMAGE_PATH):
+    await bot.send_photo(
+        query.message.chat.id,
+        photo=InputFile(CARD_IMAGE_PATH),
+        caption=caption,
+        reply_markup=get_back_keyboard(),
+    )
+  else:
+    await bot.send_message(
+        query.message.chat.id, caption, reply_markup=get_back_keyboard()
+    )
+  await query.answer()
+
+
+@dp.message_handler(
+    content_types=["photo"], state=OrderState.waiting_for_receipt
+)
+async def handle_order_receipt(message: types.Message, state: FSMContext):
+  data = await state.get_data()
+  plan_name = data.get("plan_name", "خرید اشتراک")
+  plan_price = data.get("plan_price", "نامشخص")
+
+  record_order_in_db(message.from_user.id, plan_name, plan_price)
+
+  caption = (
+      "🔔 <b>فیش واریزی جدید (خرید اکانت)</b>\n\n"
+      f"👤 کاربر: <b>{message.from_user.full_name}</b>\n"
+      f"🆔 شناسه: <code>{message.from_user.id}</code>\n"
+      f"🔗 آیدی: @{message.from_user.username or 'ندارد'}\n"
+      f"📦 پلن: {plan_name}\n"
+      f"💰 مبلغ: {plan_price}"
+  )
+  if ADMIN_ID != 0:
+    await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=caption)
+
+  await message.reply(
+      "✅ <b>فیش شما با موفقیت دریافت شد و برای مدیریت ارسال گردید.</b>\n"
+      "مشخصات اکانت شما پس از تایید تحویل داده می‌شود.",
+      reply_markup=get_main_keyboard(),
+  )
+  await state.finish()
+
+
+# ==================== شارژ و تمدید حساب ====================
+@dp.message_handler(
+    content_types=["photo"], state=ChargeState.waiting_for_receipt
+)
+async def handle_charge_receipt(message: types.Message, state: FSMContext):
+  await state.update_data(receipt_file_id=message.photo[-1].file_id)
+  await ChargeState.waiting_for_username.set()
+  await message.reply(
+      "✅ فیش واریزی دریافت شد.\n\n"
+      "✍️ اکنون لطفاً <b>نام کاربری (Username)</b> اکانت VPN خود را وارد"
+      " نمایید تا برای تمدید ارسال گردد:",
+      reply_markup=get_back_keyboard(),
+  )
+
+
+@dp.message_handler(state=ChargeState.waiting_for_username)
+async def handle_charge_username(message: types.Message, state: FSMContext):
+  username_val = message.text.strip()
+  data = await state.get_data()
+  file_id = data.get("receipt_file_id")
+
+  caption = (
+      "💰 <b>درخواست شارژ / تمدید حساب</b>\n\n"
+      f"👤 کاربر: <b>{message.from_user.full_name}</b>\n"
+      f"🆔 شناسه: <code>{message.from_user.id}</code>\n"
+      f"🔗 آیدی: @{message.from_user.username or 'ندارد'}\n"
+      f"🔑 نام کاربری ارسالی: <code>{username_val}</code>"
+  )
+  if ADMIN_ID != 0 and file_id:
+    await bot.send_photo(ADMIN_ID, file_id, caption=caption)
+
+  await message.reply(
+      f"✅ <b>درخواست شارژ برای اکانت {username_val} با موفقیت ثبت"
+      " گردید.</b>\nپس از بررسی، شارژ سرویس شما اعمال می‌شود.",
+      reply_markup=get_main_keyboard(),
+  )
+  await state.finish()
+
+
+# پیام‌های متفرقه
+@dp.message_handler(state="*")
+async def handle_other_messages(message: types.Message):
+  await message.reply(
+      "لطفاً از دکمه‌های منوی زیر استفاده نمایید 👇",
+      reply_markup=get_main_keyboard(),
+  )
+
+
+# ==================== اجرای وب سرور و پولینگ ====================
+async def init_web():
+  app = web.Application()
+  app.router.add_get(
+      "/", lambda r: web.Response(text="L2TP VPN Bot is running cleanly.")
+  )
+  runner = web.AppRunner(app)
+  await runner.setup()
+  port = int(os.getenv("PORT", 10000))
+  site = web.TCPSite(runner, "0.0.0.0", port)
+  await site.start()
+  logging.info(f"Render web server listening on port {port}")
+
+
+async def on_startup(dispatcher):
+  await init_web()
+  try:
+    await bot.delete_webhook(drop_pending_updates=True)
+  except Exception as e:
+    logging.warning(f"delete_webhook error: {e}")
+
+
+if __name__ == "__main__":
+  from aiogram import executor
+
+  executor.start_polling(dp, on_startup=on_startup, skip_updates=True)
