@@ -1,10 +1,10 @@
 import os
-import sqlite3
-import logging
 import asyncio
+import logging
+import sqlite3
 from datetime import datetime
 import pytz
-from aiohttp import web
+
 from aiogram import Bot, Dispatcher, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
@@ -14,15 +14,16 @@ from aiogram.types import (
     InlineKeyboardMarkup, InlineKeyboardButton,
     InputFile
 )
+from aiohttp import web
 
 # ==================== تنظیمات و لاگ ====================
 logging.basicConfig(level=logging.INFO)
 
-GAPGPTMASKTOKENi2m5lykwxfX0X = os.getenv("GAPGPTMASKTOKENi2m5lykwxfX1X", "GAPGPTMASKTOKENi2m5lykwxfX2X").strip()
+BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENn4zxe5yyqyX0X").strip()
 
 # مدیریت و استخراج صحیح ID ادمین
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "02786850266").strip()
-clean_admin_id = ADMIN_ID_RAW.lstrip("0")
+clean_admin_id = ADMIN_ID_RAW.lstrip('0')
 ADMIN_ID = int(clean_admin_id) if clean_admin_id.isdigit() else 2786850266
 
 SUPPORT_ID = os.getenv("SUPPORT_ID", "@L2tp1Support").strip().replace("@", "")
@@ -37,13 +38,13 @@ OPENVPN_FILE_PATH = os.getenv("OPENVPN_FILE_PATH", "files/openvpn/client.ovpn").
 
 # آدرس سرور L2TP VPN و کلید پیش‌فرض IPsec
 VPN_SERVER_IP = "94.184.43.106"
-IPSEC_SECRET = "GAPGPTMASKTOKENcaj0a1e4fubX1X"
+IPSEC_SECRET = "GAPGPTMASKTOKENn4zxe5yyqyX1X"
 
 CARD_IMAGE_PATH = "شماره کارت1.jpg"
 TARIFF_IMAGE_PATH = "تعرفه.jpg"
 
 # ساختار ربات
-bot = Bot(token="GAPGPTMASKTOKENcaj0a1e4fubX2X", parse_mode="HTML")
+bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
 
 # ==================== دیتابیس SQLite ====================
@@ -58,6 +59,7 @@ def init_db():
                     username TEXT,
                     join_date TEXT
                 )''')
+    # جدول گزارش‌گیری سفارشات و خریدهای روزانه
     c.execute('''CREATE TABLE IF NOT EXISTS orders (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER,
@@ -72,12 +74,15 @@ def add_user_to_db(user: types.User):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     date_str, _, _ = get_persian_datetime()
-    c.execute("INSERT OR IGNORE INTO users (user_id, full_name, username, join_date) VALUES (?, ?, ?, ?)",
-              (user.id, user.full_name or "", user.username or "", date_str))
+    c.execute(
+        "INSERT OR IGNORE INTO users (user_id, full_name, username, join_date) VALUES (?, ?, ?, ?)",
+        (user.id, user.full_name or "", user.username or "", date_str)
+    )
     conn.commit()
     conn.close()
 
 def record_order_in_db(user_id: int, plan_name: str, price_str: str):
+    """ثبت خرید کاربر جهت آمارگیری روزانه"""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     date_str, _, _ = get_persian_datetime()
@@ -88,13 +93,16 @@ def record_order_in_db(user_id: int, plan_name: str, price_str: str):
         amount = int(''.join(filter(str.isdigit, clean_price)))
     except Exception:
         amount = 0
-        
-    c.execute("INSERT INTO orders (user_id, plan_name, amount_toman, order_date) VALUES (?, ?, ?, ?)",
-              (user_id, plan_name, amount, date_str))
+
+    c.execute(
+        "INSERT INTO orders (user_id, plan_name, amount_toman, order_date) VALUES (?, ?, ?, ?)",
+        (user_id, plan_name, amount, date_str)
+    )
     conn.commit()
     conn.close()
 
 def get_daily_sales_report():
+    """محاسبه خروجی و درآمد امروز"""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     date_str, _, _ = get_persian_datetime()
@@ -128,36 +136,16 @@ class ChargeState(StatesGroup):
 class SupportState(StatesGroup):
     waiting_for_username_and_msg = State()
 
-# ==================== تعرفه‌های رسمی جدید (با قید حجم دقیق و هدیه) ====================
+# ==================== تعرفه‌های رسمی جدید ====================
+# اشتراک VIP در ابتدا و به عنوان پیشنهادی ما قرار گرفت
 PLANS = {
-    "vip_1u": {
-        "name": "⭐ اشتراک VIP تک کاربره ترافیک نامحدود (پیشنهادی ما) سرور پرسرعت آلمان",
-        "price": "350,000 تومان"
-    },
-    "1m_1u": {
-        "name": "اشتراک 1 ماهه تک کاربره (30 گیگ + 10 گیگ هدیه) سرور آلمان",
-        "price": "200,000 تومان"
-    },
-    "1m_2u": {
-        "name": "اشتراک 1 ماهه دو کاربره (30 گیگ + 10 گیگ هدیه) سرور آلمان",
-        "price": "250,000 تومان"
-    },
-    "2m_1u": {
-        "name": "اشتراک 2 ماهه تک کاربره (60 گیگ + 10 گیگ هدیه) سرور آلمان",
-        "price": "380,000 تومان"
-    },
-    "2m_2u": {
-        "name": "اشتراک 2 ماهه دو کاربره (60 گیگ + 10 گیگ هدیه) سرور آلمان",
-        "price": "430,000 تومان"
-    },
-    "3m_1u": {
-        "name": "اشتراک 3 ماهه تک کاربره (90 گیگ + 10 گیگ هدیه) سرور آلمان",
-        "price": "550,000 تومان"
-    },
-    "3m_2u": {
-        "name": "اشتراک 3 ماهه دو کاربره (90 گیگ + 10 گیگ هدیه) سرور آلمان",
-        "price": "600,000 تومان"
-    }
+    "vip_1u": {"name": "⭐ اشتراک VIP تک کاربره ترافیک نامحدود (پیشنهادی ما) سرور پرسرعت آلمان", "price": "350,000 تومان"},
+    "1m_1u": {"name": "اشتراک 1 ماهه تک کاربره (+10 گیگ هدیه) سرور آلمان", "price": "200,000 تومان"},
+    "1m_2u": {"name": "اشتراک 1 ماهه دو کاربره (+10 گیگ هدیه) سرور آلمان", "price": "250,000 تومان"},
+    "2m_1u": {"name": "اشتراک 2 ماهه تک کاربره (+10 گیگ هدیه) سرور آلمان", "price": "380,000 تومان"},
+    "2m_2u": {"name": "اشتراک 2 ماهه دو کاربره (+10 گیگ هدیه) سرور آلمان", "price": "430,000 تومان"},
+    "3m_1u": {"name": "اشتراک 3 ماهه تک کاربره (+10 گیگ هدیه) سرور آلمان", "price": "550,000 تومان"},
+    "3m_2u": {"name": "اشتراک 3 ماهه دو کاربره (+10 گیگ هدیه) سرور آلمان", "price": "600,000 تومان"},
 }
 
 # ==================== تاریخ شمسی ====================
@@ -215,7 +203,7 @@ def get_welcome_text(user):
         f"▫️ پروتکل امن <b>L2TP / IPSec</b> (بدون نیاز به نرم‌افزار جانبی)\n"
         f"▫️ پروتکل‌های <b>OpenVPN</b> و <b>PPTP</b> سازگار با انواع سیستم‌عامل‌ها و مودم‌ها\n"
         f"🎁 <b>10 گیگابایت ترافیک هدیه</b> روی تمامی پلن‌های جدید\n\n"
-        f"👇 جهت استفاده از امکانات، یکی از گزینه‌های منوی زیر را انتخاب نمایید:"
+        "👇 جهت استفاده از امکانات، یکی از گزینه‌های منوی زیر را انتخاب نمایید:"
     )
 
 # ==================== هندلرهای عمومی ====================
@@ -235,7 +223,10 @@ async def cmd_start(message: types.Message, state: FSMContext):
         InlineKeyboardButton("💬 پشتیبانی", url=SUPPORT_URL)
     )
     
-    await message.reply(get_welcome_text(message.from_user), reply_markup=get_main_keyboard())
+    await message.reply(
+        get_welcome_text(message.from_user),
+        reply_markup=get_main_keyboard()
+    )
     await message.answer("دسترسی‌های سریع:", reply_markup=quick_kb)
 
 # گزارش فروش روزانه برای ادمین
@@ -292,7 +283,7 @@ async def handle_account(message: types.Message, state: FSMContext):
         f"👤 نام: <b>{message.from_user.full_name}</b>\n"
         f"🆔 شناسه عددی تلگرام: <code>{message.from_user.id}</code>\n"
         f"💎 وضعیت عضویت: <b>کاربر ثبت‌شده</b>\n\n"
-        f"💡 جهت مشاهده دقیق تاریخ انقضا و مانده حجم، وارد <b>«🌐 پنل کاربری IBSng»</b> شوید."
+        "💡 جهت مشاهده دقیق تاریخ انقضا و مانده حجم، وارد <b>«🌐 پنل کاربری IBSng»</b> شوید."
     )
     await message.reply(text, reply_markup=get_main_keyboard())
 
@@ -308,7 +299,7 @@ async def handle_ibsng_panel(message: types.Message, state: FSMContext):
         f"🔗 <b>لینک ورود به پنل:</b>\n{IBSNG_PANEL_URL}\n\n"
         "💡 <b>برای ارتباط بهتر با پنل لطفاً وی‌پی‌ان خود را خاموش کنید و بعد از اتمام دوباره روشن کنید.</b>\n\n"
         "⚠️ <b>نکته مهم امنیتی:</b>\n"
-        "<b>«حتماً و الزاماً در اولین ورود به پنل کاربری، GAPGPTMASKTOKENi2m5lykwxfX5X عبور (پسورد) خود را تغییر دهید تا از هرگونه سوءاستفاده جلوگیری شود.»</b>\n\n"
+        "<b>«حتماً و الزاماً در اولین ورود به پنل کاربری، رمز عبور (پسورد) خود را تغییر دهید تا از هرگونه سوءاستفاده جلوگیری شود.»</b>\n\n"
         "▫️ مشاهده مانده حجم دقیق و ترافیک مصرفی\n"
         "▫️ مشاهده تاریخ انقضای دقیق اشتراک\n"
         "▫️ امکان تغییر پسورد اکانت اتصال"
@@ -356,7 +347,7 @@ async def process_support_input(message: types.Message, state: FSMContext):
     user_text = message.text or message.caption or "ارسال فایل/تصویر بدون متن"
     
     admin_alert = (
-        f"🚨 <b>درخواست پشتیبانی و بررسی اکانت</b>\n\n"
+        "🚨 <b>درخواست پشتیبانی و بررسی اکانت</b>\n\n"
         f"👤 فرستنده: <b>{user.full_name}</b>\n"
         f"🆔 شناسه: <code>{user.id}</code>\n"
         f"🔗 یوزرنیم تلگرام: @{user.username or 'ندارد'}\n\n"
@@ -371,7 +362,7 @@ async def process_support_input(message: types.Message, state: FSMContext):
                 await bot.send_message(ADMIN_ID, admin_alert)
         except Exception as e:
             logging.error(f"Error alerting admin: {e}")
-
+            
     await message.reply(
         "✅ <b>پشتیبانی درخواست شما را با موفقیت تحویل گرفت.</b>\n\n"
         "اطلاعات اکانت و پیام شما برای اپراتور ارسال شد و در سریع‌ترین زمان ممکن بررسی و پاسخ داده خواهد شد.\n\n"
@@ -440,8 +431,8 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "2. گزینه <b>Add VPN Configuration</b> را لمس کنید.\n"
             "3. نوع (Type) را روی <b>L2TP</b> قرار دهید.\n"
             f"4. در بخش Server آدرس <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-            "5. نام کاربری (Account) و GAPGPTMASKTOKENi2m5lykwxfX6X عبور (Password) خود را وارد کنید.\n"
-            f"6. در کادر Secret GAPGPTMASKTOKENi2m5lykwxfX7X <code>{IPSEC_SECRET}</code> را وارد و Save را بزنید."
+            "5. نام کاربری (Account) و رمز عبور (Password) خود را وارد کنید.\n"
+            f"6. در کادر Secret مقدار <code>{IPSEC_SECRET}</code> را وارد و Save را بزنید."
         )
     elif action == "android":
         text = (
@@ -450,7 +441,7 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "2. علامت + یا سه نقطه بالا را زده و <b>Add VPN Profile</b> را انتخاب کنید.\n"
             "3. نوع (Type) را روی <b>L2TP/IPSec PSK</b> قرار دهید.\n"
             f"4. در Server address آدرس <code>{VPN_SERVER_IP}</code> را بنویسید.\n"
-            f"5. در کادر IPSec pre-shared key GAPGPTMASKTOKENi2m5lykwxfX8X <code>{IPSEC_SECRET}</code> را وارد کنید.\n"
+            f"5. در کادر IPSec pre-shared key مقدار <code>{IPSEC_SECRET}</code> را وارد کنید.\n"
             "6. ذخیره کرده و هنگام اتصال یوزرنیم و پسورد خود را بزنید."
         )
     elif action == "windows":
@@ -459,8 +450,8 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "1. وارد Settings ⬅️ Network & Internet ⬅️ VPN شده و Add VPN را بزنید.\n"
             "2. VPN Provider را روی <b>Windows (built-in)</b> بگذارید.\n"
             "3. VPN Type را روی <b>L2TP/IPsec with pre-shared key</b> تنظیم کنید.\n"
-            f"4. در Server name or address GAPGPTMASKTOKENi2m5lykwxfX9X <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-            f"5. در Pre-shared key GAPGPTMASKTOKENi2m5lykwxfX10X <code>{IPSEC_SECRET}</code> را بنویسید.\n"
+            f"4. در Server name or address مقدار <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
+            f"5. در Pre-shared key مقدار <code>{IPSEC_SECRET}</code> را بنویسید.\n"
             "6. یوزرنیم و پسورد اکانت را وارد کرده و Save و Connect را بزنید."
         )
     elif action == "mac":
@@ -468,10 +459,10 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "🍏 <b>راهنمای اتصال در مک‌بوک (macOS):</b>\n\n"
             "1. وارد System Settings ⬅️ Network شوید.\n"
             "2. روی علامت سه نقطه/افزودن کلیک کرده و Add VPN Configuration ⬅️ <b>L2TP over IPSec</b> را انتخاب کنید.\n"
-            f"3. در Server Address GAPGPTMASKTOKENi2m5lykwxfX11X <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
+            f"3. در Server Address مقدار <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
             "4. Account Name را یوزرنیم خود وارد کرده و در Authentication Settings:\n"
-            "   - Password: GAPGPTMASKTOKENcaj0a1e4fubX3X عبور شما\n"
-            f"   - Shared Secret: GAPGPTMASKTOKENcaj0a1e4fubX4X <code>{IPSEC_SECRET}</code>\n"
+            f"   - Password: رمز عبور شما\n"
+            f"   - Shared Secret: مقدار <code>{IPSEC_SECRET}</code>\n"
             "5. Apply را زده و متصل شوید."
         )
     elif action == "router":
@@ -540,10 +531,10 @@ async def callback_buy_plan(query: types.CallbackQuery, state: FSMContext):
     if not plan:
         await query.answer("پلن یافت نشد.", show_alert=True)
         return
-
+    
     await state.update_data(plan_name=plan["name"], plan_price=plan["price"])
     await OrderState.waiting_for_receipt.set()
-
+    
     caption = (
         "🧾 <b>پیش‌فاکتور صدور اکانت L2TP VPN 24/7</b>\n\n"
         f"📦 پلن انتخابی: <b>{plan['name']}</b>\n"
@@ -565,8 +556,9 @@ async def handle_order_receipt(message: types.Message, state: FSMContext):
     plan_name = data.get("plan_name", "خرید اشتراک")
     plan_price = data.get("plan_price", "نامشخص")
     
+    # ثبت خرید در دیتابیس جهت آمارگیری روزانه
     record_order_in_db(message.from_user.id, plan_name, plan_price)
-    
+
     caption = (
         "🔔 <b>فیش واریزی جدید (خرید اکانت)</b>\n\n"
         f"👤 کاربر: <b>{message.from_user.full_name}</b>\n"
@@ -624,27 +616,21 @@ async def handle_charge_username(message: types.Message, state: FSMContext):
 async def handle_other_messages(message: types.Message):
     await message.reply("لطفاً از دکمه‌های منوی زیر استفاده نمایید 👇", reply_markup=get_main_keyboard())
 
-# ==================== اجرای وب سرور و پولینگ ====================
-async def health_check(request):
-    return web.Response(text="L2TP VPN Bot is running cleanly.")
-
-async def init_web():
+# ==================== وب سرور رندر و اجرای ربات ====================
+async def run_server():
     app = web.Application()
-    app.router.add_get("/", health_check)
+    app.router.add_get("/", lambda r: web.Response(text="L2TP VPN Bot is running cleanly."))
     runner = web.AppRunner(app)
     await runner.setup()
     port = int(os.getenv("PORT", 10000))
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
-    logging.info(f"Render web server listening on port {port}")
+    logging.info(f"Render health check server started on port {port}")
 
-async def on_startup(dispatcher):
-    await init_web()
-    try:
-        await bot.delete_webhook(drop_pending_updates=True)
-    except Exception as e:
-        logging.warning(f"delete_webhook error: {e}")
+async def main():
+    await bot.delete_webhook(drop_pending_updates=True)
+    await run_server()
+    await dp.start_polling()
 
-if __name__ == '__main__':
-    from aiogram import executor
-    executor.start_polling(dp, on_startup=on_startup, skip_updates=True)
+if __name__ == "__main__":
+    asyncio.run(main())
