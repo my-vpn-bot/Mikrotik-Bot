@@ -19,7 +19,7 @@ from aiohttp import web
 # ==================== تنظیمات و لاگ ====================
 logging.basicConfig(level=logging.INFO)
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "GAPGPTMASKTOKENn4zxe5yyqyX0X").strip()
+GAPGPTMASKTOKENm8t1oz4jsklX0X = os.getenv("GAPGPTMASKTOKENm8t1oz4jsklX1X", "GAPGPTMASKTOKENm8t1oz4jsklX2X").strip()
 
 # مدیریت و استخراج صحیح ID ادمین
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "02786850266").strip()
@@ -38,13 +38,13 @@ OPENVPN_FILE_PATH = os.getenv("OPENVPN_FILE_PATH", "files/openvpn/client.ovpn").
 
 # آدرس سرور L2TP VPN و کلید پیش‌فرض IPsec
 VPN_SERVER_IP = "94.184.43.106"
-IPSEC_SECRET = "GAPGPTMASKTOKENn4zxe5yyqyX1X"
+IPSEC_SECRET = ".12345678"
 
 CARD_IMAGE_PATH = "شماره کارت1.jpg"
 TARIFF_IMAGE_PATH = "تعرفه.jpg"
 
 # ساختار ربات
-bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
+bot = Bot(token=GAPGPTMASKTOKENm8t1oz4jsklX3X, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
 
 # ==================== دیتابیس SQLite ====================
@@ -136,16 +136,36 @@ class ChargeState(StatesGroup):
 class SupportState(StatesGroup):
     waiting_for_username_and_msg = State()
 
-# ==================== تعرفه‌های رسمی جدید ====================
-# اشتراک VIP در ابتدا و به عنوان پیشنهادی ما قرار گرفت
+# ==================== تعرفه‌های رسمی اصلاح‌شده با درج دقیق حجم ====================
 PLANS = {
-    "vip_1u": {"name": "⭐ اشتراک VIP تک کاربره ترافیک نامحدود (پیشنهادی ما) سرور پرسرعت آلمان", "price": "350,000 تومان"},
-    "1m_1u": {"name": "اشتراک 1 ماهه تک کاربره (+10 گیگ هدیه) سرور آلمان", "price": "200,000 تومان"},
-    "1m_2u": {"name": "اشتراک 1 ماهه دو کاربره (+10 گیگ هدیه) سرور آلمان", "price": "250,000 تومان"},
-    "2m_1u": {"name": "اشتراک 2 ماهه تک کاربره (+10 گیگ هدیه) سرور آلمان", "price": "380,000 تومان"},
-    "2m_2u": {"name": "اشتراک 2 ماهه دو کاربره (+10 گیگ هدیه) سرور آلمان", "price": "430,000 تومان"},
-    "3m_1u": {"name": "اشتراک 3 ماهه تک کاربره (+10 گیگ هدیه) سرور آلمان", "price": "550,000 تومان"},
-    "3m_2u": {"name": "اشتراک 3 ماهه دو کاربره (+10 گیگ هدیه) سرور آلمان", "price": "600,000 تومان"},
+    "vip_1u": {
+        "name": "⭐ اشتراک 1 ماهه VIP تک کاربره ترافیک نامحدود (پیشنهادی ما)", 
+        "price": "350,000 تومان"
+    },
+    "1m_1u": {
+        "name": "اشتراک 1 ماهه تک کاربره (30 گیگ + 10 گیگ هدیه)", 
+        "price": "200,000 تومان"
+    },
+    "1m_2u": {
+        "name": "اشتراک 1 ماهه دو کاربره (30 گیگ + 10 گیگ هدیه)", 
+        "price": "250,000 تومان"
+    },
+    "2m_1u": {
+        "name": "اشتراک 2 ماهه تک کاربره (60 گیگ + 10 گیگ هدیه)", 
+        "price": "380,000 تومان"
+    },
+    "2m_2u": {
+        "name": "اشتراک 2 ماهه دو کاربره (60 گیگ + 10 گیگ هدیه)", 
+        "price": "430,000 تومان"
+    },
+    "3m_1u": {
+        "name": "اشتراک 3 ماهه تک کاربره (90 گیگ + 10 گیگ هدیه)", 
+        "price": "550,000 تومان"
+    },
+    "3m_2u": {
+        "name": "اشتراک 3 ماهه دو کاربره (90 گیگ + 10 گیگ هدیه)", 
+        "price": "600,000 تومان"
+    },
 }
 
 # ==================== تاریخ شمسی ====================
