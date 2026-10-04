@@ -19,7 +19,8 @@ from aiohttp import web
 # ==================== تنظیمات و لاگ ====================
 logging.basicConfig(level=logging.INFO)
 
-GAPGPTMASKTOKENm8t1oz4jsklX0X = os.getenv("GAPGPTMASKTOKENm8t1oz4jsklX1X", "GAPGPTMASKTOKENm8t1oz4jsklX2X").strip()
+# دریافت توکن از متغیر محیطی
+BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 
 # مدیریت و استخراج صحیح ID ادمین
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "02786850266").strip()
@@ -38,13 +39,13 @@ OPENVPN_FILE_PATH = os.getenv("OPENVPN_FILE_PATH", "files/openvpn/client.ovpn").
 
 # آدرس سرور L2TP VPN و کلید پیش‌فرض IPsec
 VPN_SERVER_IP = "94.184.43.106"
-IPSEC_SECRET = ".12345678"
+IPSEC_SECRET = "GAPGPTMASKTOKENgnd1dq6wmvX1X"
 
 CARD_IMAGE_PATH = "شماره کارت1.jpg"
 TARIFF_IMAGE_PATH = "تعرفه.jpg"
 
 # ساختار ربات
-bot = Bot(token=GAPGPTMASKTOKENm8t1oz4jsklX3X, parse_mode="HTML")
+bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
 
 # ==================== دیتابیس SQLite ====================
@@ -319,7 +320,7 @@ async def handle_ibsng_panel(message: types.Message, state: FSMContext):
         f"🔗 <b>لینک ورود به پنل:</b>\n{IBSNG_PANEL_URL}\n\n"
         "💡 <b>برای ارتباط بهتر با پنل لطفاً وی‌پی‌ان خود را خاموش کنید و بعد از اتمام دوباره روشن کنید.</b>\n\n"
         "⚠️ <b>نکته مهم امنیتی:</b>\n"
-        "<b>«حتماً و الزاماً در اولین ورود به پنل کاربری، رمز عبور (پسورد) خود را تغییر دهید تا از هرگونه سوءاستفاده جلوگیری شود.»</b>\n\n"
+        "<b>«حتماً و الزاماً در اولین ورود به پنل کاربری، پسورد خود را تغییر دهید تا از هرگونه سوءاستفاده جلوگیری شود.»</b>\n\n"
         "▫️ مشاهده مانده حجم دقیق و ترافیک مصرفی\n"
         "▫️ مشاهده تاریخ انقضای دقیق اشتراک\n"
         "▫️ امکان تغییر پسورد اکانت اتصال"
@@ -451,8 +452,8 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "2. گزینه <b>Add VPN Configuration</b> را لمس کنید.\n"
             "3. نوع (Type) را روی <b>L2TP</b> قرار دهید.\n"
             f"4. در بخش Server آدرس <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-            "5. نام کاربری (Account) و رمز عبور (Password) خود را وارد کنید.\n"
-            f"6. در کادر Secret مقدار <code>{IPSEC_SECRET}</code> را وارد و Save را بزنید."
+            "5. نام کاربری (Account) و پسورد خود را وارد کنید.\n"
+            f"6. در کادر Secret <code>{IPSEC_SECRET}</code> را وارد و Save را بزنید."
         )
     elif action == "android":
         text = (
@@ -461,7 +462,7 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "2. علامت + یا سه نقطه بالا را زده و <b>Add VPN Profile</b> را انتخاب کنید.\n"
             "3. نوع (Type) را روی <b>L2TP/IPSec PSK</b> قرار دهید.\n"
             f"4. در Server address آدرس <code>{VPN_SERVER_IP}</code> را بنویسید.\n"
-            f"5. در کادر IPSec pre-shared key مقدار <code>{IPSEC_SECRET}</code> را وارد کنید.\n"
+            f"5. در کادر IPSec pre-shared key <code>{IPSEC_SECRET}</code> را وارد کنید.\n"
             "6. ذخیره کرده و هنگام اتصال یوزرنیم و پسورد خود را بزنید."
         )
     elif action == "windows":
@@ -470,8 +471,8 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "1. وارد Settings ⬅️ Network & Internet ⬅️ VPN شده و Add VPN را بزنید.\n"
             "2. VPN Provider را روی <b>Windows (built-in)</b> بگذارید.\n"
             "3. VPN Type را روی <b>L2TP/IPsec with pre-shared key</b> تنظیم کنید.\n"
-            f"4. در Server name or address مقدار <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-            f"5. در Pre-shared key مقدار <code>{IPSEC_SECRET}</code> را بنویسید.\n"
+            f"4. در Server name or address <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
+            f"5. در Pre-shared key <code>{IPSEC_SECRET}</code> را بنویسید.\n"
             "6. یوزرنیم و پسورد اکانت را وارد کرده و Save و Connect را بزنید."
         )
     elif action == "mac":
@@ -479,10 +480,10 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "🍏 <b>راهنمای اتصال در مک‌بوک (macOS):</b>\n\n"
             "1. وارد System Settings ⬅️ Network شوید.\n"
             "2. روی علامت سه نقطه/افزودن کلیک کرده و Add VPN Configuration ⬅️ <b>L2TP over IPSec</b> را انتخاب کنید.\n"
-            f"3. در Server Address مقدار <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
+            f"3. در Server Address <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
             "4. Account Name را یوزرنیم خود وارد کرده و در Authentication Settings:\n"
-            f"   - Password: رمز عبور شما\n"
-            f"   - Shared Secret: مقدار <code>{IPSEC_SECRET}</code>\n"
+            f"   - Password: پسورد شما\n"
+            f"   - Shared Secret: <code>{IPSEC_SECRET}</code>\n"
             "5. Apply را زده و متصل شوید."
         )
     elif action == "router":
@@ -564,8 +565,8 @@ async def callback_buy_plan(query: types.CallbackQuery, state: FSMContext):
         "لطفاً پس از کارت به کارت، <b>تصویر فیش واریزی</b> را همین‌جا ارسال نمایید:"
     )
     await query.message.delete()
-    if os.path.exists(CARD_IMAGE_PATH):
-        await bot.send_photo(query.message.chat.id, photo=InputFile(CARD_IMAGE_PATH), caption=caption, reply_markup=get_back_keyboard())
+    if os.path.exists(TARIFF_IMAGE_PATH):
+        await bot.send_photo(query.message.chat.id, photo=InputFile(TARIFF_IMAGE_PATH), caption=caption, reply_markup=get_back_keyboard())
     else:
         await bot.send_message(query.message.chat.id, caption, reply_markup=get_back_keyboard())
     await query.answer()
