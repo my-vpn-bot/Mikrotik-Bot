@@ -2,7 +2,7 @@ import os
 import asyncio
 import logging
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime
 import pytz
 
 from aiogram import Bot, Dispatcher, types
@@ -14,7 +14,6 @@ from aiogram.types import (
     InlineKeyboardMarkup, InlineKeyboardButton,
     InputFile
 )
-from aiogram.utils import executor
 from aiohttp import web
 
 # ==================== تنظیمات و لاگ ====================
@@ -33,7 +32,7 @@ SUPPORT_URL = f"https://t.me/{SUPPORT_ID}"
 SUPPORT_USERNAME = f"@{SUPPORT_ID}"
 
 CHANNEL_URL = os.getenv("CHANNEL_URL", "https://t.me/L2tp_vpn402").strip()
-CHANNEL_USERNAME = "@L2tp_vpn402"  # آیدی کانال برای جوین اجباری
+CHANNEL_USERNAME = "@L2tp_vpn402"  # آیدی کانال برای جوین اجباری تست
 
 CARD_NUMBER = os.getenv("PAYMENT_CARD", "6104338904607443").strip()
 CARD_HOLDER = os.getenv("PAYMENT_NAME", "رحیمی").strip()
@@ -68,8 +67,7 @@ def init_db():
                     user_id INTEGER,
                     plan_name TEXT,
                     amount_toman INTEGER,
-                    order_date TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    order_date TEXT
                 )''')
     conn.commit()
     conn.close()
@@ -104,20 +102,12 @@ def record_order_in_db(user_id: int, plan_name: str, price_str: str):
     conn.commit()
     conn.close()
 
-def get_orders_report(period="today"):
+def get_daily_sales_report():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     date_str, _, _ = get_persian_datetime()
-
-    if period == "today":
-        c.execute("SELECT COUNT(*), SUM(amount_toman) FROM orders WHERE order_date = ?", (date_str,))
-    elif period == "7days":
-        c.execute("SELECT COUNT(*), SUM(amount_toman) FROM orders WHERE created_at >= datetime('now', '-7 days')")
-    elif period == "30days":
-        c.execute("SELECT COUNT(*), SUM(amount_toman) FROM orders WHERE created_at >= datetime('now', '-30 days')")
-    elif period == "total":
-        c.execute("SELECT COUNT(*), SUM(amount_toman) FROM orders")
     
+    c.execute("SELECT COUNT(*), SUM(amount_toman) FROM orders WHERE order_date = ?", (date_str,))
     row = c.fetchone()
     conn.close()
     
@@ -142,7 +132,7 @@ async def check_channel_member(user_id: int) -> bool:
         return member.status in ["creator", "administrator", "member", "restricted"]
     except Exception as e:
         logging.error(f"Error checking channel membership: {e}")
-        return True  # در صورت خطای موقت تلگرام دسترسی مسدود نشود
+        return True  # در صورت خطای دسترسی موقت، مانع کاربر نشود
 
 # ==================== وضعیت‌های FSM ====================
 class OrderState(StatesGroup):
@@ -155,7 +145,7 @@ class ChargeState(StatesGroup):
 class SupportState(StatesGroup):
     waiting_for_username_and_msg = State()
 
-# ==================== تعرفه‌های رسمی ====================
+# ==================== تعرفه‌های رسمی با پلن تست ====================
 PLANS = {
     "test_1u": {
         "name": "⚡️ اشتراک تست 24 ساعته تک کاربره (3 گیگابایت)", 
@@ -249,24 +239,6 @@ def get_welcome_text(user):
         "👇 جهت استفاده از امکانات، یکی از گزینه‌های منوی زیر را انتخاب نمایید:"
     )
 
-def get_buy_menu_keyboard():
-    kb = InlineKeyboardMarkup(row_width=1)
-    for p_id, info in PLANS.items():
-        kb.add(InlineKeyboardButton(f"🔹 {info['name']} — {info['price']}", callback_data=f"buy_{p_id}"))
-    return kb
-
-def get_report_keyboard():
-    kb = InlineKeyboardMarkup(row_width=2)
-    kb.row(
-        InlineKeyboardButton("📅 امروز", callback_data="rep_today"),
-        InlineKeyboardButton("🗓 ۷ روز گذشته", callback_data="rep_7days")
-    )
-    kb.row(
-        InlineKeyboardButton("📆 ۳۰ روز گذشته", callback_data="rep_30days"),
-        InlineKeyboardButton("📊 کل فروش", callback_data="rep_total")
-    )
-    return kb
-
 # ==================== هندلرهای عمومی ====================
 @dp.message_handler(lambda m: m.text == BTN_BACK, state="*")
 async def process_global_back(message: types.Message, state: FSMContext):
@@ -290,48 +262,20 @@ async def cmd_start(message: types.Message, state: FSMContext):
     )
     await message.answer("دسترسی‌های سریع:", reply_markup=quick_kb)
 
-# ==================== گزارش‌گیری حرفه‌ای ادمین ====================
 @dp.message_handler(commands=['report'], state="*")
 async def cmd_report(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return
     date_str, time_str, _ = get_persian_datetime()
-    count, total_sales = get_orders_report("today")
+    count, total_sales = get_daily_sales_report()
     
     report_text = (
-        f"📈 <b>داشبورد گزارشات مالی و فروش</b>\n\n"
-        f"📅 امروز: <code>{date_str}</code> (ساعت <code>{time_str}</code>)\n"
-        f"🛒 سفارشات امروز: <b>{count:,} عدد</b>\n"
-        f"💰 مبلغ فروش امروز: <b>{total_sales:,} تومان</b>\n\n"
-        "👇 برای مشاهده بازه‌های دیگر انتخاب کنید:"
+        f"📈 <b>گزارش فروش و خروجی امروز ({date_str}):</b>\n\n"
+        f"🛒 تعداد سفارشات ثبت‌شده امروز: <b>{count:,} عدد</b>\n"
+        f"💰 مجموع خروجی و فروش امروز: <b>{total_sales:,} تومان</b>\n\n"
+        f"⏰ زمان گزارش‌گیری: <code>{time_str}</code>"
     )
-    await message.reply(report_text, reply_markup=get_report_keyboard())
-
-@dp.callback_query_handler(lambda c: c.data.startswith("rep_"), state="*")
-async def callback_report_period(query: types.CallbackQuery):
-    if query.from_user.id != ADMIN_ID:
-        await query.answer("دسترسی غیرمجاز!", show_alert=True)
-        return
-    
-    period = query.data.replace("rep_", "")
-    count, total_sales = get_orders_report(period)
-    date_str, time_str, _ = get_persian_datetime()
-
-    title_map = {
-        "today": "امروز",
-        "7days": "۷ روز گذشته",
-        "30days": "۳۰ روز گذشته",
-        "total": "کل دوره‌ها"
-    }
-
-    report_text = (
-        f"📈 <b>گزارش فروش ({title_map.get(period, 'انتخابی')}):</b>\n\n"
-        f"🛒 تعداد کل سفارشات: <b>{count:,} عدد</b>\n"
-        f"💰 مجموع درآمد: <b>{total_sales:,} تومان</b>\n\n"
-        f"⏰ بروزرسانی: <code>{time_str}</code>"
-    )
-    await query.message.edit_text(report_text, reply_markup=get_report_keyboard())
-    await query.answer()
+    await message.reply(report_text)
 
 @dp.message_handler(commands=['stats'], state="*")
 async def cmd_stats(message: types.Message):
@@ -345,52 +289,22 @@ async def cmd_stats(message: types.Message):
         f"📅 تاریخ: <code>{date_str}</code> | ساعت: <code>{time_str}</code>"
     )
 
-# ==================== خرید اشتراک با بررسی عضویت اجباری ====================
+# ==================== خرید اشتراک ====================
 @dp.message_handler(lambda m: m.text == "🛒 خرید اشتراک", state="*")
 async def handle_buy(message: types.Message, state: FSMContext):
     await state.finish()
+    kb = InlineKeyboardMarkup(row_width=1)
+    for p_id, info in PLANS.items():
+        kb.add(InlineKeyboardButton(f"🔹 {info['name']} — {info['price']}", callback_data=f"buy_{p_id}"))
     
-    # بررسی عضویت کاربر در کانال قبل از نمایش منوی خرید
-    is_member = await check_channel_member(message.from_user.id)
-    if not is_member:
-        join_kb = InlineKeyboardMarkup(row_width=1)
-        join_kb.add(InlineKeyboardButton("📢 عضویت در کانال رسمی", url=CHANNEL_URL))
-        join_kb.add(InlineKeyboardButton("✅ عضو شدم / بررسی مجدد", callback_data="check_join_buy"))
-        
-        join_text = (
-            "⚠️ <b>توجه: دسترسی به بخش خرید تنها برای اعضای کانال امکان‌پذیر است!</b>\n\n"
-            "لطفاً ابتدا از طریق دکمه زیر در کانال رسمی ما عضو شوید، سپس دکمه <b>«✅ عضو شدم / بررسی مجدد»</b> را لمس کنید:"
-        )
-        await message.reply(join_text, reply_markup=join_kb)
-        return
-
-    # در صورت عضو بودن، منوی پلن‌ها باز می‌شود
     caption = (
         "🛒 <b>خرید اشتراک L2TP VPN 24/7 (سرور پرسرعت آلمان 🇩🇪)</b>\n\n"
         "👇 <b>لطفاً پلن مورد نظر خود را از دکمه‌های زیر انتخاب نمایید:</b>"
     )
     if os.path.exists(TARIFF_IMAGE_PATH):
-        await message.reply_photo(photo=InputFile(TARIFF_IMAGE_PATH), caption=caption, reply_markup=get_buy_menu_keyboard())
+        await message.reply_photo(photo=InputFile(TARIFF_IMAGE_PATH), caption=caption, reply_markup=kb)
     else:
-        await message.reply(caption, reply_markup=get_buy_menu_keyboard())
-
-# بررسی مجدد عضویت کانال برای خرید
-@dp.callback_query_handler(lambda c: c.data == "check_join_buy", state="*")
-async def callback_check_join_buy(query: types.CallbackQuery, state: FSMContext):
-    is_member = await check_channel_member(query.from_user.id)
-    if is_member:
-        await query.message.delete()
-        caption = (
-            "🛒 <b>خرید اشتراک L2TP VPN 24/7 (سرور پرسرعت آلمان 🇩🇪)</b>\n\n"
-            "👇 <b>لطفاً پلن مورد نظر خود را از دکمه‌های زیر انتخاب نمایید:</b>"
-        )
-        if os.path.exists(TARIFF_IMAGE_PATH):
-            await bot.send_photo(query.message.chat.id, photo=InputFile(TARIFF_IMAGE_PATH), caption=caption, reply_markup=get_buy_menu_keyboard())
-        else:
-            await bot.send_message(query.message.chat.id, caption, reply_markup=get_buy_menu_keyboard())
-        await query.answer("عضویت شما با موفقیت تایید شد! ✅")
-    else:
-        await query.answer("❌ هنوز در کانال عضو نشده‌اید! لطفاً ابتدا عضو شوید.", show_alert=True)
+        await message.reply(caption, reply_markup=kb)
 
 # ==================== اطلاعات حساب ====================
 @dp.message_handler(lambda m: m.text == "📊 اطلاعات حساب", state="*")
@@ -488,7 +402,7 @@ async def process_support_input(message: types.Message, state: FSMContext):
     )
     await state.finish()
 
-# ==================== سوالات متداول ====================
+# ==================== سوالات متداول شیشه‌ای ====================
 def get_faq_main_kb():
     ikb = InlineKeyboardMarkup(row_width=2)
     ikb.row(
@@ -658,7 +572,7 @@ async def send_plan_invoice(chat_id: int, plan: dict, state: FSMContext):
     else:
         await bot.send_message(chat_id, caption, reply_markup=get_back_keyboard())
 
-# ==================== کال‌بک خرید پلن‌ها ====================
+# ==================== کال‌بک خرید با بررسی جوین اجباری تست ====================
 @dp.callback_query_handler(lambda c: c.data.startswith("buy_"), state="*")
 async def callback_buy_plan(query: types.CallbackQuery, state: FSMContext):
     plan_key = query.data.split("buy_")[1]
@@ -667,9 +581,119 @@ async def callback_buy_plan(query: types.CallbackQuery, state: FSMContext):
         await query.answer("پلن یافت نشد.", show_alert=True)
         return
     
+    # اگر پلن تست بود، عضویت اجباری در کانال چک می‌شود
+    if plan_key == "test_1u":
+        is_member = await check_channel_member(query.from_user.id)
+        if not is_member:
+            join_kb = InlineKeyboardMarkup(row_width=1)
+            join_kb.add(InlineKeyboardButton("📢 عضویت در کانال اطلاع‌رسانی", url=CHANNEL_URL))
+            join_kb.add(InlineKeyboardButton("✅ عضو شدم / بررسی مجدد", callback_data="check_join_test"))
+            
+            join_text = (
+                "⚠️ <b>توجه: جهت دریافت اشتراک تست، عضویت در کانال رسمی الزامی است!</b>\n\n"
+                "لطفاً ابتدا از طریق دکمه زیر در کانال ما عضو شده و سپس دکمه <b>«عضو شدم / بررسی مجدد»</b> را لمس کنید:"
+            )
+            await query.message.edit_text(join_text, reply_markup=join_kb)
+            await query.answer()
+            return
+    
     await query.message.delete()
     await send_plan_invoice(query.message.chat.id, plan, state)
     await query.answer()
 
+# بررسی مجدد عضویت کانال برای تست
+@dp.callback_query_handler(lambda c: c.data == "check_join_test", state="*")
+async def callback_check_join_test(query: types.CallbackQuery, state: FSMContext):
+    is_member = await check_channel_member(query.from_user.id)
+    if is_member:
+        plan = PLANS["test_1u"]
+        await query.message.delete()
+        await send_plan_invoice(query.message.chat.id, plan, state)
+        await query.answer("عضویت شما با موفقیت تایید شد! ✅")
+    else:
+        await query.answer("❌ هنوز در کانال عضو نشده‌اید! لطفاً ابتدا عضو شوید.", show_alert=True)
+
 # دریافت فیش واریزی خرید
-@dp.message_handler(content_types=['photo'], state=OrderState.waiting_for_recei
+@dp.message_handler(content_types=['photo'], state=OrderState.waiting_for_receipt)
+async def handle_order_receipt(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    plan_name = data.get("plan_name", "خرید اشتراک")
+    plan_price = data.get("plan_price", "نامشخص")
+    
+    record_order_in_db(message.from_user.id, plan_name, plan_price)
+
+    caption = (
+        "🔔 <b>فیش واریزی جدید (خرید اکانت)</b>\n\n"
+        f"👤 کاربر: <b>{message.from_user.full_name}</b>\n"
+        f"🆔 شناسه: <code>{message.from_user.id}</code>\n"
+        f"🔗 آیدی: @{message.from_user.username or 'ندارد'}\n"
+        f"📦 پلن: {plan_name}\n"
+        f"💰 مبلغ: {plan_price}"
+    )
+    if ADMIN_ID != 0:
+        await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=caption)
+    
+    await message.reply(
+        "✅ <b>فیش شما با موفقیت دریافت شد و برای مدیریت ارسال گردید.</b>\n"
+        "مشخصات اکانت شما پس از تایید تحویل داده می‌شود.",
+        reply_markup=get_main_keyboard()
+    )
+    await state.finish()
+
+# ==================== تمدید اکانت ====================
+@dp.message_handler(content_types=['photo'], state=ChargeState.waiting_for_receipt)
+async def handle_charge_receipt(message: types.Message, state: FSMContext):
+    await state.update_data(receipt_file_id=message.photo[-1].file_id)
+    await ChargeState.waiting_for_username.set()
+    await message.reply(
+        "✅ فیش واریزی دریافت شد.\n\n"
+        "✍️ اکنون لطفاً <b>نام کاربری (Username)</b> اکانت VPN خود را وارد نمایید تا برای تمدید ارسال گردد:",
+        reply_markup=get_back_keyboard()
+    )
+
+@dp.message_handler(state=ChargeState.waiting_for_username)
+async def handle_charge_username(message: types.Message, state: FSMContext):
+    username_val = message.text.strip()
+    data = await state.get_data()
+    file_id = data.get("receipt_file_id")
+    
+    caption = (
+        "🔄 <b>درخواست تمدید اکانت</b>\n\n"
+        f"👤 کاربر: <b>{message.from_user.full_name}</b>\n"
+        f"🆔 شناسه: <code>{message.from_user.id}</code>\n"
+        f"🔗 آیدی: @{message.from_user.username or 'ندارد'}\n"
+        f"🔑 نام کاربری ارسالی جهت تمدید: <code>{username_val}</code>"
+    )
+    if ADMIN_ID != 0 and file_id:
+        await bot.send_photo(ADMIN_ID, file_id, caption=caption)
+    
+    await message.reply(
+        f"✅ <b>درخواست تمدید برای اکانت {username_val} با موفقیت ثبت گردید.</b>\n"
+        "پس از بررسی، اکانت شما سریعاً تمدید خواهد شد.",
+        reply_markup=get_main_keyboard()
+    )
+    await state.finish()
+
+# پیام‌های متفرقه
+@dp.message_handler(state="*")
+async def handle_other_messages(message: types.Message):
+    await message.reply("لطفاً از دکمه‌های منوی زیر استفاده نمایید 👇", reply_markup=get_main_keyboard())
+
+# ==================== وب سرور رندر و اجرای ربات ====================
+async def run_server():
+    app = web.Application()
+    app.router.add_get("/", lambda r: web.Response(text="L2TP VPN Bot is running cleanly."))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.getenv("PORT", 10000))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    logging.info(f"Render health check server started on port {port}")
+
+async def main():
+    await bot.delete_webhook(drop_pending_updates=True)
+    await run_server()
+    await dp.start_polling()
+
+if __name__ == "__main__":
+    asyncio.run(main())
