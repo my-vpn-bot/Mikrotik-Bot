@@ -2,7 +2,7 @@ import os
 import asyncio
 import logging
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime
 import pytz
 
 from aiogram import Bot, Dispatcher, types
@@ -32,7 +32,7 @@ SUPPORT_URL = f"https://t.me/{SUPPORT_ID}"
 SUPPORT_USERNAME = f"@{SUPPORT_ID}"
 
 CHANNEL_URL = os.getenv("CHANNEL_URL", "https://t.me/L2tp_vpn402").strip()
-CHANNEL_USERNAME = "@L2tp_vpn402"  # آیدی کانال برای جوین اجباری
+CHANNEL_USERNAME = "@L2tp_vpn402"  # آیدی کانال برای جوین اجباری تست
 
 CARD_NUMBER = os.getenv("PAYMENT_CARD", "6104338904607443").strip()
 CARD_HOLDER = os.getenv("PAYMENT_NAME", "رحیمی").strip()
@@ -46,40 +46,9 @@ IPSEC_SECRET = "12345678."
 CARD_IMAGE_PATH = "شماره کارت1.jpg"
 TARIFF_IMAGE_PATH = "تعرفه.jpg"
 
-# راه‌اندازی ربات
+# ساختار ربات
 bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
-
-# ==================== تاریخ شمسی و میلادی ====================
-def gregorian_to_jalali(gy, gm, gd):
-    g_d_m = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
-    jy = 0 if gy <= 1600 else 979
-    gy -= 621 if gy <= 1600 else 1600
-    gy2 = gy + 1 if gm > 2 else gy
-    days = (365 * gy) + ((gy2 + 3) // 4) - ((gy2 + 99) // 100) + ((gy2 + 399) // 400) - 80 + gd + g_d_m[gm - 1]
-    jy += 33 * (days // 12053)
-    days %= 12053
-    jy += 4 * (days // 1461)
-    days %= 1461
-    jy += (days - 1) // 365
-    if days > 0:
-        days = (days - 1) % 365
-    jm = (days // 31) + 1 if days < 186 else 7 + ((days - 186) // 30)
-    jd = 1 + (days % 31 if days < 186 else (days - 186) % 30)
-    return jy, jm, jd
-
-def get_persian_datetime():
-    tehran_tz = pytz.timezone("Asia/Tehran")
-    now = datetime.now(tehran_tz)
-    time_str = now.strftime("%H:%M:%S")
-    jy, jm, jd = gregorian_to_jalali(now.year, now.month, now.day)
-    days_fa = {5: "شنبه", 6: "یک‌شنبه", 0: "دوشنبه", 1: "سه‌شنبه", 2: "چهارشنبه", 3: "پنج‌شنبه", 4: "جمعه"}
-    day_name = days_fa.get(now.weekday(), "")
-    date_str = f"{jy}/{jm:02d}/{jd:02d}"
-    return date_str, time_str, day_name
-
-def get_now_tehran():
-    return datetime.now(pytz.timezone("Asia/Tehran"))
 
 # ==================== دیتابیس SQLite ====================
 DB_FILE = "bot_users.db"
@@ -98,15 +67,8 @@ def init_db():
                     user_id INTEGER,
                     plan_name TEXT,
                     amount_toman INTEGER,
-                    order_date TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    order_date TEXT
                 )''')
-    
-    try:
-        c.execute("ALTER TABLE orders ADD COLUMN created_at TIMESTAMP")
-    except Exception:
-        pass
-
     conn.commit()
     conn.close()
 
@@ -125,7 +87,6 @@ def record_order_in_db(user_id: int, plan_name: str, price_str: str):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     date_str, _, _ = get_persian_datetime()
-    now_iso = get_now_tehran().strftime("%Y-%m-%d %H:%M:%S")
     
     amount = 0
     try:
@@ -135,34 +96,21 @@ def record_order_in_db(user_id: int, plan_name: str, price_str: str):
         amount = 0
 
     c.execute(
-        "INSERT INTO orders (user_id, plan_name, amount_toman, order_date, created_at) VALUES (?, ?, ?, ?, ?)",
-        (user_id, plan_name, amount, date_str, now_iso)
+        "INSERT INTO orders (user_id, plan_name, amount_toman, order_date) VALUES (?, ?, ?, ?)",
+        (user_id, plan_name, amount, date_str)
     )
     conn.commit()
     conn.close()
 
-def get_sales_report(days: int = 1):
+def get_daily_sales_report():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    if days == 1:
-        date_str, _, _ = get_persian_datetime()
-        c.execute("SELECT COUNT(*), SUM(amount_toman) FROM orders WHERE order_date = ?", (date_str,))
-    else:
-        threshold = (get_now_tehran() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
-        c.execute("SELECT COUNT(*), SUM(amount_toman) FROM orders WHERE created_at >= ?", (threshold,))
-        
+    date_str, _, _ = get_persian_datetime()
+    
+    c.execute("SELECT COUNT(*), SUM(amount_toman) FROM orders WHERE order_date = ?", (date_str,))
     row = c.fetchone()
     conn.close()
-    count = row[0] if row and row[0] else 0
-    total_sum = row[1] if row and row[1] else 0
-    return count, total_sum
-
-def get_all_time_sales():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("SELECT COUNT(*), SUM(amount_toman) FROM orders")
-    row = c.fetchone()
-    conn.close()
+    
     count = row[0] if row and row[0] else 0
     total_sum = row[1] if row and row[1] else 0
     return count, total_sum
@@ -184,13 +132,7 @@ async def check_channel_member(user_id: int) -> bool:
         return member.status in ["creator", "administrator", "member", "restricted"]
     except Exception as e:
         logging.error(f"Error checking channel membership: {e}")
-        return True
-
-def get_channel_lock_markup(callback_data: str = "check_join_buy"):
-    ikb = InlineKeyboardMarkup(row_width=1)
-    ikb.add(InlineKeyboardButton("📢 عضویت در کانال اطلاع‌رسانی", url=CHANNEL_URL))
-    ikb.add(InlineKeyboardButton("✅ عضو شدم / بررسی مجدد", callback_data=callback_data))
-    return ikb
+        return True  # در صورت خطای دسترسی موقت، مانع کاربر نشود
 
 # ==================== وضعیت‌های FSM ====================
 class OrderState(StatesGroup):
@@ -239,6 +181,34 @@ PLANS = {
     },
 }
 
+# ==================== تاریخ شمسی ====================
+def gregorian_to_jalali(gy, gm, gd):
+    g_d_m = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
+    jy = 0 if gy <= 1600 else 979
+    gy -= 621 if gy <= 1600 else 1600
+    gy2 = gy + 1 if gm > 2 else gy
+    days = (365 * gy) + ((gy2 + 3) // 4) - ((gy2 + 99) // 100) + ((gy2 + 399) // 400) - 80 + gd + g_d_m[gm - 1]
+    jy += 33 * (days // 12053)
+    days %= 12053
+    jy += 4 * (days // 1461)
+    days %= 1461
+    jy += (days - 1) // 365
+    if days > 0:
+        days = (days - 1) % 365
+    jm = (days // 31) + 1 if days < 186 else 7 + ((days - 186) // 30)
+    jd = 1 + (days % 31 if days < 186 else (days - 186) % 30)
+    return jy, jm, jd
+
+def get_persian_datetime():
+    tehran_tz = pytz.timezone("Asia/Tehran")
+    now = datetime.now(tehran_tz)
+    time_str = now.strftime("%H:%M:%S")
+    jy, jm, jd = gregorian_to_jalali(now.year, now.month, now.day)
+    days_fa = {5: "شنبه", 6: "یک‌شنبه", 0: "دوشنبه", 1: "سه‌شنبه", 2: "چهارشنبه", 3: "پنج‌شنبه", 4: "جمعه"}
+    day_name = days_fa.get(now.weekday(), "")
+    date_str = f"{jy}/{jm:02d}/{jd:02d}"
+    return date_str, time_str, day_name
+
 # ==================== کیبوردها ====================
 BTN_BACK = "🔙 برگشت به منوی اصلی"
 
@@ -254,24 +224,6 @@ def get_back_keyboard():
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add(KeyboardButton(BTN_BACK))
     return kb
-
-def get_plans_inline_keyboard():
-    kb = InlineKeyboardMarkup(row_width=1)
-    for p_id, info in PLANS.items():
-        kb.add(InlineKeyboardButton(f"🔹 {info['name']} — {info['price']}", callback_data=f"buy_{p_id}"))
-    return kb
-
-def get_report_inline_keyboard():
-    ikb = InlineKeyboardMarkup(row_width=2)
-    ikb.row(
-        InlineKeyboardButton("📅 روزانه (امروز)", callback_data="rep_day"),
-        InlineKeyboardButton("📆 هفتگی (۷ روز)", callback_data="rep_week")
-    )
-    ikb.row(
-        InlineKeyboardButton("🗓 ماهانه (۳۰ روز)", callback_data="rep_month"),
-        InlineKeyboardButton("💎 کل فروش سیستم", callback_data="rep_all")
-    )
-    return ikb
 
 def get_welcome_text(user):
     date_str, time_str, day_name = get_persian_datetime()
@@ -310,62 +262,20 @@ async def cmd_start(message: types.Message, state: FSMContext):
     )
     await message.answer("دسترسی‌های سریع:", reply_markup=quick_kb)
 
-# ==================== گزارش‌های حرفه‌ای مالی (ادمین) ====================
-def build_report_text(period_type: str) -> str:
-    date_str, time_str, _ = get_persian_datetime()
-    
-    if period_type == "day":
-        count, total_sales = get_sales_report(days=1)
-        title = "📅 گزارش فروش امروز (روزانه)"
-        period_desc = f"تاریخ: <code>{date_str}</code>"
-    elif period_type == "week":
-        count, total_sales = get_sales_report(days=7)
-        title = "📆 گزارش فروش ۷ روز اخیر (هفتگی)"
-        period_desc = "بازه: ۷ روز گذشته تا هم‌اکنون"
-    elif period_type == "month":
-        count, total_sales = get_sales_report(days=30)
-        title = "🗓 گزارش فروش ۳۰ روز اخیر (ماهانه)"
-        period_desc = "بازه: ۳۰ روز گذشته تا هم‌اکنون"
-    else:
-        count, total_sales = get_all_time_sales()
-        title = "💎 گزارش مجموع کل فروش ربات"
-        period_desc = "بازه: کل تاریخچه ثبت‌شده"
-
-    avg_order = (total_sales // count) if count > 0 else 0
-
-    return (
-        f"📊 <b>{title}</b>\n\n"
-        f"▫️ {period_desc}\n"
-        f"▫️ ساعت استعلام: <code>{time_str}</code>\n"
-        "────────────────────\n"
-        f"🛒 تعداد کل سفارشات: <b>{count:,} عدد</b>\n"
-        f"💰 مبلغ کل دریافتی: <b>{total_sales:,} تومان</b>\n"
-        f"📈 میانگین هر سفارش: <b>{avg_order:,} تومان</b>\n"
-        "────────────────────\n"
-        "👇 برای مشاهده بازه‌های دیگر روی دکمه‌های زیر بزنید:"
-    )
-
 @dp.message_handler(commands=['report'], state="*")
 async def cmd_report(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return
-    text = build_report_text("day")
-    await message.reply(text, reply_markup=get_report_inline_keyboard())
-
-@dp.callback_query_handler(lambda c: c.data.startswith("rep_"), state="*")
-async def callback_report_navigation(query: types.CallbackQuery):
-    if query.from_user.id != ADMIN_ID:
-        await query.answer("دسترسی غیرمجاز!", show_alert=True)
-        return
+    date_str, time_str, _ = get_persian_datetime()
+    count, total_sales = get_daily_sales_report()
     
-    period = query.data.replace("rep_", "")
-    text = build_report_text(period)
-    
-    try:
-        await query.message.edit_text(text, reply_markup=get_report_inline_keyboard())
-    except Exception:
-        pass
-    await query.answer()
+    report_text = (
+        f"📈 <b>گزارش فروش و خروجی امروز ({date_str}):</b>\n\n"
+        f"🛒 تعداد سفارشات ثبت‌شده امروز: <b>{count:,} عدد</b>\n"
+        f"💰 مجموع خروجی و فروش امروز: <b>{total_sales:,} تومان</b>\n\n"
+        f"⏰ زمان گزارش‌گیری: <code>{time_str}</code>"
+    )
+    await message.reply(report_text)
 
 @dp.message_handler(commands=['stats'], state="*")
 async def cmd_stats(message: types.Message):
@@ -379,51 +289,22 @@ async def cmd_stats(message: types.Message):
         f"📅 تاریخ: <code>{date_str}</code> | ساعت: <code>{time_str}</code>"
     )
 
-# ==================== خرید اشتراک (قفل عضویت برای تمام خریدها) ====================
-BUY_CAPTION = (
-    "🛒 <b>خرید اشتراک L2TP VPN 24/7 (سرور پرسرعت آلمان 🇩🇪)</b>\n\n"
-    "👇 <b>لطفاً پلن مورد نظر خود را از دکمه‌های زیر انتخاب نمایید:</b>"
-)
-
-LOCK_BUY_TEXT = (
-    "⚠️ <b>توجه: جهت ثبت سفارش و خرید اشتراک، عضویت در کانال رسمی الزامی است!</b>\n\n"
-    "لطفاً ابتدا از طریق دکمه زیر در کانال ما عضو شده و سپس دکمه <b>«عضو شدم / بررسی مجدد»</b> را لمس نمایید:"
-)
-
+# ==================== خرید اشتراک ====================
 @dp.message_handler(lambda m: m.text == "🛒 خرید اشتراک", state="*")
 async def handle_buy(message: types.Message, state: FSMContext):
     await state.finish()
+    kb = InlineKeyboardMarkup(row_width=1)
+    for p_id, info in PLANS.items():
+        kb.add(InlineKeyboardButton(f"🔹 {info['name']} — {info['price']}", callback_data=f"buy_{p_id}"))
     
-    # بررسی عضویت برای ورود به بخش خرید
-    is_member = await check_channel_member(message.from_user.id)
-    if not is_member:
-        await message.reply(LOCK_BUY_TEXT, reply_markup=get_channel_lock_markup("check_join_buy"))
-        return
-    
-    kb = get_plans_inline_keyboard()
+    caption = (
+        "🛒 <b>خرید اشتراک L2TP VPN 24/7 (سرور پرسرعت آلمان 🇩🇪)</b>\n\n"
+        "👇 <b>لطفاً پلن مورد نظر خود را از دکمه‌های زیر انتخاب نمایید:</b>"
+    )
     if os.path.exists(TARIFF_IMAGE_PATH):
-        await message.reply_photo(photo=InputFile(TARIFF_IMAGE_PATH), caption=BUY_CAPTION, reply_markup=kb)
+        await message.reply_photo(photo=InputFile(TARIFF_IMAGE_PATH), caption=caption, reply_markup=kb)
     else:
-        await message.reply(BUY_CAPTION, reply_markup=kb)
-
-@dp.callback_query_handler(lambda c: c.data == "check_join_buy", state="*")
-async def callback_check_join_buy(query: types.CallbackQuery, state: FSMContext):
-    is_member = await check_channel_member(query.from_user.id)
-    if not is_member:
-        await query.answer("❌ شما هنوز در کانال عضو نشده‌اید! لطفاً ابتدا عضو شوید.", show_alert=True)
-        return
-    
-    await query.answer("✅ عضویت شما تایید شد.")
-    try:
-        await query.message.delete()
-    except Exception:
-        pass
-        
-    kb = get_plans_inline_keyboard()
-    if os.path.exists(TARIFF_IMAGE_PATH):
-        await bot.send_photo(chat_id=query.from_user.id, photo=InputFile(TARIFF_IMAGE_PATH), caption=BUY_CAPTION, reply_markup=kb)
-    else:
-        await bot.send_message(chat_id=query.from_user.id, text=BUY_CAPTION, reply_markup=kb)
+        await message.reply(caption, reply_markup=kb)
 
 # ==================== اطلاعات حساب ====================
 @dp.message_handler(lambda m: m.text == "📊 اطلاعات حساب", state="*")
@@ -673,7 +554,7 @@ async def handle_configs(message: types.Message, state: FSMContext):
     )
     await message.reply(text, reply_markup=kb)
 
-# ==================== صدور فاکتور خرید ====================
+# ==================== تابع صدور فاکتور خرید ====================
 async def send_plan_invoice(chat_id: int, plan: dict, state: FSMContext):
     await state.update_data(plan_name=plan["name"], plan_price=plan["price"])
     await OrderState.waiting_for_receipt.set()
@@ -691,11 +572,128 @@ async def send_plan_invoice(chat_id: int, plan: dict, state: FSMContext):
     else:
         await bot.send_message(chat_id, caption, reply_markup=get_back_keyboard())
 
-# ==================== کال‌بک خرید با بررسی جوین ====================
+# ==================== کال‌بک خرید با بررسی جوین اجباری تست ====================
 @dp.callback_query_handler(lambda c: c.data.startswith("buy_"), state="*")
 async def callback_buy_plan(query: types.CallbackQuery, state: FSMContext):
-    # بررسی مجدد لایه دوم جهت اطمینان
+    plan_key = query.data.split("buy_")[1]
+    plan = PLANS.get(plan_key)
+    if not plan:
+        await query.answer("پلن یافت نشد.", show_alert=True)
+        return
+    
+    # اگر پلن تست بود، عضویت اجباری در کانال چک می‌شود
+    if plan_key == "test_1u":
+        is_member = await check_channel_member(query.from_user.id)
+        if not is_member:
+            join_kb = InlineKeyboardMarkup(row_width=1)
+            join_kb.add(InlineKeyboardButton("📢 عضویت در کانال اطلاع‌رسانی", url=CHANNEL_URL))
+            join_kb.add(InlineKeyboardButton("✅ عضو شدم / بررسی مجدد", callback_data="check_join_test"))
+            
+            join_text = (
+                "⚠️ <b>توجه: جهت دریافت اشتراک تست، عضویت در کانال رسمی الزامی است!</b>\n\n"
+                "لطفاً ابتدا از طریق دکمه زیر در کانال ما عضو شده و سپس دکمه <b>«عضو شدم / بررسی مجدد»</b> را لمس کنید:"
+            )
+            await query.message.edit_text(join_text, reply_markup=join_kb)
+            await query.answer()
+            return
+    
+    await query.message.delete()
+    await send_plan_invoice(query.message.chat.id, plan, state)
+    await query.answer()
+
+# بررسی مجدد عضویت کانال برای تست
+@dp.callback_query_handler(lambda c: c.data == "check_join_test", state="*")
+async def callback_check_join_test(query: types.CallbackQuery, state: FSMContext):
     is_member = await check_channel_member(query.from_user.id)
-    if not is_member:
-        await query.message.reply(LOCK_BUY_TEXT, reply_markup=get_channel_lock_markup("check_join_buy"))
-        await q
+    if is_member:
+        plan = PLANS["test_1u"]
+        await query.message.delete()
+        await send_plan_invoice(query.message.chat.id, plan, state)
+        await query.answer("عضویت شما با موفقیت تایید شد! ✅")
+    else:
+        await query.answer("❌ هنوز در کانال عضو نشده‌اید! لطفاً ابتدا عضو شوید.", show_alert=True)
+
+# دریافت فیش واریزی خرید
+@dp.message_handler(content_types=['photo'], state=OrderState.waiting_for_receipt)
+async def handle_order_receipt(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    plan_name = data.get("plan_name", "خرید اشتراک")
+    plan_price = data.get("plan_price", "نامشخص")
+    
+    record_order_in_db(message.from_user.id, plan_name, plan_price)
+
+    caption = (
+        "🔔 <b>فیش واریزی جدید (خرید اکانت)</b>\n\n"
+        f"👤 کاربر: <b>{message.from_user.full_name}</b>\n"
+        f"🆔 شناسه: <code>{message.from_user.id}</code>\n"
+        f"🔗 آیدی: @{message.from_user.username or 'ندارد'}\n"
+        f"📦 پلن: {plan_name}\n"
+        f"💰 مبلغ: {plan_price}"
+    )
+    if ADMIN_ID != 0:
+        await bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=caption)
+    
+    await message.reply(
+        "✅ <b>فیش شما با موفقیت دریافت شد و برای مدیریت ارسال گردید.</b>\n"
+        "مشخصات اکانت شما پس از تایید تحویل داده می‌شود.",
+        reply_markup=get_main_keyboard()
+    )
+    await state.finish()
+
+# ==================== تمدید اکانت ====================
+@dp.message_handler(content_types=['photo'], state=ChargeState.waiting_for_receipt)
+async def handle_charge_receipt(message: types.Message, state: FSMContext):
+    await state.update_data(receipt_file_id=message.photo[-1].file_id)
+    await ChargeState.waiting_for_username.set()
+    await message.reply(
+        "✅ فیش واریزی دریافت شد.\n\n"
+        "✍️ اکنون لطفاً <b>نام کاربری (Username)</b> اکانت VPN خود را وارد نمایید تا برای تمدید ارسال گردد:",
+        reply_markup=get_back_keyboard()
+    )
+
+@dp.message_handler(state=ChargeState.waiting_for_username)
+async def handle_charge_username(message: types.Message, state: FSMContext):
+    username_val = message.text.strip()
+    data = await state.get_data()
+    file_id = data.get("receipt_file_id")
+    
+    caption = (
+        "🔄 <b>درخواست تمدید اکانت</b>\n\n"
+        f"👤 کاربر: <b>{message.from_user.full_name}</b>\n"
+        f"🆔 شناسه: <code>{message.from_user.id}</code>\n"
+        f"🔗 آیدی: @{message.from_user.username or 'ندارد'}\n"
+        f"🔑 نام کاربری ارسالی جهت تمدید: <code>{username_val}</code>"
+    )
+    if ADMIN_ID != 0 and file_id:
+        await bot.send_photo(ADMIN_ID, file_id, caption=caption)
+    
+    await message.reply(
+        f"✅ <b>درخواست تمدید برای اکانت {username_val} با موفقیت ثبت گردید.</b>\n"
+        "پس از بررسی، اکانت شما سریعاً تمدید خواهد شد.",
+        reply_markup=get_main_keyboard()
+    )
+    await state.finish()
+
+# پیام‌های متفرقه
+@dp.message_handler(state="*")
+async def handle_other_messages(message: types.Message):
+    await message.reply("لطفاً از دکمه‌های منوی زیر استفاده نمایید 👇", reply_markup=get_main_keyboard())
+
+# ==================== وب سرور رندر و اجرای ربات ====================
+async def run_server():
+    app = web.Application()
+    app.router.add_get("/", lambda r: web.Response(text="L2TP VPN Bot is running cleanly."))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.getenv("PORT", 10000))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    logging.info(f"Render health check server started on port {port}")
+
+async def main():
+    await bot.delete_webhook(drop_pending_updates=True)
+    await run_server()
+    await dp.start_polling()
+
+if __name__ == "__main__":
+    asyncio.run(main())
