@@ -19,7 +19,7 @@ from aiohttp import web
 # ==================== تنظیمات و لاگ ====================
 logging.basicConfig(level=logging.INFO)
 
-# دریافت توکن از متغیر محیطی رندر
+# دریافت توکن از متغیر محیطی
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 
 # مدیریت و استخراج صحیح ID ادمین
@@ -32,7 +32,7 @@ SUPPORT_URL = f"https://t.me/{SUPPORT_ID}"
 SUPPORT_USERNAME = f"@{SUPPORT_ID}"
 
 CHANNEL_URL = os.getenv("CHANNEL_URL", "https://t.me/L2tp_vpn402").strip()
-CHANNEL_USERNAME = "@L2tp_vpn402"  # آیدی کانال برای جوین اجباری
+CHANNEL_USERNAME = "@L2tp_vpn402"  # آیدی کانال برای جوین اجباری تست
 
 CARD_NUMBER = os.getenv("PAYMENT_CARD", "6104338904607443").strip()
 CARD_HOLDER = os.getenv("PAYMENT_NAME", "رحیمی").strip()
@@ -132,7 +132,7 @@ async def check_channel_member(user_id: int) -> bool:
         return member.status in ["creator", "administrator", "member", "restricted"]
     except Exception as e:
         logging.error(f"Error checking channel membership: {e}")
-        return True  # در صورت خطای دسترسی موقت، کاربر مسدود نشود
+        return True  # در صورت خطای دسترسی موقت، مانع کاربر نشود
 
 # ==================== وضعیت‌های FSM ====================
 class OrderState(StatesGroup):
@@ -572,7 +572,7 @@ async def send_plan_invoice(chat_id: int, plan: dict, state: FSMContext):
     else:
         await bot.send_message(chat_id, caption, reply_markup=get_back_keyboard())
 
-# ==================== کال‌بک خرید با بررسی جوین اجباری برای همه پلن‌ها ====================
+# ==================== کال‌بک خرید با بررسی جوین اجباری تست ====================
 @dp.callback_query_handler(lambda c: c.data.startswith("buy_"), state="*")
 async def callback_buy_plan(query: types.CallbackQuery, state: FSMContext):
     plan_key = query.data.split("buy_")[1]
@@ -581,40 +581,35 @@ async def callback_buy_plan(query: types.CallbackQuery, state: FSMContext):
         await query.answer("پلن یافت نشد.", show_alert=True)
         return
     
-    # بررسی عضویت در کانال برای تمامی پلن‌ها
-    is_member = await check_channel_member(query.from_user.id)
-    if not is_member:
-        join_kb = InlineKeyboardMarkup(row_width=1)
-        join_kb.add(InlineKeyboardButton("📢 عضویت در کانال اطلاع‌رسانی", url=CHANNEL_URL))
-        # ذخیره کلید پلن انتخابی در دکمه بررسی مجدد
-        join_kb.add(InlineKeyboardButton("✅ عضو شدم / بررسی مجدد", callback_data=f"check_join_{plan_key}"))
-        
-        join_text = (
-            "⚠️ <b>توجه: جهت ثبت سفارش و صدور پیش‌فاکتور، عضویت در کانال رسمی الزامی است!</b>\n\n"
-            "لطفاً ابتدا از طریق دکمه زیر در کانال ما عضو شده و سپس دکمه <b>«عضو شدم / بررسی مجدد»</b> را لمس کنید:"
-        )
-        await query.message.edit_text(join_text, reply_markup=join_kb)
-        await query.answer()
-        return
+    # اگر پلن تست بود، عضویت اجباری در کانال چک می‌شود
+    if plan_key == "test_1u":
+        is_member = await check_channel_member(query.from_user.id)
+        if not is_member:
+            join_kb = InlineKeyboardMarkup(row_width=1)
+            join_kb.add(InlineKeyboardButton("📢 عضویت در کانال اطلاع‌رسانی", url=CHANNEL_URL))
+            join_kb.add(InlineKeyboardButton("✅ عضو شدم / بررسی مجدد", callback_data="check_join_test"))
+            
+            join_text = (
+                "⚠️ <b>توجه: جهت دریافت اشتراک تست، عضویت در کانال رسمی الزامی است!</b>\n\n"
+                "لطفاً ابتدا از طریق دکمه زیر در کانال ما عضو شده و سپس دکمه <b>«عضو شدم / بررسی مجدد»</b> را لمس کنید:"
+            )
+            await query.message.edit_text(join_text, reply_markup=join_kb)
+            await query.answer()
+            return
     
     await query.message.delete()
     await send_plan_invoice(query.message.chat.id, plan, state)
     await query.answer()
 
-# بررسی مجدد عضویت کانال و صدور خودکار همان پلن
-@dp.callback_query_handler(lambda c: c.data.startswith("check_join_"), state="*")
-async def callback_check_join_all(query: types.CallbackQuery, state: FSMContext):
-    plan_key = query.data.replace("check_join_", "")
-    plan = PLANS.get(plan_key)
-    
+# بررسی مجدد عضویت کانال برای تست
+@dp.callback_query_handler(lambda c: c.data == "check_join_test", state="*")
+async def callback_check_join_test(query: types.CallbackQuery, state: FSMContext):
     is_member = await check_channel_member(query.from_user.id)
     if is_member:
-        if plan:
-            await query.message.delete()
-            await send_plan_invoice(query.message.chat.id, plan, state)
-            await query.answer("عضویت شما با موفقیت تایید شد! ✅")
-        else:
-            await query.answer("پلن معتبر یافت نشد. لطفاً دوباره از منو انتخاب کنید.", show_alert=True)
+        plan = PLANS["test_1u"]
+        await query.message.delete()
+        await send_plan_invoice(query.message.chat.id, plan, state)
+        await query.answer("عضویت شما با موفقیت تایید شد! ✅")
     else:
         await query.answer("❌ هنوز در کانال عضو نشده‌اید! لطفاً ابتدا عضو شوید.", show_alert=True)
 
@@ -691,4 +686,14 @@ async def run_server():
     runner = web.AppRunner(app)
     await runner.setup()
     port = int(os.getenv("PORT", 10000))
-    site = web.TCPSite
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    logging.info(f"Render health check server started on port {port}")
+
+async def main():
+    await bot.delete_webhook(drop_pending_updates=True)
+    await run_server()
+    await dp.start_polling()
+
+if __name__ == "__main__":
+    asyncio.run(main())
