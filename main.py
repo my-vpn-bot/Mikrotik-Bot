@@ -32,6 +32,8 @@ SUPPORT_URL = f"https://t.me/{SUPPORT_ID}"
 SUPPORT_USERNAME = f"@{SUPPORT_ID}"
 
 CHANNEL_URL = os.getenv("CHANNEL_URL", "https://t.me/L2tp_vpn402").strip()
+CHANNEL_USERNAME = "@L2tp_vpn402"  # آیدی کانال برای جوین اجباری تست
+
 CARD_NUMBER = os.getenv("PAYMENT_CARD", "6104338904607443").strip()
 CARD_HOLDER = os.getenv("PAYMENT_NAME", "رحیمی").strip()
 IBSNG_PANEL_URL = os.getenv("IBSNG_PANEL_URL", "http://94.184.45.58:48201/IBSng/user/").strip()
@@ -39,7 +41,7 @@ OPENVPN_FILE_PATH = os.getenv("OPENVPN_FILE_PATH", "files/openvpn/client.ovpn").
 
 # آدرس سرور L2TP VPN و کلید پیش‌فرض IPsec
 VPN_SERVER_IP = "94.184.43.106"
-IPSEC_SECRET = "GAPGPTMASKTOKENgnd1dq6wmvX1X"
+IPSEC_SECRET = "12345678."
 
 CARD_IMAGE_PATH = "شماره کارت1.jpg"
 TARIFF_IMAGE_PATH = "تعرفه.jpg"
@@ -60,7 +62,6 @@ def init_db():
                     username TEXT,
                     join_date TEXT
                 )''')
-    # جدول گزارش‌گیری سفارشات و خریدهای روزانه
     c.execute('''CREATE TABLE IF NOT EXISTS orders (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER,
@@ -83,7 +84,6 @@ def add_user_to_db(user: types.User):
     conn.close()
 
 def record_order_in_db(user_id: int, plan_name: str, price_str: str):
-    """ثبت خرید کاربر جهت آمارگیری روزانه"""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     date_str, _, _ = get_persian_datetime()
@@ -103,7 +103,6 @@ def record_order_in_db(user_id: int, plan_name: str, price_str: str):
     conn.close()
 
 def get_daily_sales_report():
-    """محاسبه خروجی و درآمد امروز"""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     date_str, _, _ = get_persian_datetime()
@@ -126,6 +125,15 @@ def get_total_users_count() -> int:
 
 init_db()
 
+# ==================== بررسی عضویت کانال ====================
+async def check_channel_member(user_id: int) -> bool:
+    try:
+        member = await bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
+        return member.status in ["creator", "administrator", "member", "restricted"]
+    except Exception as e:
+        logging.error(f"Error checking channel membership: {e}")
+        return True  # در صورت خطای دسترسی موقت، مانع کاربر نشود
+
 # ==================== وضعیت‌های FSM ====================
 class OrderState(StatesGroup):
     waiting_for_receipt = State()
@@ -137,8 +145,12 @@ class ChargeState(StatesGroup):
 class SupportState(StatesGroup):
     waiting_for_username_and_msg = State()
 
-# ==================== تعرفه‌های رسمی اصلاح‌شده با درج دقیق حجم ====================
+# ==================== تعرفه‌های رسمی با پلن تست ====================
 PLANS = {
+    "test_1u": {
+        "name": "⚡️ اشتراک تست 24 ساعته تک کاربره (3 گیگابایت)", 
+        "price": "30,000 تومان"
+    },
     "vip_1u": {
         "name": "⭐ اشتراک 1 ماهه VIP تک کاربره ترافیک نامحدود (پیشنهادی ما)", 
         "price": "350,000 تومان"
@@ -204,7 +216,7 @@ def get_main_keyboard():
     kb = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     kb.add(KeyboardButton("🛒 خرید اشتراک"))
     kb.add(KeyboardButton("📊 اطلاعات حساب"), KeyboardButton("🌐 پنل کاربری IBSng"))
-    kb.add(KeyboardButton("💰 شارژ حساب"), KeyboardButton("👥 پشتیبانی"))
+    kb.add(KeyboardButton("🔄 تمدید اکانت"), KeyboardButton("👥 پشتیبانی"))
     kb.add(KeyboardButton("❓ سوالات متداول"), KeyboardButton("⚙️ کانفیگ‌ها و آموزش اتصال"))
     return kb
 
@@ -250,7 +262,6 @@ async def cmd_start(message: types.Message, state: FSMContext):
     )
     await message.answer("دسترسی‌های سریع:", reply_markup=quick_kb)
 
-# گزارش فروش روزانه برای ادمین
 @dp.message_handler(commands=['report'], state="*")
 async def cmd_report(message: types.Message):
     if message.from_user.id != ADMIN_ID:
@@ -318,23 +329,22 @@ async def handle_ibsng_panel(message: types.Message, state: FSMContext):
     text = (
         "🌐 <b>سامانه اختصاصی مشاهده وضعیت و مدیریت اکانت IBSng</b>\n\n"
         f"🔗 <b>لینک ورود به پنل:</b>\n{IBSNG_PANEL_URL}\n\n"
-        "💡 <b>برای ارتباط بهتر با پنل لطفاً وی‌پی‌ان خود را خاموش کنید و بعد از اتمام دوباره روشن کنید.</b>\n\n"
         "⚠️ <b>نکته مهم امنیتی:</b>\n"
-        "<b>«حتماً و الزاماً در اولین ورود به پنل کاربری، پسورد خود را تغییر دهید تا از هرگونه سوءاستفاده جلوگیری شود.»</b>\n\n"
+        "<b>«حتماً و الزاماً در اولین ورود به پنل کاربری، رمز عبور خود را تغییر دهید تا از هرگونه سوءاستفاده جلوگیری شود.»</b>\n\n"
         "▫️ مشاهده مانده حجم دقیق و ترافیک مصرفی\n"
         "▫️ مشاهده تاریخ انقضای دقیق اشتراک\n"
-        "▫️ امکان تغییر پسورد اکانت اتصال"
+        "▫️ امکان تغییر رمز عبور اکانت اتصال"
     )
     await message.reply(text, reply_markup=ikb)
 
-# ==================== شارژ حساب ====================
-@dp.message_handler(lambda m: m.text == "💰 شارژ حساب", state="*")
+# ==================== تمدید اکانت ====================
+@dp.message_handler(lambda m: m.text in ["🔄 تمدید اکانت", "💰 شارژ حساب"], state="*")
 async def handle_charge(message: types.Message, state: FSMContext):
     await state.finish()
     await ChargeState.waiting_for_receipt.set()
     
     caption = (
-        "💰 <b>شارژ و تمدید حساب کاربری (سرور پرسرعت آلمان 🇩🇪)</b>\n\n"
+        "🔄 <b>تمدید اکانت و شارژ اشتراک (سرور پرسرعت آلمان 🇩🇪)</b>\n\n"
         f"💳 شماره کارت جهت واریز:\n<code>{CARD_NUMBER}</code>\n"
         f"👤 به نام: <b>{CARD_HOLDER}</b>\n\n"
         "📸 لطفاً مبلغ اشتراک را واریز نموده و <b>تصویر فیش واریزی</b> را همین‌جا ارسال نمایید:"
@@ -392,7 +402,7 @@ async def process_support_input(message: types.Message, state: FSMContext):
     )
     await state.finish()
 
-# ==================== سوالات متداول شیشه‌ای (Inline FAQ) ====================
+# ==================== سوالات متداول شیشه‌ای ====================
 def get_faq_main_kb():
     ikb = InlineKeyboardMarkup(row_width=2)
     ikb.row(
@@ -452,7 +462,7 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "2. گزینه <b>Add VPN Configuration</b> را لمس کنید.\n"
             "3. نوع (Type) را روی <b>L2TP</b> قرار دهید.\n"
             f"4. در بخش Server آدرس <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-            "5. نام کاربری (Account) و پسورد خود را وارد کنید.\n"
+            "5. نام کاربری (Account) و رمز عبور خود را وارد کنید.\n"
             f"6. در کادر Secret <code>{IPSEC_SECRET}</code> را وارد و Save را بزنید."
         )
     elif action == "android":
@@ -463,7 +473,7 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "3. نوع (Type) را روی <b>L2TP/IPSec PSK</b> قرار دهید.\n"
             f"4. در Server address آدرس <code>{VPN_SERVER_IP}</code> را بنویسید.\n"
             f"5. در کادر IPSec pre-shared key <code>{IPSEC_SECRET}</code> را وارد کنید.\n"
-            "6. ذخیره کرده و هنگام اتصال یوزرنیم و پسورد خود را بزنید."
+            "6. ذخیره کرده و هنگام اتصال یوزرنیم و رمز عبور خود را بزنید."
         )
     elif action == "windows":
         text = (
@@ -473,7 +483,7 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "3. VPN Type را روی <b>L2TP/IPsec with pre-shared key</b> تنظیم کنید.\n"
             f"4. در Server name or address <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
             f"5. در Pre-shared key <code>{IPSEC_SECRET}</code> را بنویسید.\n"
-            "6. یوزرنیم و پسورد اکانت را وارد کرده و Save و Connect را بزنید."
+            "6. یوزرنیم و رمز عبور اکانت را وارد کرده و Save و Connect را بزنید."
         )
     elif action == "mac":
         text = (
@@ -482,7 +492,7 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "2. روی علامت سه نقطه/افزودن کلیک کرده و Add VPN Configuration ⬅️ <b>L2TP over IPSec</b> را انتخاب کنید.\n"
             f"3. در Server Address <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
             "4. Account Name را یوزرنیم خود وارد کرده و در Authentication Settings:\n"
-            f"   - Password: پسورد شما\n"
+            f"   - Password: رمز عبور شما\n"
             f"   - Shared Secret: <code>{IPSEC_SECRET}</code>\n"
             "5. Apply را زده و متصل شوید."
         )
@@ -493,7 +503,7 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "2. به منوی VPN ⬅️ L2TP Client بروید.\n"
             "3. وضعیت را Enabled کرده، Protocol را روی L2TP قرار دهید.\n"
             f"4. در فیلد LNS Address / Server آدرس <code>{VPN_SERVER_IP}</code> را وارد کنید.\n"
-            "5. یوزرنیم و پسورد اکانت را وارد کرده و ذخیره نمایید."
+            "5. یوزرنیم و رمز عبور اکانت را وارد کرده و ذخیره نمایید."
         )
     elif action == "openvpn":
         text = (
@@ -501,7 +511,7 @@ async def callback_faq_navigation(query: types.CallbackQuery):
             "1. برنامه <b>OpenVPN Connect</b> را از استور گوشی یا سایت رسمی نصب کنید.\n"
             "2. روی دکمه زیر کلیک کرده و فایل کانفیگ رسمی <code>client.ovpn</code> را دانلود کنید.\n"
             "3. فایل را در برنامه OpenVPN وارد (Import) نمایید.\n"
-            "4. یوزرنیم و پسورد اکانت خود را وارد کرده و متصل شوید."
+            "4. یوزرنیم و رمز عبور اکانت خود را وارد کرده و متصل شوید."
         )
         reply_markup = get_openvpn_kb()
 
@@ -516,7 +526,7 @@ async def callback_download_openvpn(query: types.CallbackQuery):
         caption = (
             "📥 <b>فایل کانفیگ اختصاصی OpenVPN</b>\n\n"
             "▫️ فایل بالا را دانلود کرده و با برنامه <b>OpenVPN Connect</b> باز کنید.\n"
-            "▫️ سپس یوزرنیم و پسورد اشتراک خود را وارد کرده و متصل شوید.\n\n"
+            "▫️ سپس یوزرنیم و رمز عبور اشتراک خود را وارد کرده و متصل شوید.\n\n"
             f"📢 کانال رسمی: {CHANNEL_URL}"
         )
         await bot.send_document(
@@ -544,15 +554,8 @@ async def handle_configs(message: types.Message, state: FSMContext):
     )
     await message.reply(text, reply_markup=kb)
 
-# ==================== کال‌بک خرید و دریافت فیش ====================
-@dp.callback_query_handler(lambda c: c.data.startswith("buy_"), state="*")
-async def callback_buy_plan(query: types.CallbackQuery, state: FSMContext):
-    plan_key = query.data.split("buy_")[1]
-    plan = PLANS.get(plan_key)
-    if not plan:
-        await query.answer("پلن یافت نشد.", show_alert=True)
-        return
-    
+# ==================== تابع صدور فاکتور خرید ====================
+async def send_plan_invoice(chat_id: int, plan: dict, state: FSMContext):
     await state.update_data(plan_name=plan["name"], plan_price=plan["price"])
     await OrderState.waiting_for_receipt.set()
     
@@ -564,20 +567,59 @@ async def callback_buy_plan(query: types.CallbackQuery, state: FSMContext):
         f"👤 به نام: <b>{CARD_HOLDER}</b>\n\n"
         "لطفاً پس از کارت به کارت، <b>تصویر فیش واریزی</b> را همین‌جا ارسال نمایید:"
     )
-    await query.message.delete()
     if os.path.exists(TARIFF_IMAGE_PATH):
-        await bot.send_photo(query.message.chat.id, photo=InputFile(TARIFF_IMAGE_PATH), caption=caption, reply_markup=get_back_keyboard())
+        await bot.send_photo(chat_id, photo=InputFile(TARIFF_IMAGE_PATH), caption=caption, reply_markup=get_back_keyboard())
     else:
-        await bot.send_message(query.message.chat.id, caption, reply_markup=get_back_keyboard())
+        await bot.send_message(chat_id, caption, reply_markup=get_back_keyboard())
+
+# ==================== کال‌بک خرید با بررسی جوین اجباری تست ====================
+@dp.callback_query_handler(lambda c: c.data.startswith("buy_"), state="*")
+async def callback_buy_plan(query: types.CallbackQuery, state: FSMContext):
+    plan_key = query.data.split("buy_")[1]
+    plan = PLANS.get(plan_key)
+    if not plan:
+        await query.answer("پلن یافت نشد.", show_alert=True)
+        return
+    
+    # اگر پلن تست بود، عضویت اجباری در کانال چک می‌شود
+    if plan_key == "test_1u":
+        is_member = await check_channel_member(query.from_user.id)
+        if not is_member:
+            join_kb = InlineKeyboardMarkup(row_width=1)
+            join_kb.add(InlineKeyboardButton("📢 عضویت در کانال اطلاع‌رسانی", url=CHANNEL_URL))
+            join_kb.add(InlineKeyboardButton("✅ عضو شدم / بررسی مجدد", callback_data="check_join_test"))
+            
+            join_text = (
+                "⚠️ <b>توجه: جهت دریافت اشتراک تست، عضویت در کانال رسمی الزامی است!</b>\n\n"
+                "لطفاً ابتدا از طریق دکمه زیر در کانال ما عضو شده و سپس دکمه <b>«عضو شدم / بررسی مجدد»</b> را لمس کنید:"
+            )
+            await query.message.edit_text(join_text, reply_markup=join_kb)
+            await query.answer()
+            return
+    
+    await query.message.delete()
+    await send_plan_invoice(query.message.chat.id, plan, state)
     await query.answer()
 
+# بررسی مجدد عضویت کانال برای تست
+@dp.callback_query_handler(lambda c: c.data == "check_join_test", state="*")
+async def callback_check_join_test(query: types.CallbackQuery, state: FSMContext):
+    is_member = await check_channel_member(query.from_user.id)
+    if is_member:
+        plan = PLANS["test_1u"]
+        await query.message.delete()
+        await send_plan_invoice(query.message.chat.id, plan, state)
+        await query.answer("عضویت شما با موفقیت تایید شد! ✅")
+    else:
+        await query.answer("❌ هنوز در کانال عضو نشده‌اید! لطفاً ابتدا عضو شوید.", show_alert=True)
+
+# دریافت فیش واریزی خرید
 @dp.message_handler(content_types=['photo'], state=OrderState.waiting_for_receipt)
 async def handle_order_receipt(message: types.Message, state: FSMContext):
     data = await state.get_data()
     plan_name = data.get("plan_name", "خرید اشتراک")
     plan_price = data.get("plan_price", "نامشخص")
     
-    # ثبت خرید در دیتابیس جهت آمارگیری روزانه
     record_order_in_db(message.from_user.id, plan_name, plan_price)
 
     caption = (
@@ -598,7 +640,7 @@ async def handle_order_receipt(message: types.Message, state: FSMContext):
     )
     await state.finish()
 
-# ==================== شارژ و تمدید حساب ====================
+# ==================== تمدید اکانت ====================
 @dp.message_handler(content_types=['photo'], state=ChargeState.waiting_for_receipt)
 async def handle_charge_receipt(message: types.Message, state: FSMContext):
     await state.update_data(receipt_file_id=message.photo[-1].file_id)
@@ -616,18 +658,18 @@ async def handle_charge_username(message: types.Message, state: FSMContext):
     file_id = data.get("receipt_file_id")
     
     caption = (
-        "💰 <b>درخواست شارژ / تمدید حساب</b>\n\n"
+        "🔄 <b>درخواست تمدید اکانت</b>\n\n"
         f"👤 کاربر: <b>{message.from_user.full_name}</b>\n"
         f"🆔 شناسه: <code>{message.from_user.id}</code>\n"
         f"🔗 آیدی: @{message.from_user.username or 'ندارد'}\n"
-        f"🔑 نام کاربری ارسالی: <code>{username_val}</code>"
+        f"🔑 نام کاربری ارسالی جهت تمدید: <code>{username_val}</code>"
     )
     if ADMIN_ID != 0 and file_id:
         await bot.send_photo(ADMIN_ID, file_id, caption=caption)
     
     await message.reply(
-        f"✅ <b>درخواست شارژ برای اکانت {username_val} با موفقیت ثبت گردید.</b>\n"
-        "پس از بررسی، شارژ سرویس شما اعمال می‌شود.",
+        f"✅ <b>درخواست تمدید برای اکانت {username_val} با موفقیت ثبت گردید.</b>\n"
+        "پس از بررسی، اکانت شما سریعاً تمدید خواهد شد.",
         reply_markup=get_main_keyboard()
     )
     await state.finish()
